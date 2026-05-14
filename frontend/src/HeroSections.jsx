@@ -34,9 +34,36 @@ export function VideoSection() {
   );
 
   useEffect(() => {
-    if (reduceMotion && videoRef.current) {
-      videoRef.current.pause();
+    const v = videoRef.current;
+    if (!v) return;
+
+    if (reduceMotion) {
+      v.pause();
+      return;
     }
+
+    /* On mobile, autoplay can silently fail when the video element is rendered
+       inside an opacity:0 ancestor (the hero section is gated by --video-p).
+       Retry play() whenever the video element actually enters the viewport —
+       mobile Safari/Chrome accept play() calls in that context. */
+    const tryPlay = () => {
+      const p = v.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    };
+
+    tryPlay();
+
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && v.paused) tryPlay();
+        }
+      },
+      { threshold: 0.01 },
+    );
+    io.observe(v);
+    return () => io.disconnect();
   }, [reduceMotion]);
 
   return (
@@ -51,7 +78,7 @@ export function VideoSection() {
           muted
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
           aria-label="Tactile sensor data preview"
         />
       </div>
