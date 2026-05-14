@@ -183,7 +183,7 @@ export function HeroFinale() {
           className="hero-finale-submit"
           disabled={submitting}
         >
-          {submitting ? "Sending…" : "Discuss your dataset"}
+          {submitting ? "Sending…" : "Discuss your data need"}
         </button>
 
         <p
