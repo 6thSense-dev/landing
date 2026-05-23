@@ -32,7 +32,7 @@ const dots = [
 // title. Sourced from /public/logos/. Same files previously used by the
 // (now-removed) standalone BackedBySection beat.
 const BACKERS = [
-  { src: "/logos/Entrepreneurs_First_Logo.png", alt: "Entrepreneurs First" },
+  { src: "/logos/YC_logo.png", alt: "Y Combinator" },
   { src: "/logos/University Logo_2Color_DarkGreystone_WhiteFill_RGB.png", alt: "The University of Chicago", needsLightBg: true },
   { src: "/logos/Gtech.png", alt: "Georgia Tech", needsLightBg: true }
 ];
