@@ -31,3 +31,15 @@ async def test_oversize_body_does_not_touch_db(client, db_session):
     await client.post("/api/leads", content=payload, headers={"Content-Type": "application/json"})
     rows = (await db_session.execute(text("SELECT COUNT(*) FROM leads"))).scalar_one()
     assert rows == 0
+
+
+@pytest.mark.asyncio
+async def test_login_endpoint_rejects_oversized_body(client):
+    big = "x" * 8000
+    res = await client.post(
+        "/api/auth/login",
+        json={"email": "a@x.com", "password": big},
+    )
+    # We don't have the auth route yet at this point in development, so the
+    # body-size check should still kick in first. Expect 413, not 404.
+    assert res.status_code == 413
