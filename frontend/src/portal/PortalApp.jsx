@@ -4,7 +4,7 @@ import FounderDashboard from "./FounderDashboard.jsx";
 import InvestorHome from "./InvestorHome.jsx";
 import { RequireAuth } from "./RequireAuth.jsx";
 import { RequireRole } from "./RequireRole.jsx";
-import { SessionProvider, useSession } from "./useSession.jsx";
+import { useSession } from "./useSession.jsx";
 
 function RoleHomeRedirect() {
   const { user, status } = useSession();
@@ -15,22 +15,20 @@ function RoleHomeRedirect() {
 
 export default function PortalApp() {
   return (
-    <SessionProvider>
-      <Routes>
-        <Route element={<RequireAuth />}>
-          <Route element={<RequireRole role="founder" />}>
-            <Route path="founder/*" element={<FounderDashboard />} />
-          </Route>
-          <Route element={<RequireRole role="customer" />}>
-            <Route path="customer" element={<CustomerHome />} />
-          </Route>
-          <Route element={<RequireRole role="investor" />}>
-            <Route path="investor" element={<InvestorHome />} />
-          </Route>
-          <Route index element={<RoleHomeRedirect />} />
-          <Route path="*" element={<RoleHomeRedirect />} />
+    <Routes>
+      <Route element={<RequireAuth />}>
+        <Route element={<RequireRole role="founder" />}>
+          <Route path="founder/*" element={<FounderDashboard />} />
         </Route>
-      </Routes>
-    </SessionProvider>
+        <Route element={<RequireRole role="customer" />}>
+          <Route path="customer" element={<CustomerHome />} />
+        </Route>
+        <Route element={<RequireRole role="investor" />}>
+          <Route path="investor" element={<InvestorHome />} />
+        </Route>
+        <Route index element={<RoleHomeRedirect />} />
+        <Route path="*" element={<RoleHomeRedirect />} />
+      </Route>
+    </Routes>
   );
 }

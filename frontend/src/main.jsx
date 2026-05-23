@@ -9,14 +9,17 @@ import "./portal/portal.css";
 
 const LoginPage = lazy(() => import("./portal/LoginPage.jsx"));
 const PortalApp = lazy(() => import("./portal/PortalApp.jsx"));
+const PortalLayout = lazy(() => import("./portal/PortalLayout.jsx"));
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Suspense fallback={<div className="portal-loading" aria-hidden />}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/portal/*" element={<PortalApp />} />
+          <Route element={<PortalLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/portal/*" element={<PortalApp />} />
+          </Route>
           <Route path="/*" element={<App />} />
         </Routes>
       </Suspense>
