@@ -105,7 +105,6 @@ async def me(user: User = Depends(current_user)) -> UserOut:
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     token = request.cookies.get(COOKIE_NAME)
@@ -116,5 +115,6 @@ async def logout(
             )
         )
         await session.commit()
-    response.delete_cookie(COOKIE_NAME, path="/")
-    return Response(status_code=204)
+    resp = Response(status_code=204)
+    resp.delete_cookie(COOKIE_NAME, path="/")
+    return resp
