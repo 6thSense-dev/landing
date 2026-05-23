@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import health, leads
+from app.api.routes import auth, health, leads
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
@@ -61,6 +61,7 @@ def create_app() -> FastAPI:
 
     application.include_router(health.router)
     application.include_router(leads.router)
+    application.include_router(auth.router)
     return application
 
 
