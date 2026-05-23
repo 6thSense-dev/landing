@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { useSession } from "./useSession.js";
+import { useSession } from "./useSession.jsx";
 
 function safeNext(rawNext, role) {
   if (!rawNext) return null;

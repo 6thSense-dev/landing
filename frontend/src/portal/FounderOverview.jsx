@@ -1,4 +1,4 @@
-import { useSession } from "./useSession.js";
+import { useSession } from "./useSession.jsx";
 
 export function FounderOverview() {
   const { user } = useSession();

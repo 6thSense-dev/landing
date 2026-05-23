@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { useSession } from "./useSession.js";
+import { useSession } from "./useSession.jsx";
 
 export function RequireRole({ role }) {
   const { user } = useSession();

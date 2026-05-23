@@ -2,7 +2,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import { ComingSoon } from "./ComingSoon.jsx";
 import { FounderOverview } from "./FounderOverview.jsx";
 import { FounderSettings } from "./FounderSettings.jsx";
-import { useSession } from "./useSession.js";
+import { useSession } from "./useSession.jsx";
 
 export default function FounderDashboard() {
   const { user, logout } = useSession();

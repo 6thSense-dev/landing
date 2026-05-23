@@ -4,7 +4,7 @@ import FounderDashboard from "./FounderDashboard.jsx";
 import InvestorHome from "./InvestorHome.jsx";
 import { RequireAuth } from "./RequireAuth.jsx";
 import { RequireRole } from "./RequireRole.jsx";
-import { SessionProvider, useSession } from "./useSession.js";
+import { SessionProvider, useSession } from "./useSession.jsx";
 
 function RoleHomeRedirect() {
   const { user, status } = useSession();
