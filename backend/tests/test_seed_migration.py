@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -14,11 +15,14 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.models import Base, User
 
 
+_BACKEND_DIR = Path(__file__).resolve().parents[1]  # backend/
+
+
 def _alembic(args: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
     full_env = {**os.environ, **(env or {})}
     return subprocess.run(
         [sys.executable, "-m", "alembic", *args],
-        cwd="backend",
+        cwd=str(_BACKEND_DIR),
         env=full_env,
         capture_output=True,
         text=True,
