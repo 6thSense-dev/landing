@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
 from app.core.middleware import MaxBodySizeMiddleware
+from app.core.csrf import OriginCheckMiddleware
 
 
 @asynccontextmanager
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     application.add_middleware(MaxBodySizeMiddleware)
+    application.add_middleware(OriginCheckMiddleware)
 
     @application.exception_handler(RequestValidationError)
     async def _validation_handler(_req: Request, exc: RequestValidationError):
