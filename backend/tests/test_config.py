@@ -22,3 +22,24 @@ def test_settings_missing_database_url_raises(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
         get_settings()
+
+
+def test_cookie_secure_defaults_true(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://stub:stub@h/d")
+    monkeypatch.delenv("SENSEPROBE_COOKIE_SECURE", raising=False)
+    from app.core.config import get_settings
+    assert get_settings().cookie_secure is True
+
+
+def test_cookie_secure_can_be_disabled(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://stub:stub@h/d")
+    monkeypatch.setenv("SENSEPROBE_COOKIE_SECURE", "false")
+    from app.core.config import get_settings
+    assert get_settings().cookie_secure is False
+
+
+def test_login_rate_limit_defaults(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://stub:stub@h/d")
+    monkeypatch.delenv("SENSEPROBE_LOGIN_RATE_LIMIT", raising=False)
+    from app.core.config import get_settings
+    assert get_settings().login_rate_limit == "10/minute"
