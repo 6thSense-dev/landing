@@ -6,11 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import health, leads
+from app.api.routes import auth, health, leads
+from app.core.auth_deps import COOKIE_NAME, _ClearCookieUnauthorized
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
 from app.core.middleware import MaxBodySizeMiddleware
+from app.core.csrf import OriginCheckMiddleware
 
 
 @asynccontextmanager
@@ -37,6 +39,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     application.add_middleware(MaxBodySizeMiddleware)
+    application.add_middleware(OriginCheckMiddleware)
 
     @application.exception_handler(RequestValidationError)
     async def _validation_handler(_req: Request, exc: RequestValidationError):
@@ -57,8 +60,18 @@ def create_app() -> FastAPI:
             content={"ok": False, "error": "Too many requests. Please slow down."},
         )
 
+    @application.exception_handler(_ClearCookieUnauthorized)
+    async def _clear_cookie_handler(_req: Request, exc: _ClearCookieUnauthorized):
+        resp = JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+        resp.delete_cookie(COOKIE_NAME, path="/")
+        return resp
+
     application.include_router(health.router)
     application.include_router(leads.router)
+    application.include_router(auth.router)
     return application
 
 

@@ -19,4 +19,8 @@ def current_rate_limit() -> str:
     return get_settings().rate_limit
 
 
+def current_login_rate_limit() -> str:
+    return get_settings().login_rate_limit
+
+
 limiter = Limiter(key_func=get_client_ip)

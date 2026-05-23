@@ -10,11 +10,19 @@ def _parse_origins(raw: str) -> list[str]:
     return [x.strip() for x in raw.split(",") if x.strip()]
 
 
+def _parse_bool(raw: str | None, default: bool) -> bool:
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str
     cors_origins: list[str]
     rate_limit: str
+    login_rate_limit: str
+    cookie_secure: bool
 
 
 def get_settings() -> Settings:
@@ -33,4 +41,6 @@ def get_settings() -> Settings:
         database_url=db_url,
         cors_origins=_parse_origins(raw_origins),
         rate_limit=os.environ.get("SENSEPROBE_RATE_LIMIT", "5/minute"),
+        login_rate_limit=os.environ.get("SENSEPROBE_LOGIN_RATE_LIMIT", "10/minute"),
+        cookie_secure=_parse_bool(os.environ.get("SENSEPROBE_COOKIE_SECURE"), True),
     )

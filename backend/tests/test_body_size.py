@@ -6,7 +6,8 @@ from app.main import create_app
 
 
 @pytest_asyncio.fixture
-async def client(postgres_container):
+async def client(postgres_container, monkeypatch):
+    monkeypatch.setenv("SENSEPROBE_CORS_ORIGINS", "https://app.example")
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         yield c
@@ -31,3 +32,16 @@ async def test_oversize_body_does_not_touch_db(client, db_session):
     await client.post("/api/leads", content=payload, headers={"Content-Type": "application/json"})
     rows = (await db_session.execute(text("SELECT COUNT(*) FROM leads"))).scalar_one()
     assert rows == 0
+
+
+@pytest.mark.asyncio
+async def test_login_endpoint_rejects_oversized_body(client):
+    big = "x" * 8000
+    res = await client.post(
+        "/api/auth/login",
+        json={"email": "a@x.com", "password": big},
+        headers={"Origin": "https://app.example"},
+    )
+    # We don't have the auth route yet at this point in development, so the
+    # body-size check should still kick in first. Expect 413, not 404.
+    assert res.status_code == 413
