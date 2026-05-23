@@ -6,7 +6,8 @@ from app.main import create_app
 
 
 @pytest_asyncio.fixture
-async def client(postgres_container):
+async def client(postgres_container, monkeypatch):
+    monkeypatch.setenv("SENSEPROBE_CORS_ORIGINS", "https://app.example")
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         yield c
@@ -39,6 +40,7 @@ async def test_login_endpoint_rejects_oversized_body(client):
     res = await client.post(
         "/api/auth/login",
         json={"email": "a@x.com", "password": big},
+        headers={"Origin": "https://app.example"},
     )
     # We don't have the auth route yet at this point in development, so the
     # body-size check should still kick in first. Expect 413, not 404.
