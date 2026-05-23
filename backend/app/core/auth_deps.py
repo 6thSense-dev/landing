@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.sessions import hash_session_token
 from app.models import Session as SessionRow, User
@@ -18,7 +17,10 @@ COOKIE_NAME = "sid"
 
 
 class _ClearCookieUnauthorized(HTTPException):
-    """Raised when the session is invalid/expired; signals the handler to clear the cookie."""
+    """Raised when the session is invalid/expired. The exception handler in
+    app.main translates this to a 401 response with the sid cookie cleared.
+    A dedicated subclass is needed because FastAPI drops Response mutations
+    made inside a dependency when an HTTPException propagates."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -27,13 +29,8 @@ class _ClearCookieUnauthorized(HTTPException):
         )
 
 
-def _clear_cookie(response: Response) -> None:
-    response.delete_cookie(COOKIE_NAME, path="/")
-
-
 async def current_user(
     request: Request,
-    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> User:
     token = request.cookies.get(COOKIE_NAME)
