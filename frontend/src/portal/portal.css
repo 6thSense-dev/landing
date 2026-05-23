@@ -23,16 +23,55 @@
   display: grid;
   place-items: center;
   padding: 6vh 1rem;
+  position: relative;
+  overflow: hidden;
 }
+
+/* TactileField inside the login wrap: fixed full-viewport, behind the card.
+   The shared .tactile-field rule in scroll-hero.css uses position:sticky with
+   a negative margin-bottom — that only works inside the hero scroll container.
+   On the login page we want a fixed ambient background. */
+.portal-login-wrap > .tactile-field {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes portal-card-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .portal-login-card {
   width: min(420px, 100%);
-  background: var(--portal-surface);
+  background: rgba(38, 35, 18, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--portal-border);
   border-radius: 12px;
   padding: 2rem 1.75rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  position: relative;
+  z-index: 1;
+  animation: portal-card-fade-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-login-card {
+    animation: none;
+  }
 }
 .portal-login-title {
   font-family: "Fraunces", serif;

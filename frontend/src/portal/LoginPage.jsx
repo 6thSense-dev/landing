@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { TactileField } from "../TactileField.jsx";
 import { useSession } from "./useSession.jsx";
 
 function safeNext(rawNext, role) {
@@ -45,6 +46,7 @@ export default function LoginPage() {
 
   return (
     <main className="portal-login-wrap">
+      <TactileField />
       <form className="portal-login-card" onSubmit={onSubmit} noValidate>
         <h1 className="portal-login-title">Partner login</h1>
         <label htmlFor="login-email">Email</label>
