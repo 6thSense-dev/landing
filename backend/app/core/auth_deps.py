@@ -17,6 +17,16 @@ from app.models import Session as SessionRow, User
 COOKIE_NAME = "sid"
 
 
+class _ClearCookieUnauthorized(HTTPException):
+    """Raised when the session is invalid/expired; signals the handler to clear the cookie."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated.",
+        )
+
+
 def _clear_cookie(response: Response) -> None:
     response.delete_cookie(COOKIE_NAME, path="/")
 
@@ -41,11 +51,7 @@ async def current_user(
         )
     ).one_or_none()
     if row is None:
-        _clear_cookie(response)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated.",
-        )
+        raise _ClearCookieUnauthorized()
     sess_row, user = row
     now = datetime.now(timezone.utc)
     if sess_row.expires_at < now or not user.is_active:
@@ -53,11 +59,7 @@ async def current_user(
             SessionRow.__table__.delete().where(SessionRow.id == sess_row.id)
         )
         await session.commit()
-        _clear_cookie(response)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated.",
-        )
+        raise _ClearCookieUnauthorized()
     # Sliding expiry: bump last_used_at, extend expires_at to at least now + 14d.
     new_expiry = max(sess_row.expires_at, now + timedelta(days=14))
     await session.execute(

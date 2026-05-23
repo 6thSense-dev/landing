@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app.api.routes import auth, health, leads
+from app.core.auth_deps import COOKIE_NAME, _ClearCookieUnauthorized
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
@@ -58,6 +59,15 @@ def create_app() -> FastAPI:
             status_code=429,
             content={"ok": False, "error": "Too many requests. Please slow down."},
         )
+
+    @application.exception_handler(_ClearCookieUnauthorized)
+    async def _clear_cookie_handler(_req: Request, exc: _ClearCookieUnauthorized):
+        resp = JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+        resp.delete_cookie(COOKIE_NAME, path="/")
+        return resp
 
     application.include_router(health.router)
     application.include_router(leads.router)
