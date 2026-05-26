@@ -16,28 +16,25 @@ export function HeroBlurbs() {
   return (
     <div className="hero-blurbs" aria-live="polite">
       <p className="hero-blurb" data-index="0">
-        Robots can tell the difference between a{" "}
-        <TargetReveal text="glass cup" blurbIndex={0} order={0} /> and a{" "}
-        <TargetReveal text="paper cup" blurbIndex={0} order={1} />.
+        A robot can recognize a{" "}
+        <TargetReveal text="strawberry" blurbIndex={0} order={0} />. But can it pick one without{" "}
+        <TargetReveal text="crushing it" blurbIndex={0} order={1} />?
       </p>
       <p className="hero-blurb" data-index="1">
-        But they do it by{" "}
-        <TargetReveal text="looking" blurbIndex={1} order={0} />, not by{" "}
-        <TargetReveal text="feeling" blurbIndex={1} order={1} />.
+        Recognition tells you <TargetReveal text="what" blurbIndex={1} order={0} /> to pick. Pressure tells you{" "}
+        <TargetReveal text="how much" blurbIndex={1} order={1} /> to grip.
       </p>
       <p className="hero-blurb" data-index="2">
-        Vision <TargetReveal text="alone" blurbIndex={2} order={0} /> cannot
-        communicate{" "}
-        <TargetReveal text="texture" blurbIndex={2} order={1} />.
+        <TargetReveal text="Force" blurbIndex={2} order={0} /> is the{" "}
+        <TargetReveal text="invisible variable" blurbIndex={2} order={1} /> vision can't capture.
       </p>
       <p className="hero-blurb" data-index="3">
-        We map <TargetReveal text="tactile" blurbIndex={3} order={0} />{" "}
-        signatures to physical{" "}
-        <TargetReveal text="intuition" blurbIndex={3} order={1} />.
+        We <TargetReveal text="train force models" blurbIndex={3} order={0} /> from touch, not{" "}
+        <TargetReveal text="guessing" blurbIndex={3} order={1} />.
       </p>
       <p className="hero-blurb" data-index="4">
-        We <TargetReveal text="teach" blurbIndex={4} order={0} /> your robots
-        how to <TargetReveal text="feel" blurbIndex={4} order={1} color="#cd5a3c" />.
+        Robots that feel <TargetReveal text="pressure" blurbIndex={4} order={0} /> master{" "}
+        <TargetReveal text="fragile, precise work" blurbIndex={4} order={1} color="#cd5a3c" />.
       </p>
     </div>
   );
