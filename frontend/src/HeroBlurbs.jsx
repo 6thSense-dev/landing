@@ -26,15 +26,15 @@ export function HeroBlurbs() {
       </p>
       <p className="hero-blurb" data-index="2">
         <TargetReveal text="Force" blurbIndex={2} order={0} /> is the{" "}
-        <TargetReveal text="invisible variable" blurbIndex={2} order={1} /> vision can't capture.
+        <TargetReveal text="invisible" blurbIndex={2} order={1} /> variable vision can't capture.
       </p>
       <p className="hero-blurb" data-index="3">
-        We <TargetReveal text="train force models" blurbIndex={3} order={0} /> from touch, not{" "}
+        We train <TargetReveal text="force" blurbIndex={3} order={0} /> from touch, not{" "}
         <TargetReveal text="guessing" blurbIndex={3} order={1} />.
       </p>
       <p className="hero-blurb" data-index="4">
         Robots that feel <TargetReveal text="pressure" blurbIndex={4} order={0} /> master{" "}
-        <TargetReveal text="fragile, precise work" blurbIndex={4} order={1} color="#cd5a3c" />.
+        <TargetReveal text="precision" blurbIndex={4} order={1} color="#cd5a3c" />.
       </p>
     </div>
   );
