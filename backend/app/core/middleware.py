@@ -9,7 +9,7 @@ from starlette.types import ASGIApp
 
 
 MAX_BODY_BYTES = 4096
-GUARDED_PATHS = ("/api/leads",)
+GUARDED_PATHS = ("/api/leads", "/api/auth/login", "/api/auth/logout")
 
 
 class MaxBodySizeMiddleware(BaseHTTPMiddleware):
