@@ -42,28 +42,34 @@ export function VideoSection() {
       return;
     }
 
-    /* On mobile, autoplay can silently fail when the video element is rendered
-       inside an opacity:0 ancestor (the hero section is gated by --video-p).
-       Retry play() whenever the video element actually enters the viewport —
-       mobile Safari/Chrome accept play() calls in that context. */
     const tryPlay = () => {
       const p = v.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     };
 
-    tryPlay();
+    /* Play only while the video beat is the active scroll section, and pause
+       otherwise — the section stays mounted at opacity:0 during the pipeline
+       and form beats, so without this the browser keeps decoding frames behind
+       a hidden layer (wasted CPU/battery, worst on mobile). HeroStageTwo
+       toggles `hero-video-active` on <body> as this beat enters/leaves; we
+       mirror that into play/pause. Calling play() at the moment the beat
+       becomes active also satisfies mobile autoplay, which can reject play()
+       issued while the element sits inside an opacity:0 ancestor. */
+    const sync = () => {
+      const active = document.body.classList.contains("hero-video-active");
+      if (active && v.paused) tryPlay();
+      else if (!active && !v.paused) v.pause();
+    };
 
-    if (typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && v.paused) tryPlay();
-        }
-      },
-      { threshold: 0.01 },
-    );
-    io.observe(v);
-    return () => io.disconnect();
+    sync();
+
+    if (typeof MutationObserver === "undefined") {
+      tryPlay();
+      return;
+    }
+    const mo = new MutationObserver(sync);
+    mo.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
   }, [reduceMotion]);
 
   return (
@@ -72,14 +78,13 @@ export function VideoSection() {
         <video
           ref={videoRef}
           className="hero-video-media"
-          src="/Demo_1.mp4"
-          poster="/Demo_1_poster.jpg"
-          {...(reduceMotion ? {} : { autoPlay: true })}
+          src="/Demo_Mesh_Threshold.mp4"
+          poster="/Demo_Mesh_Threshold_poster.jpg"
           muted
           loop
           playsInline
-          preload="auto"
-          aria-label="Tactile sensor data preview"
+          preload="metadata"
+          aria-label="Tactile sensor mesh threshold preview"
         />
       </div>
     </section>
