@@ -271,15 +271,24 @@
 }
 
 .hero-video {
-  padding: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--gutter);
   opacity: var(--video-p, 0);
   transform: translateY(calc((1 - var(--video-p, 0)) * 12px));
 }
 
+/* Frame carries the clip's native aspect ratio (3014×930, ~3.24:1) and is
+   bounded by both axes, so the whole video is always shown — never cropped —
+   and scales fluidly with the viewport. width shrinks on narrow screens;
+   max-width caps height so an ultra-wide/short window can't overflow. */
 .hero-video-frame {
   width: 100%;
-  height: 100%;
+  max-width: calc((100vh - 2 * var(--gutter)) * 3014 / 930);
+  aspect-ratio: 3014 / 930;
   background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -287,24 +296,7 @@
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
-}
-
-@media (orientation: portrait) {
-  .hero-video {
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 0 var(--gutter);
-  }
-
-  .hero-video-frame {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 2990 / 1312;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-  }
+  object-fit: contain;
 }
 
 
