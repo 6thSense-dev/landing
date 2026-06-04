@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /login
+Disallow: /portal
 
 Sitemap: https://6thsense.dev/sitemap.xml
