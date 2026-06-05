@@ -11,6 +11,10 @@ const LoginPage = lazy(() => import("./portal/LoginPage.jsx"));
 const PortalApp = lazy(() => import("./portal/PortalApp.jsx"));
 const PortalLayout = lazy(() => import("./portal/PortalLayout.jsx"));
 
+// Strip the build-time SEO prerender shell before client render so JS users
+// and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
+document.getElementById("seo-prerender")?.remove();
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>

@@ -12,6 +12,22 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://6thsense.dev/" />
 
+    <style>
+      /* SEO prerender block: crawlable in raw HTML, off-screen for sighted
+         users (no flash), removed once JS boots. See scripts/seoPrerenderPlugin.js */
+      .seo-prerender {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+      }
+    </style>
+
     <link rel="icon" type="image/png" href="/logos/Logo_Alpha.png" />
     <link rel="apple-touch-icon" href="/logos/Logo_Alpha.png" />
 
