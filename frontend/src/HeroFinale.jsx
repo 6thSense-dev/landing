@@ -33,6 +33,7 @@ const dots = [
 // (now-removed) standalone BackedBySection beat.
 const BACKERS = [
   { src: "/logos/YC_LOGO_Keyed.png", alt: "Y Combinator", needsLightBg: true },
+  { src: "/logos/nvidia-inception.png", alt: "NVIDIA Inception Program", needsLightBg: true },
   { src: "/logos/University Logo_2Color_DarkGreystone_WhiteFill_RGB.png", alt: "The University of Chicago", needsLightBg: true },
   { src: "/logos/Gtech.png", alt: "Georgia Tech", needsLightBg: true }
 ];
