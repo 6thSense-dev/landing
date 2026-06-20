@@ -1,0 +1,13 @@
+# Railway config for the 6thSense frontend (static SPA served by Caddy).
+# The frontend service's Root Directory is `frontend/`, so paths here are
+# relative to that directory. Set VITE_API_URL as a build-time service variable
+# (it is baked into the bundle at `npm run build`).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"

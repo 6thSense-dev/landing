@@ -1,0 +1,50 @@
+# Caddy config for serving the built Vite SPA (frontend/dist) in production.
+# Replaces `vite preview`, which is a dev-preview server: this adds on-the-fly
+# compression, immutable asset caching, security headers, and SPA fallback.
+{
+	admin off
+	persist_config off
+	# Railway terminates TLS at its edge, so Caddy serves plain HTTP internally.
+	auto_https off
+}
+
+# Railway injects $PORT; fall back to 3000 for local `docker run`.
+:{$PORT:3000} {
+	root * /srv
+	encode zstd gzip
+
+	# --- Security headers (defense-in-depth in front of the cookie-auth portal) ---
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		# CSP ships in REPORT-ONLY mode: the browser logs violations to the console
+		# but blocks NOTHING, so it cannot break the lead form or portal login.
+		# `connect-src 'self'` will flag the cross-origin backend (VITE_API_URL) —
+		# read the reported origin in devtools, add it to connect-src here, then
+		# rename this header to `Content-Security-Policy` to enforce. style
+		# 'unsafe-inline' is required by the inline SEO <style> in index.html plus
+		# React/framer-motion style attributes.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+		-Server
+	}
+
+	# Vite emits content-hashed files under /assets/* — safe to cache forever.
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# Stable-named static media (fonts, images, video): cache a month.
+	@media path *.woff2 *.woff *.ttf *.otf *.mp4 *.webm *.jpg *.jpeg *.png *.webp *.avif *.svg *.ico
+	header @media Cache-Control "public, max-age=2592000"
+
+	# Everything not matched above (HTML + the SPA fallback) must revalidate so a
+	# deploy goes live immediately. `?` sets the header only if absent, so it can
+	# never clobber the immutable/media caches above — regardless of directive order.
+	header ?Cache-Control "no-cache"
+
+	# SPA fallback: serve index.html for client-routed paths (/login, /portal/*).
+	try_files {path} /index.html
+	file_server
+}

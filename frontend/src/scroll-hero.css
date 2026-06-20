@@ -2,7 +2,7 @@
 
 @font-face {
   font-family: "Heming";
-  src: url("/fonts/Heming Variable.ttf") format("truetype-variations"),
+  src: url("/fonts/Heming-Variable.woff2") format("woff2"),
        url("/fonts/Heming Variable.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
@@ -11,7 +11,7 @@
 
 @font-face {
   font-family: "Chillax";
-  src: url("/fonts/Chillax-Variable.ttf") format("truetype-variations"),
+  src: url("/fonts/Chillax-Variable.woff2") format("woff2"),
        url("/fonts/Chillax-Variable.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
@@ -352,12 +352,22 @@
   transform: translate(-50%, calc(-50% + (1 - var(--form-p, 0)) * 12px));
   width: min(34rem, calc(100% - 2 * var(--gutter)));
   opacity: var(--form-p, 0);
-  pointer-events: auto;
+  /* A11y: the form fades via --form-p, but opacity:0 elements stay
+     keyboard-focusable. Keep it inert until .hero-form-active is set by
+     HeroStageTwo (when --form-p crosses into the visible range). */
+  visibility: hidden;
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: 0.35rem;
+}
+
+/* Made interactive only once the form is actually visible (see comment above). */
+.hero-stage-two.hero-form-active .hero-finale-form {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .hero-finale-title {
@@ -476,6 +486,8 @@
 .hero-finale-form input[type="text"]:focus-visible {
   border-color: #c5e063;
   background: rgba(255, 255, 255, 0.08);
+  outline: 2px solid #c5e063;
+  outline-offset: 2px;
 }
 
 .hero-finale-submit {
@@ -497,7 +509,11 @@
 .hero-finale-submit:hover,
 .hero-finale-submit:focus-visible {
   background: #c5e063;
-  outline: none;
+}
+
+.hero-finale-submit:focus-visible {
+  outline: 2px solid #f1f1ec;
+  outline-offset: 2px;
 }
 
 .hero-finale-status {
