@@ -53,7 +53,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Frontend
 
-The public site is a **React + Vite** app in `frontend/`, with **Framer Motion** for scroll-driven motion and **React Three Fiber** (`@react-three/fiber`, `drei`, `three`, **`@react-three/postprocessing`**, **GSAP**, **maath**) for scroll-linked 3D. **`three` is pinned to ~0.160** so `@react-three/postprocessing` v2 bundles cleanly with Vite. Fonts are loaded in `frontend/index.html`.
+The public site is a **React + Vite** app in `frontend/`. The hero is a **scroll-scrubbed 2D canvas "rig tour"** — a glove frame sequence (`frontend/public/hero/glove/frame-00X.webp`) painted to a canvas as you scroll — alongside an HTML5 `<video>` demo clip. It uses **Framer Motion** (`framer-motion`) for motion and **lucide-react** for icons; **react-router-dom** routes a lazy-loaded partner portal at `/login` and `/portal/*`. There is **no Three.js / WebGL** dependency. Self-hosted fonts live in `frontend/public/fonts/` (served as `woff2`, with `.ttf` fallback) and are declared in `frontend/index.html` + `frontend/src/scroll-hero.css`, plus a Google Fonts request in `index.html`.
 
 ```bash
 cd frontend
@@ -61,6 +61,8 @@ npm install
 npm run dev -- --host 0.0.0.0 --port 4173
 ```
 
-Production build: `cd frontend && npm run build` (output in `frontend/dist/`).
+Production build: `cd frontend && npm run build` (output in `frontend/dist/`). The build also injects a crawlable SEO prerender block via `frontend/scripts/seoPrerenderPlugin.js`.
 
-Core entry points: `frontend/src/App.jsx`, `DeviceStory.jsx`, `ProbeCanvas.jsx`, `ProbeExperience.jsx`, `homeNarrative.js`, `styles.css`, `main.jsx`.
+In production the built `dist/` is served by **Caddy** (compression, immutable `/assets/*` caching, security headers, SPA fallback) — see `frontend/Dockerfile` + `frontend/Caddyfile` — and deployed on **Railway** (`frontend/railway.toml`).
+
+Core entry points: `frontend/src/main.jsx` (router) · `App.jsx` (public site) · `ScrollHero.jsx` → `ScrollStage.jsx` / `HeroStageOne.jsx` / `HeroStageTwo.jsx` / `QuoteTimeline.jsx` / `TactileField.jsx` (hero) · `homeNarrative.js` (copy + SEO source) · `styles.css` · `scroll-hero.css` · `src/portal/` (partner portal).

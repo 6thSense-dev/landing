@@ -59,6 +59,9 @@ export function HeroStageTwo() {
         el.style.setProperty("--pipeline-p", pipelineP.toFixed(4));
         el.style.setProperty("--video-p", videoP.toFixed(4));
         el.style.setProperty("--form-p", formP.toFixed(4));
+        // A11y: only let the finale form take keyboard focus / pointer events
+        // once it is actually visible (CSS gates on .hero-form-active).
+        el.classList.toggle("hero-form-active", formP > 0.5);
         el.style.setProperty("--assemble-fade-p", "1");
         el.style.setProperty("--assemble-move-p", "1");
         document.body.style.setProperty("--video-p", videoP.toFixed(4));

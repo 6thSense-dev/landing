@@ -1,0 +1,41 @@
+# Backend image build context is the repo ROOT (see backend/railway.toml:
+# dockerfilePath = "backend/Dockerfile", Root Directory = repo root). Without
+# this file the whole repo (~200MB: frontend/node_modules, media, .git) uploads
+# to the Docker builder on every backend deploy. Keep only what
+# backend/Dockerfile actually copies: requirements-backend.txt + backend/{app,
+# alembic.ini,migrations}.
+
+.git
+.gitignore
+
+# Other services / research — not part of the backend image
+frontend
+ml
+data
+results
+media-sources
+docs
+config
+scripts
+sample_visualization.png
+results.png
+results.json
+
+# Backend dev/test bits not needed in the runtime image
+backend/tests
+backend/.pytest_cache
+requirements.txt
+requirements-backend-dev.txt
+
+# Caches, local envs, secrets, tooling
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+.venv
+**/.venv
+.env
+.env.*
+.superpowers
+.claude-project
+.planning
+.DS_Store
