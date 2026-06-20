@@ -18,7 +18,7 @@ export function HeroBlurbs() {
       <p className="hero-blurb" data-index="0">
         A robot can recognize a{" "}
         <TargetReveal text="strawberry" blurbIndex={0} order={0} />. But can it pick one without{" "}
-        <TargetReveal text="crushing it" blurbIndex={0} order={1} />?
+        <TargetReveal text="crushing it?" blurbIndex={0} order={1} />
       </p>
       <p className="hero-blurb" data-index="1">
         Recognition tells you <TargetReveal text="what" blurbIndex={1} order={0} /> to pick. Pressure tells you{" "}
