@@ -278,25 +278,30 @@
   transform: translateY(calc((1 - var(--video-p, 0)) * 12px));
 }
 
-/* Frame carries the clip's native aspect ratio (3014×930, ~3.24:1) and is
+/* Frame carries the clips' native aspect ratio (2116×734, ~2.88:1) and is
    bounded by both axes, so the whole video is always shown — never cropped —
    and scales fluidly with the viewport. width shrinks on narrow screens;
-   max-width caps height so an ultra-wide/short window can't overflow. */
+   max-width caps height so an ultra-wide/short window can't overflow. All
+   three demo clips share these dimensions, so the frame never reflows. */
 .hero-video-frame {
   width: 100%;
-  max-width: calc((100vh - 2 * var(--gutter)) * 3014 / 930);
-  aspect-ratio: 3014 / 930;
+  max-width: calc((100vh - 2 * var(--gutter)) * 2116 / 734);
+  aspect-ratio: 2116 / 734;
   background: #1a1a1a;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   overflow: hidden;
 }
 
+/* opacity is driven imperatively by VideoSection to crossfade between clips;
+   the transition makes each handoff a smooth fade-out/fade-in. */
 .hero-video-media {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: contain;
+  opacity: 1;
+  transition: opacity 450ms ease;
 }
 
 
