@@ -315,12 +315,14 @@
   overflow: hidden;
 }
 
-/* Fills the 16:9 frame without cropping. */
+/* Fills the frame without cropping; opacity is driven imperatively to crossfade clips. */
 .hero-video-media {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: contain;
+  opacity: 1;
+  transition: opacity 450ms ease;
 }
 
 

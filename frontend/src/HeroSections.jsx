@@ -26,11 +26,15 @@ export function PipelineSection() {
   );
 }
 
-/* Primary product demo — loops while the video beat is on-screen. */
-const DEMO_VIDEO = "/demo.mp4";
+/* Demo clips cycle in order, fading out at the end of each and fading the
+   next one in. All play within the same frame — object-fit:contain handles
+   any aspect-ratio differences. */
+const VIDEO_CLIPS = ["/demo.mp4", "/demo-box.mp4", "/demo-hammer.mp4", "/demo-shoe.mp4"];
+const FADE_MS = 450;
 
 export function VideoSection() {
   const videoRef = useRef(null);
+  const indexRef = useRef(0);
   const [reduceMotion] = useState(() =>
     typeof window !== "undefined" &&
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
@@ -50,14 +54,24 @@ export function VideoSection() {
       if (p && typeof p.catch === "function") p.catch(() => {});
     };
 
-    /* Play only while the video beat is the active scroll section, and pause
-       otherwise — the section stays mounted at opacity:0 during the pipeline
-       and form beats, so without this the browser keeps decoding frames behind
-       a hidden layer (wasted CPU/battery, worst on mobile). HeroStageTwo
-       toggles `hero-video-active` on <body> as this beat enters/leaves; we
-       mirror that into play/pause. Calling play() at the moment the beat
-       becomes active also satisfies mobile autoplay, which can reject play()
-       issued while the element sits inside an opacity:0 ancestor. */
+    /* End of a clip: fade out, swap source while invisible, fade back in. */
+    let fadeTimer = 0;
+    const onEnded = () => {
+      v.style.opacity = "0";
+      fadeTimer = window.setTimeout(() => {
+        indexRef.current = (indexRef.current + 1) % VIDEO_CLIPS.length;
+        v.src = VIDEO_CLIPS[indexRef.current];
+        v.load();
+        if (document.body.classList.contains("hero-video-active")) tryPlay();
+      }, FADE_MS);
+    };
+    const onPlaying = () => {
+      v.style.opacity = "1";
+    };
+    v.addEventListener("ended", onEnded);
+    v.addEventListener("playing", onPlaying);
+
+    /* Play only while the video beat is the active scroll section. */
     const sync = () => {
       const active = document.body.classList.contains("hero-video-active");
       if (active && v.paused) tryPlay();
@@ -65,14 +79,22 @@ export function VideoSection() {
     };
 
     sync();
+
     if (typeof MutationObserver === "undefined") {
       tryPlay();
-      return undefined;
+      return () => {
+        window.clearTimeout(fadeTimer);
+        v.removeEventListener("ended", onEnded);
+        v.removeEventListener("playing", onPlaying);
+      };
     }
     const mo = new MutationObserver(sync);
     mo.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => {
       mo.disconnect();
+      window.clearTimeout(fadeTimer);
+      v.removeEventListener("ended", onEnded);
+      v.removeEventListener("playing", onPlaying);
     };
   }, [reduceMotion]);
 
@@ -86,13 +108,12 @@ export function VideoSection() {
         <video
           ref={videoRef}
           className="hero-video-media"
-          src={DEMO_VIDEO}
+          src={VIDEO_CLIPS[0]}
           poster="/demo-poster.jpg"
           muted
           playsInline
-          loop
           preload="metadata"
-          aria-label="6thSense tactile capture demo"
+          aria-label="6thSense tactile capture demos"
         />
       </div>
     </section>
