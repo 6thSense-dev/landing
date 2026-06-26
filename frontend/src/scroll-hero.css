@@ -302,12 +302,24 @@
   text-wrap: pretty;
 }
 
-/* Frame carries the demo's native 16:9 aspect ratio and is bounded by both
-   axes so the whole video is always shown — never cropped — and scales
-   fluidly with the viewport. */
-.hero-video-frame {
+/* Two video players side by side; stack vertically on narrow screens. */
+.hero-video-row {
+  display: flex;
+  flex-direction: row;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
   width: 100%;
-  max-width: calc((100vh - 2 * var(--gutter)) * 16 / 9);
+  align-items: flex-start;
+}
+
+@media (max-width: 600px) {
+  .hero-video-row {
+    flex-direction: column;
+  }
+}
+
+.hero-video-frame {
+  flex: 1;
+  min-width: 0;
   aspect-ratio: 16 / 9;
   background: #1a1a1a;
   border: 1px solid rgba(255, 255, 255, 0.08);

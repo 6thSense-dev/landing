@@ -26,14 +26,13 @@ export function PipelineSection() {
   );
 }
 
-/* Demo clips cycle in order, fading out at the end of each and fading the
-   next one in. All play within the same frame — object-fit:contain handles
-   any aspect-ratio differences. */
-const VIDEO_CLIPS = ["/demo.mp4", "/demo-box.mp4", "/demo-hammer.mp4", "/demo-shoe.mp4"];
+const DEMO_VIDEO = "/demo.mp4";
+const CYCLING_CLIPS = ["/demo-box.mp4", "/demo-hammer.mp4", "/demo-shoe.mp4"];
 const FADE_MS = 450;
 
 export function VideoSection() {
-  const videoRef = useRef(null);
+  const demoRef = useRef(null);
+  const clipsRef = useRef(null);
   const indexRef = useRef(0);
   const [reduceMotion] = useState(() =>
     typeof window !== "undefined" &&
@@ -41,51 +40,54 @@ export function VideoSection() {
   );
 
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
+    const dv = demoRef.current;
+    const cv = clipsRef.current;
+    if (!dv || !cv) return;
 
     if (reduceMotion) {
-      v.pause();
+      dv.pause();
+      cv.pause();
       return;
     }
 
-    const tryPlay = () => {
+    const tryPlay = (v) => {
       const p = v.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     };
 
-    /* End of a clip: fade out, swap source while invisible, fade back in. */
+    /* Cycling clips: fade out, swap source, fade back in. */
     let fadeTimer = 0;
     const onEnded = () => {
-      v.style.opacity = "0";
+      cv.style.opacity = "0";
       fadeTimer = window.setTimeout(() => {
-        indexRef.current = (indexRef.current + 1) % VIDEO_CLIPS.length;
-        v.src = VIDEO_CLIPS[indexRef.current];
-        v.load();
-        if (document.body.classList.contains("hero-video-active")) tryPlay();
+        indexRef.current = (indexRef.current + 1) % CYCLING_CLIPS.length;
+        cv.src = CYCLING_CLIPS[indexRef.current];
+        cv.load();
+        if (document.body.classList.contains("hero-video-active")) tryPlay(cv);
       }, FADE_MS);
     };
-    const onPlaying = () => {
-      v.style.opacity = "1";
-    };
-    v.addEventListener("ended", onEnded);
-    v.addEventListener("playing", onPlaying);
+    const onPlaying = () => { cv.style.opacity = "1"; };
+    cv.addEventListener("ended", onEnded);
+    cv.addEventListener("playing", onPlaying);
 
-    /* Play only while the video beat is the active scroll section. */
+    /* Both players play/pause together with the scroll beat. */
     const sync = () => {
       const active = document.body.classList.contains("hero-video-active");
-      if (active && v.paused) tryPlay();
-      else if (!active && !v.paused) v.pause();
+      [dv, cv].forEach((v) => {
+        if (active && v.paused) tryPlay(v);
+        else if (!active && !v.paused) v.pause();
+      });
     };
 
     sync();
 
     if (typeof MutationObserver === "undefined") {
-      tryPlay();
+      tryPlay(dv);
+      tryPlay(cv);
       return () => {
         window.clearTimeout(fadeTimer);
-        v.removeEventListener("ended", onEnded);
-        v.removeEventListener("playing", onPlaying);
+        cv.removeEventListener("ended", onEnded);
+        cv.removeEventListener("playing", onPlaying);
       };
     }
     const mo = new MutationObserver(sync);
@@ -93,8 +95,8 @@ export function VideoSection() {
     return () => {
       mo.disconnect();
       window.clearTimeout(fadeTimer);
-      v.removeEventListener("ended", onEnded);
-      v.removeEventListener("playing", onPlaying);
+      cv.removeEventListener("ended", onEnded);
+      cv.removeEventListener("playing", onPlaying);
     };
   }, [reduceMotion]);
 
@@ -104,17 +106,31 @@ export function VideoSection() {
       <p className="hero-video-lead">
         Tactile egocentric capture from the 6thSense rig — synchronized video and touch.
       </p>
-      <div className="hero-video-frame">
-        <video
-          ref={videoRef}
-          className="hero-video-media"
-          src={VIDEO_CLIPS[0]}
-          poster="/demo-poster.jpg"
-          muted
-          playsInline
-          preload="metadata"
-          aria-label="6thSense tactile capture demos"
-        />
+      <div className="hero-video-row">
+        <div className="hero-video-frame">
+          <video
+            ref={demoRef}
+            className="hero-video-media"
+            src={DEMO_VIDEO}
+            poster="/demo-poster.jpg"
+            muted
+            playsInline
+            loop
+            preload="metadata"
+            aria-label="6thSense tactile capture demo"
+          />
+        </div>
+        <div className="hero-video-frame">
+          <video
+            ref={clipsRef}
+            className="hero-video-media"
+            src={CYCLING_CLIPS[0]}
+            muted
+            playsInline
+            preload="metadata"
+            aria-label="6thSense tactile capture demos: box, hammer, and shoe"
+          />
+        </div>
       </div>
     </section>
   );
