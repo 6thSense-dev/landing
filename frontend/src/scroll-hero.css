@@ -273,35 +273,54 @@
 .hero-video {
   align-items: center;
   justify-content: center;
+  flex-direction: column;
+  gap: clamp(0.75rem, 2vh, 1.25rem);
   padding: 0 var(--gutter);
   opacity: var(--video-p, 0);
   transform: translateY(calc((1 - var(--video-p, 0)) * 12px));
 }
 
-/* Frame carries the clips' native aspect ratio (2116×734, ~2.88:1) and is
-   bounded by both axes, so the whole video is always shown — never cropped —
-   and scales fluidly with the viewport. width shrinks on narrow screens;
-   max-width caps height so an ultra-wide/short window can't overflow. All
-   three demo clips share these dimensions, so the frame never reflows. */
+.hero-video-kicker {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: clamp(0.72rem, 1vw, 0.82rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(197, 224, 99, 0.88);
+  text-align: center;
+}
+
+.hero-video-lead {
+  margin: 0;
+  max-width: 42ch;
+  font-family: var(--font-body);
+  font-size: clamp(0.95rem, 1.6vw, 1.08rem);
+  line-height: 1.45;
+  color: rgba(241, 241, 236, 0.72);
+  text-align: center;
+  text-wrap: pretty;
+}
+
+/* Frame carries the demo's native 16:9 aspect ratio and is bounded by both
+   axes so the whole video is always shown — never cropped — and scales
+   fluidly with the viewport. */
 .hero-video-frame {
   width: 100%;
-  max-width: calc((100vh - 2 * var(--gutter)) * 2116 / 734);
-  aspect-ratio: 2116 / 734;
+  max-width: calc((100vh - 2 * var(--gutter)) * 16 / 9);
+  aspect-ratio: 16 / 9;
   background: #1a1a1a;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   overflow: hidden;
 }
 
-/* opacity is driven imperatively by VideoSection to crossfade between clips;
-   the transition makes each handoff a smooth fade-out/fade-in. */
+/* Fills the 16:9 frame without cropping. */
 .hero-video-media {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: contain;
-  opacity: 1;
-  transition: opacity 450ms ease;
 }
 
 

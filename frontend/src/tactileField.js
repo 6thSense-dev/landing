@@ -3,10 +3,11 @@
 // nearby nodes link with faint edges, nodes near the pointer grow.
 
 const NODE_COUNT = 288;
-const LINK_DISTANCE = 180;     // CSS px — nodes closer than this get an edge
-const HOVER_RADIUS = 140;      // CSS px — nodes inside this scale up on hover
-const HOVER_SCALE = 1.8;       // max scale multiplier under the pointer
+const LINK_DISTANCE = 210;     // CSS px — nodes closer than this get an edge
+const HOVER_RADIUS = 180;      // CSS px — nodes inside this scale up on hover
+const HOVER_SCALE = 2.1;       // max scale multiplier under the pointer
 const DRIFT_SPEED = 0.22;      // CSS px per frame (60 fps ≈ 13 px/s)
+const MIN_LAYOUT_PX = 64;      // defer seeding until canvas has real dimensions
 const EDGE_ALPHA = 0.22;       // peak edge opacity; fades with distance
 const TWINKLE_ALPHA = 0.35;    // ±alpha swing from the twinkle wave
 const TWINKLE_SIZE = 0.22;     // ±size swing (fraction of base)
@@ -47,7 +48,7 @@ export function initTactileField(canvas) {
         vx: Math.cos(angle) * DRIFT_SPEED,
         vy: Math.sin(angle) * DRIFT_SPEED,
         color: NODE_PALETTE[Math.floor(Math.random() * NODE_PALETTE.length)],
-        baseSize: 3 + Math.random() * 2.5,    // 3–5.5 CSS px dot
+        baseSize: 5.5 + Math.random() * 3.5,  // 5.5–9 CSS px dot — readable mesh at rest
         // Per-node shimmer params — each particle has its own phase/frequency
         // so the field twinkles asynchronously instead of pulsing in unison.
         twPhase: Math.random() * Math.PI * 2,
@@ -71,14 +72,42 @@ export function initTactileField(canvas) {
     },
     setSize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const cssW = Math.max(1, canvas.clientWidth);
-      const cssH = Math.max(1, canvas.clientHeight);
+      const cssW = canvas.clientWidth;
+      const cssH = canvas.clientHeight;
+
+      // Canvas often mounts at 0×0 (or 1×1) before layout. Seeding there
+      // clusters every node in a pin-point that slowly drifts apart — the
+      // "tiny green mesh spawn" artifact. Wait for a real viewport, then
+      // re-seed once when we graduate from the placeholder size.
+      if (cssW < MIN_LAYOUT_PX || cssH < MIN_LAYOUT_PX) return;
+
+      const prevW = state.w;
+      const prevH = state.h;
+      const hadPlaceholderLayout =
+        prevW > 0 && prevH > 0 && (prevW < MIN_LAYOUT_PX || prevH < MIN_LAYOUT_PX);
+
       canvas.width = Math.round(cssW * dpr);
       canvas.height = Math.round(cssH * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       state.w = cssW;
       state.h = cssH;
-      if (nodes.length === 0) seed();
+
+      if (nodes.length === 0 || hadPlaceholderLayout) {
+        seed();
+        return;
+      }
+
+      // Keep the field distributed when the viewport resizes materially.
+      if (prevW > 0 && prevH > 0) {
+        const scaleX = cssW / prevW;
+        const scaleY = cssH / prevH;
+        if (Math.abs(scaleX - 1) > 0.12 || Math.abs(scaleY - 1) > 0.12) {
+          for (const n of nodes) {
+            n.x *= scaleX;
+            n.y *= scaleY;
+          }
+        }
+      }
     },
     render(timeSec) {
       if (state.disposed) return;

@@ -7,10 +7,10 @@ import { HeroFinale } from "./HeroFinale.jsx";
 import { useScrollProgress } from "./useScrollProgress.js";
 
 const PIPELINE_START = 0.00;
-const PIPELINE_END = 0.27;
-const VIDEO_START = 0.27;
-const VIDEO_END = 0.55;
-const FORM_START = 0.55;
+const PIPELINE_END = 0.16;
+const VIDEO_START = 0.16;
+const VIDEO_END = 0.62;
+const FORM_START = 0.62;
 const FORM_END = 1.00;
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);

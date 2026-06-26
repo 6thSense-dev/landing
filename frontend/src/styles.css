@@ -33,6 +33,7 @@
   /* Semantic tokens — prefer these in UI rules so the page stays coherent. */
   --paper: #ebe6d8;
   --paper-2: #f3efe6;
+  --paper-rgb: 243 239 230;
   /* Card / inset surfaces — alias for pipeline tiles (must be opaque) */
   --paper-1: var(--paper-2);
   --paper-deep: #ddd8cb;
