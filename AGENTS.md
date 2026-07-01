@@ -4,8 +4,6 @@ Durable workspace facts and repeated preferences from sessions. **No secrets or 
 
 ## Layout
 
-- **`ml/`:** Training and data prep (`experiment.py`, `train_robust.py`, `prepare_data.py`, `research.py`, `sanity_check.py`). Paths and datasets come from **`config/senseprobe.defaults.yaml`** + env (`SENSEPROBE_*`); see `ml/senseprobe_config.py`.
-- **`data/`:** Raw/processed data (mostly gitignored); conventions in `data/README.md`.
 - **`frontend/`:** Public narrative site — **Vite + React**. The primary hero is a **scroll-scrubbed 2D canvas “rig tour”** (glove frame sequence + sticky stage) using **Framer Motion**, **lucide-react**, with frame assets under **`frontend/public/hero/glove/`** (`frame-00X.webp`) plus an HTML5 `<video>` demo clip in `frontend/public/` — not a WebGL/Three.js hero.
 - **`backend/`:** Minimal FastAPI service (health, future API).
 - **`.planning/`:** GSD-style artifacts (local; often untracked) — `ROADMAP.md`, `REQUIREMENTS.md`, `STATE.md`, `PROJECT.md`, phase folders.
@@ -45,7 +43,6 @@ Durable workspace facts and repeated preferences from sessions. **No secrets or 
 ## Learned Workspace Facts
 
 - **Brand / company name:** **6thSense** (public-facing product and landing copy).
-- Large raw datasets and generated ML artifacts belong under **`data/`** with strict **`.gitignore`** coverage; accidental tracking inflates uncommitted line counts and should be corrected immediately.
 - **Public landing palette (SASI Visual Identity):** five swatches—**#262312**, **#736A3C**, **#A69A60**, **#BFB68A**, **#592202** (olive–sand ramp plus rust accent). RGBA/HSLA exports are mirrored as CSS variables in **`frontend/src/styles.css`** for parity with design tooling.
 - **Hardware-tour frame assets** (the scroll-scrubbed glove sequence) live under **`frontend/public/hero/glove/`** as `frame-00X.webp`; the hero also uses an HTML5 `<video>` demo clip in `frontend/public/`. (The older `frontend/public/scroll-video/` path no longer exists.)
 - The **marketing page** after the hero is composed to **coexist with** the cofounder rig tour (single `#story` hero, then `.page-after-hero` sections)—integrate new sections without breaking scroll-scrub progress or nav section IDs.

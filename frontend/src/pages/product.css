@@ -1,0 +1,191 @@
+/* Secondary product pages — light editorial paper layout on the SASI palette.
+   Reuses tokens from styles.css (--paper*, --ink, --accent, --sasi-*, fonts). */
+
+.product-page {
+  min-height: 100vh;
+  background: var(--paper, #ebe6d8);
+  color: var(--ink, #262312);
+  font-family: var(--font-body, "Newsreader", Georgia, serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+.product-nav {
+  display: flex;
+  align-items: center;
+  padding: 1.5rem clamp(1.25rem, 5vw, 4rem);
+  border-bottom: 1px solid rgb(var(--sasi-1-rgb, 38 35 18) / 0.1);
+}
+
+.product-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--ink, #262312);
+  font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 0.95rem;
+}
+
+.product-logo {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.product-main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: clamp(3rem, 9vw, 6.5rem) clamp(1.25rem, 5vw, 2rem) 5rem;
+}
+
+.product-kicker {
+  font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent, #592202);
+  margin: 0 0 1.25rem;
+}
+
+.product-h1 {
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 600;
+  font-size: clamp(2.4rem, 6vw, 3.8rem);
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  margin: 0 0 1.5rem;
+}
+
+.product-intro {
+  font-size: clamp(1.15rem, 2.4vw, 1.4rem);
+  line-height: 1.5;
+  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.82);
+  margin: 0 0 3.5rem;
+  max-width: 62ch;
+}
+
+.product-section {
+  margin: 0 0 3rem;
+}
+
+.product-h2 {
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 600;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+
+.product-body {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.8);
+  margin: 0;
+  max-width: 64ch;
+}
+
+.product-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  max-width: 64ch;
+}
+
+.product-list li {
+  position: relative;
+  padding-left: 1.4rem;
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.82);
+  margin: 0 0 0.85rem;
+}
+
+.product-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent, #592202);
+}
+
+/* Hub cards linking to the three parts */
+.product-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin: 3rem 0 0;
+}
+
+@media (min-width: 640px) {
+  .product-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.5rem;
+  border: 1px solid rgb(var(--sasi-1-rgb, 38 35 18) / 0.12);
+  border-radius: 14px;
+  background: var(--paper-2, #f3efe6);
+  text-decoration: none;
+  color: var(--ink, #262312);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-3px);
+  border-color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.28);
+  box-shadow: var(--shadow-lift, 0 12px 28px rgba(38, 35, 18, 0.1));
+}
+
+.product-card-title {
+  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-weight: 600;
+  font-size: 1.3rem;
+}
+
+.product-card-blurb {
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.75);
+}
+
+/* Related / cross-links */
+.product-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgb(var(--sasi-1-rgb, 38 35 18) / 0.1);
+}
+
+.product-related-link {
+  font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--accent, #592202);
+  text-decoration: none;
+}
+
+.product-related-link:hover {
+  text-decoration: underline;
+}
+
+.product-page--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 100vh;
+}
