@@ -56,8 +56,11 @@
 		# never clobber the immutable/media caches above — regardless of directive order.
 		header ?Cache-Control "no-cache"
 
-		# SPA fallback: serve index.html for client-routed paths (/login, /portal/*).
-		try_files {path} /index.html
+		# Serve prerendered folder indexes for secondary pages (/product,
+		# /product/gloves, …) — each is a real dist/<path>/index.html with its own
+		# crawlable content. Fall back to the SPA index.html for everything else
+		# (client-routed paths like /login, /portal/*).
+		try_files {path} {path}/index.html /index.html
 		file_server
 	}
 }

@@ -11,6 +11,11 @@ const LoginPage = lazy(() => import("./portal/LoginPage.jsx"));
 const PortalApp = lazy(() => import("./portal/PortalApp.jsx"));
 const PortalLayout = lazy(() => import("./portal/PortalLayout.jsx"));
 
+// Secondary product pages — reachable by URL + sitemap for crawling; not yet
+// linked from the homepage nav. Each has a build-time crawlable static HTML
+// variant (see scripts/seoPrerenderPlugin.js).
+const ProductPage = lazy(() => import("./pages/ProductPage.jsx"));
+
 // Strip the build-time SEO prerender shell before client render so JS users
 // and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
 document.getElementById("seo-prerender")?.remove();
@@ -24,6 +29,10 @@ createRoot(document.getElementById("root")).render(
             <Route path="/login" element={<LoginPage />} />
             <Route path="/portal/*" element={<PortalApp />} />
           </Route>
+          <Route path="/product" element={<ProductPage slug="/product" />} />
+          <Route path="/product/gloves" element={<ProductPage slug="/product/gloves" />} />
+          <Route path="/product/skin" element={<ProductPage slug="/product/skin" />} />
+          <Route path="/product/rig" element={<ProductPage slug="/product/rig" />} />
           <Route path="/*" element={<App />} />
         </Routes>
       </Suspense>
