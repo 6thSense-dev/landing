@@ -1,22 +1,4 @@
-# --- Local data (never commit large assets) ---
-data/incoming/
-data/raw/
-data/cache/
-data/processed/
-data/processed_full/
-
-# Legacy dataset tree (deprecated; paths ignored if still present locally)
-datasets/raw/
-datasets/processed/
-datasets/processed_full/
-
-*.h5
-*.hdf5
-*.mat
-*.npy
-*.npz
-
-# Large archives (e.g. dataset downloads — keep local only)
+# Large archives — keep local only
 *.zip
 *.7z
 *.tar.gz
@@ -35,14 +17,6 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
-# Model outputs (ML weights/binaries – NOT the SQLAlchemy app models package)
-models/
-!backend/app/models/
-runs/
-*.pth
-*.pt
-*.onnx
-
 # OS
 .DS_Store
 Thumbs.db
@@ -60,9 +34,6 @@ Thumbs.db
 .env.local
 .env.*.local
 !.env.example
-
-# Local config overrides (optional)
-config/senseprobe.local.yaml
 
 # Node / frontend (Vite)
 node_modules/

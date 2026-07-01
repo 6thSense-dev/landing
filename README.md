@@ -2,7 +2,7 @@
 
 **6thSense** builds **custom tactile egocentric datasets for robotics teams**: hardware, synchronized multimodal capture, calibration, quality control, and **model-ready packaged data** for contact-rich robot learning—not just raw sensors or generic recording tools.
 
-This repository hosts the **6thSense** product site and supporting tooling. Internal ML/config paths may still use legacy `senseprobe` filenames and `SENSEPROBE_*` environment variables for continuity with existing experiments; see **Data & ML configuration** below.
+This repository hosts the **6thSense** product site (public marketing page + partner portal) and its minimal supporting API.
 
 ## Monorepo layout
 
@@ -10,37 +10,6 @@ This repository hosts the **6thSense** product site and supporting tooling. Inte
 |------|------|
 | Public site (Vite + React) | `frontend/` |
 | Minimal API (FastAPI) | `backend/` |
-| Training / data prep | `ml/` |
-| Data bootstrap | `scripts/setup_data.py` |
-| Paths, datasets, model run lists | `config/senseprobe.defaults.yaml` |
-
-## ML research (ultrasound stiffness)
-
-The `ml/` package includes experiments that probe whether **B-mode ultrasound** images contain recoverable stiffness signals using ML (paired B-mode + elastography data; classification and regression with models such as ResNet18 and EfficientNet-B0).
-
-### Goal
-
-Can we predict tissue stiffness (kPa) from standard ultrasound images alone?
-
-### Evaluation targets (heuristic)
-
-- Classification: accuracy > 60% suggests recoverable signal
-- Regression: R² > 0.3 promising; R² > 0.5 very promising
-
-## Data & ML configuration
-
-- **`data/README.md`** — where to place zips, extraction, and dataset catalog links.
-- **`config/senseprobe.defaults.yaml`** — dataset registry (`datasets:`), roots (`paths:`), and which models `ml/research.py` / `ml/experiment.py` run (`training:`). Override with **`SENSEPROBE_CONFIG`**, **`SENSEPROBE_DATASET`**, **`SENSEPROBE_DATA_ROOT`**, **`SENSEPROBE_RESULTS_DIR`**, **`SENSEPROBE_MODELS_DIR`** (see `.env.example`).
-
-Typical flow:
-
-```bash
-python scripts/setup_data.py
-python ml/prepare_data.py
-python ml/experiment.py
-```
-
-Use `--dataset <id>` on ML scripts to switch entries in the config without editing files.
 
 ## Backend
 
