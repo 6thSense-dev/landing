@@ -188,19 +188,20 @@ export default function ProductsShowcase() {
           <div className="ev-pstage">
             <span className="ev-badge ev-live">Available now</span>
             {/*
-              PLACEHOLDER product image. /hand.jpg does not exist yet, so the
-              <img> falls back to a labelled "photo pending" panel via onError
-              (reads as intentional, not a broken asset).
-              TODO(hardware): drop a real studio knockout of the Hand glove on
-              the glow stage at /public/hand.jpg + a 360° turntable capture so
-              it can truly spin (DESIGN.md "Imagery Rules"). Never AI-generate
-              or fake this shot — technical buyers spot it instantly.
+              hand-studio.png is an AI-CLEANED studio rendition generated from the
+              real glove reference (public/hand.jpg): background removed, relit on
+              the site palette, sensor module kept blank/unbranded. Honest — based
+              on the real product, no fake brand or invented features — but it is a
+              rendition, not a literal photo of the exact unit.
+              TODO(hardware): replace with a real studio knockout of the Hand glove
+              + a 360° turntable capture so it can truly spin (DESIGN.md "Imagery
+              Rules"). Falls back to a "photo pending" panel on error.
             */}
             <img
               className="ev-pstage-img"
-              src="/hand.jpg"
-              alt="6thSense Hand — tactile data glove, sensor module detail"
-              style={{ objectPosition: "82% 56%", transform: "scale(1.75)" }}
+              src="/hand-studio.png"
+              alt="6thSense Hand — tactile data glove"
+              style={{ objectFit: "contain", objectPosition: "center" }}
               onError={(e) => {
                 e.currentTarget.style.display = "none";
                 e.currentTarget.nextElementSibling?.removeAttribute("hidden");
@@ -208,9 +209,8 @@ export default function ProductsShowcase() {
             />
             <div className="ev-prod-ph" hidden aria-hidden="true">
               <div className="ev-prod-ph-mark">◍</div>
-              <div className="ev-prod-ph-cap">Sensor-module macro — photo pending</div>
+              <div className="ev-prod-ph-cap">Hand glove — photo pending</div>
             </div>
-            <span className="ev-pstage-cap">sensor module — detail</span>
           </div>
           <div>
             <div className="ev-idx">01 · The Hand</div>
