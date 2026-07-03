@@ -241,33 +241,24 @@ export default function ProductsShowcase() {
             <span className="ev-badge ev-soon">Reserve — in build</span>
             <div className="ev-glowdots" />
             {/*
-              One glove, two states (DESIGN.md): the SAME 15-joint diagram as the
-              homepage hero, here lit on scroll to show the Hand becoming the
-              Nerve. Annotated diagram until Nerve physically exists — never a
-              faked photo, and per-joint sensing is labelled Nerve only.
+              Nerve CONCEPT render generated from the real Hand glove
+              (public/nerve-concept.png): the SAME glove with glowing per-joint
+              sensors — the Hand upgraded to Nerve, one glove two states.
+              It is a concept, NOT a shipping product photo: Nerve isn't shipping
+              and the sensor count/placement is illustrative (the real sensors
+              sit palm-side). Stays badged "in build" + captioned "concept render".
             */}
-            <svg
-              className="ev-nervesvg ev-nervesvg--reveal"
-              viewBox="0 0 360 250"
-              width="72%"
-              role="img"
-              aria-label="15 joint sensors, 3 per finger — pressure + temperature"
-            >
-              <rect className="ev-bone" x="120" y="160" width="120" height="66" rx="20" />
-              <rect className="ev-bone" x="132" y="34" width="20" height="132" rx="10" />
-              <rect className="ev-bone" x="160" y="26" width="20" height="140" rx="10" />
-              <rect className="ev-bone" x="188" y="32" width="20" height="134" rx="10" />
-              <rect className="ev-bone" x="216" y="48" width="20" height="118" rx="10" />
-              <rect className="ev-bone" x="236" y="142" width="58" height="20" rx="10" transform="rotate(28 236 142)" />
-              <JointCircles prefix="nerve" />
-              <text className="ev-svglbl" x="20" y="242">
-                15 joint sensors · 3 per finger · pressure + temperature
-              </text>
-            </svg>
+            <img
+              className="ev-pstage-img"
+              src="/nerve-concept.png"
+              alt="6thSense Nerve concept render — the Hand glove with per-joint sensors"
+              style={{ objectFit: "contain", objectPosition: "center" }}
+            />
             <span className="ev-statelabel ev-statelabel--stage" aria-hidden="true">
               <span className="ev-state-hand">Hand · tactile</span>
               <span className="ev-state-nerve">Nerve · force in space</span>
             </span>
+            <span className="ev-pstage-cap">concept render · sensors illustrative</span>
           </div>
           <div>
             <div className="ev-idx">02 · The Nerve</div>
