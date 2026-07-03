@@ -186,3 +186,77 @@
     animation: none;
   }
 }
+
+/* ---- flying-dots background + flat (boxless) layout, matching the homepage ---
+ * /products shares the homepage's TactileField dots, mounted fixed behind
+ * everything. Sections + product stages go transparent so the dots read as one
+ * continuous background, and the frame/stage boxes are flattened (no fills,
+ * borders, radius, shadow) so content floats on the field like the main page. */
+.ev-products.ev-home {
+  background: transparent;
+}
+.ev-products .ev-bg-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+  pointer-events: none;
+}
+.ev-products .ev-bg-field .tactile-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+.ev-products .ev-frame {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+/* Every section transparent — the dots are the background. */
+.ev-products .ev-hero,
+.ev-products .ev-light,
+.ev-products .ev-prow,
+.ev-products .ev-prow.ev-pdark,
+.ev-products .ev-prow.ev-plight,
+.ev-products .ev-reserve,
+.ev-products .ev-reserve--alt,
+.ev-products .ev-footer,
+.ev-products .ev-band {
+  background: transparent;
+  border-top: none;
+}
+/* Flatten the product stages — no boxed containers. */
+.ev-products .ev-pstage,
+.ev-products .ev-prow.ev-pdark .ev-pstage,
+.ev-products .ev-prow.ev-plight .ev-pstage {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+/* Hand "photo pending" slot: soft glow only, no solid fill box. */
+.ev-products .ev-prod-ph {
+  background: radial-gradient(closest-side, rgba(240, 97, 42, 0.16), transparent 72%);
+}
+/* Band is now just the centered line on the dots (video removed). */
+.ev-products .ev-band {
+  padding: 72px 40px;
+  display: flex;
+  justify-content: center;
+}
+.ev-products .ev-band-line {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.01em;
+  color: var(--on-dark);
+  text-align: center;
+  margin: 0;
+}
+@media (max-width: 780px) {
+  .ev-products .ev-band { padding: 48px 22px; }
+}

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import LeadForm from "../lib/LeadForm.jsx";
 import SiteNav from "../lib/SiteNav.jsx";
+import { TactileField } from "../TactileField.jsx";
 // Reuse the homepage's approved Evora stylesheet verbatim (all .ev-* classes
 // and the joint-reveal visual live there, scoped under .ev-home). This file
 // only adds the small products-page deltas on top.
@@ -147,6 +148,11 @@ export default function ProductsShowcase() {
 
   return (
     <div className="ev-home ev-products">
+      {/* Same flying-dots constellation as the homepage, fixed behind the whole
+          page so /products reads as one continuous dark field (DESIGN.md). */}
+      <div className="ev-bg-field" aria-hidden="true">
+        <TactileField />
+      </div>
       <div className="ev-frame">
         {/* ---------- nav + page head (dark hero band) ---------- */}
         <section className="ev-hero ev-hero--compact" aria-label="6thSense products">
@@ -287,20 +293,9 @@ export default function ProductsShowcase() {
           </div>
         </section>
 
-        {/* ---------- media band ---------- */}
+        {/* ---------- band: just the line, on the flying-dots background ---------- */}
         <section className="ev-band">
-          <div className="ev-bandmedia">
-            <video
-              src="/demo.mp4"
-              poster="/demo-poster.jpg"
-              autoPlay
-              muted
-              loop
-              playsInline
-              aria-hidden="true"
-            />
-            <h3>Every touch, localized.</h3>
-          </div>
+          <h3 className="ev-band-line">Every touch, localized.</h3>
         </section>
 
         {/* ---------- SKIN (light) — 03, contact ---------- */}
