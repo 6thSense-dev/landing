@@ -182,8 +182,24 @@ export default function LeadForm({
       )}
 
       {/* Honeypot: hidden from real users; bots that fill it are dropped
-          server-side by the /api/leads route. */}
-      <div className={c.honeypot} aria-hidden="true">
+          server-side by the /api/leads route. Inline visually-hidden style so
+          it stays hidden regardless of which theme stylesheet is active
+          (evora-home.css did not define the honeypot class). */}
+      <div
+        className={c.honeypot}
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      >
         <label htmlFor={`${idPrefix}-website`}>Website</label>
         <input
           id={`${idPrefix}-website`}
