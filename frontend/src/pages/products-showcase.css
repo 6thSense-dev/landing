@@ -260,3 +260,15 @@
 @media (max-width: 780px) {
   .ev-products .ev-band { padding: 48px 22px; }
 }
+
+/* ---- full-bleed: sections fill the entire screen width (no centered cap) --- */
+.ev-products .ev-frame {
+  max-width: none;
+}
+/* Keep long-form copy readable even when the section spans the full width. */
+.ev-products .ev-phead { max-width: 820px; }
+.ev-products .ev-reserve-grid,
+.ev-products .ev-prow {
+  padding-left: clamp(22px, 5vw, 96px);
+  padding-right: clamp(22px, 5vw, 96px);
+}
