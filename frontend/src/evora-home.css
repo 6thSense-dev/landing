@@ -666,9 +666,34 @@
 
 /* All motion gated by prefers-reduced-motion (DESIGN.md). */
 @media (prefers-reduced-motion: reduce) {
+  .ev-home { animation: none; }
   .ev-prod { animation: none; }
   .ev-joints .ev-j,
   .ev-joints .ev-jh,
   .ev-statelabel span,
   .ev-pill { transition: none; }
 }
+
+/* ---- /products: unify to the site's dark background + page fade-in ----
+ * The products page reuses these shared .ev-* classes but must match the home
+ * page's dark background, not the light/paper treatment. Rebinding the
+ * light-surface tokens on the light containers flips every child that reads
+ * --on-light / --surface / --line-l to its on-dark equivalent, so contrast
+ * stays correct without touching each rule. */
+.ev-home {
+  background: #000;
+  animation: ev-page-in 0.34s ease both;
+}
+.ev-light,
+.ev-prow.ev-plight {
+  --surface: #0e0d0a;
+  --surface-2: #141009;
+  --on-light: var(--ev-on-dark);
+  --on-light-mut: var(--ev-on-dark-mut);
+  --line-l: var(--ev-line-d);
+  background: radial-gradient(90% 130% at 20% 20%, #1a130d, #0e0d0a 62%);
+  color: var(--on-dark);
+}
+.ev-prow.ev-plight .ev-pstage { background: #141009; }
+.ev-pill.ev-onlight { color: var(--on-dark); border-color: var(--line-d); }
+@keyframes ev-page-in { from { opacity: 0; } to { opacity: 1; } }
