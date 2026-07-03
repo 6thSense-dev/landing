@@ -1,0 +1,188 @@
+/*
+ * /products page — deltas on top of the shared Evora stylesheet.
+ * Source of truth: DESIGN.md (repo root) + .context/design-reference/evora.html.
+ *
+ * evora-home.css already owns every shared .ev-* class and the --ev-* tokens
+ * (defined in styles.css). This file adds ONLY what is unique to /products:
+ *   - a compact dark hero band used as the page header
+ *   - the scroll-driven Hand -> Nerve joint reveal on the Nerve product row
+ *   - the honeypot hide, consent note, and contact textarea
+ *   - the Skin CSS render-slot placeholder (turntable ring)
+ * All values reuse DESIGN.md tokens; nothing new is invented.
+ */
+
+/* ---- compact hero used as the products page header ------------------- */
+.ev-hero--compact {
+  min-height: auto;
+  padding: 22px 40px 48px;
+}
+.ev-phead {
+  margin-top: 40px;
+  max-width: 760px;
+}
+.ev-phead h1 {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(40px, 5.2vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 14px 0 0;
+}
+.ev-phead-deck {
+  margin: 0;
+  color: var(--on-dark-mut);
+  max-width: 56ch;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.ev-products .ev-hero--compact .ev-rule {
+  margin: 26px 0 20px;
+}
+
+/* ---- Nerve row: scroll-driven joint reveal (one glove, two states) ---- */
+/* The reused .ev-nervesvg lights its joints statically; on /products we tie
+   the joint + label opacity to --joints-lit so they fade in as the row scrolls
+   into view — the Hand becoming the Nerve. Gated by reduced motion below. */
+.ev-nervesvg--reveal .ev-jh {
+  fill: rgba(240, 97, 42, 0.2);
+  opacity: var(--joints-lit, 0);
+  transition: opacity var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-nervesvg--reveal .ev-j {
+  fill: var(--accent);
+  opacity: var(--joints-lit, 0);
+  transition: opacity var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-nervesvg--reveal .ev-bone {
+  /* Bones read as the plain Hand at rest, warming slightly as joints light. */
+  transition: stroke var(--ev-dur-med) var(--ev-ease-enter);
+}
+
+/* State label pinned inside the Nerve stage, crossfading Hand -> Nerve. */
+.ev-statelabel--stage {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  left: auto;
+}
+
+/* ---- honeypot: visually hidden, off-screen, out of the tab order ------ */
+.ev-hp {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- consent note under each form ----------------------------------- */
+.ev-consent {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--on-dark-mut);
+  max-width: 42ch;
+  margin: 6px 0 0;
+}
+
+/* ---- contact textarea (mirrors the .ev-field input styling) ---------- */
+.ev-textarea {
+  font-family: var(--fs);
+  font-size: 15px;
+  color: var(--on-dark);
+  background: #141009;
+  border: 1px solid var(--line-d);
+  border-radius: var(--ev-r-md);
+  padding: 12px 14px;
+  resize: vertical;
+  min-height: 84px;
+  line-height: 1.5;
+}
+.ev-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.ev-textarea::placeholder {
+  color: var(--on-dark-mut);
+}
+
+/* ---- second (Skin contact) capture band ----------------------------- */
+/* Subtle variant so the two stacked dark capture bands read as distinct. */
+.ev-reserve--alt {
+  background: radial-gradient(90% 120% at 22% 20%, #221913, #0e0d0a 62%);
+  border-top: 1px solid var(--line-d);
+}
+
+/* ---- footer home link ------------------------------------------------ */
+.ev-footer-home {
+  transition: color var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-footer-home:hover {
+  color: var(--on-dark);
+}
+
+/* ---- Skin CSS render-slot placeholder (turntable ring) --------------- */
+.ev-skin-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ev-skin-ring {
+  position: absolute;
+  width: 62%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--line-l);
+  box-shadow: 0 0 0 1px rgba(240, 97, 42, 0.08) inset;
+  /* Slow turntable ring (DESIGN.md motion: 28s linear). */
+  background: conic-gradient(
+    from 0deg,
+    rgba(240, 97, 42, 0.16),
+    transparent 30% 70%,
+    rgba(240, 97, 42, 0.16)
+  );
+  animation: ev-turntable 28s linear infinite;
+  opacity: 0.7;
+}
+.ev-skin-slot .ev-skin-ph {
+  position: relative;
+}
+
+@keyframes ev-turntable {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 780px) {
+  .ev-hero--compact {
+    padding: 18px 22px 36px;
+  }
+  .ev-phead {
+    margin-top: 26px;
+  }
+  .ev-statelabel--stage {
+    top: 12px;
+    right: 12px;
+  }
+}
+
+/* All motion gated by prefers-reduced-motion (DESIGN.md). With reduced motion
+   the joints are shown fully lit (driven to 1 in JS) and the turntable stops. */
+@media (prefers-reduced-motion: reduce) {
+  .ev-nervesvg--reveal .ev-j,
+  .ev-nervesvg--reveal .ev-jh,
+  .ev-nervesvg--reveal .ev-bone {
+    transition: none;
+  }
+  .ev-skin-ring {
+    animation: none;
+  }
+}

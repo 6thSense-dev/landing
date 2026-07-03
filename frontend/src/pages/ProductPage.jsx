@@ -40,6 +40,12 @@ export default function ProductPage({ slug }) {
           <img className="product-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
           <span>6THSENSE</span>
         </Link>
+        {/* Site nav (every page): Products link, buyer CTA, small Partner login. */}
+        <nav className="product-navlinks" aria-label="Primary">
+          <Link className="product-navlink" to="/products">Products</Link>
+          <Link className="product-cta" to="/products#reserve">Reserve Nerve</Link>
+          <Link className="product-login" to="/login">Partner login</Link>
+        </nav>
       </header>
 
       <main className="product-main">

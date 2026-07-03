@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -12,11 +13,23 @@ from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
 from app.core.middleware import MaxBodySizeMiddleware
+from app.core.slack import SLACK_ENV_VAR, slack_configured
 from app.core.csrf import OriginCheckMiddleware
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Loudly warn if Slack lead notifications are not wired up. Non-fatal:
+    # leads are still captured to the DB; we just won't ping Slack.
+    if not slack_configured():
+        logger.warning(
+            "%s is not set — new-lead Slack notifications are DISABLED. "
+            "Set it to your Slack incoming-webhook URL to enable them.",
+            SLACK_ENV_VAR,
+        )
     yield
 
 
@@ -49,7 +62,7 @@ def create_app() -> FastAPI:
             field = loc[-1] if loc else "body"
             errors[str(field)] = err.get("msg", "Invalid value.")
         return JSONResponse(
-            status_code=400,
+            status_code=422,
             content={"ok": False, "errors": errors},
         )
 
