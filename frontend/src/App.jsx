@@ -32,6 +32,19 @@ function AppInner() {
             <span className="nav-logo-text">6THSENSE</span>
           </a>
           <div className="nav-links nav-links-on-dark">
+            <Link
+              to="/products"
+              className="nav-cta-on-dark"
+              style={{
+                color: "var(--dark-ink, #ece8dc)",
+                textDecoration: "none",
+                fontWeight: 500,
+                marginRight: "1.5rem",
+                letterSpacing: "0.01em",
+              }}
+            >
+              Products
+            </Link>
             <Link to="/login" className="nav-cta nav-cta-on-dark">
               Partner login
             </Link>

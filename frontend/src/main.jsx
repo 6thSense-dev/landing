@@ -2,14 +2,10 @@ import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
+import App from "./App";
 import "./styles.css";
 import "./scroll-hero.css";
 import "./portal/portal.css";
-
-// Homepage — the approved dark-cinematic "Evora" direction (DESIGN.md).
-// Lazy so its General Sans / Geist Mono styling and the joint-reveal hook
-// don't sit in the shared portal/product bundle.
-const EvoraHome = lazy(() => import("./EvoraHome.jsx"));
 
 const LoginPage = lazy(() => import("./portal/LoginPage.jsx"));
 const PortalApp = lazy(() => import("./portal/PortalApp.jsx"));
@@ -42,7 +38,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/product/skin" element={<ProductPage slug="/product/skin" />} />
           <Route path="/product/rig" element={<ProductPage slug="/product/rig" />} />
           <Route path="/products" element={<ProductsShowcase />} />
-          <Route path="/*" element={<EvoraHome />} />
+          <Route path="/*" element={<App />} />
         </Routes>
       </Suspense>
     </BrowserRouter>
