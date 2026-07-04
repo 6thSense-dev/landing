@@ -264,24 +264,31 @@ export default function ProductsShowcase() {
             </span>
             <span className="ev-pstage-cap">concept render · sensors illustrative</span>
           </div>
-          <div>
+          <div className="ev-pinfo">
             <div className="ev-idx">02 · The Nerve</div>
-            <h2>Nerve</h2>
-            <div className="ev-psub">Everything the Hand feels — plus per-joint motion + temperature</div>
-            <p className="ev-lede">
-              The same glove, with a sensor at every finger joint. Each touch
-              localized in space, with temperature. Motion-capture gloves track
-              the hand but feel nothing, and run $2,000+ — Nerve does both.
+            <h2 className="ev-ptitle">Nerve</h2>
+            {/* Nerve is the mocap+tactile product, so the motion-capture wedge is
+                accurate here (unlike Hand). Keep it. */}
+            <p className="ev-oneliner">
+              Mocap gloves track the hand but can't feel. Nerve does both —
+              touch at every finger joint, plus temperature.
             </p>
-            <ul className="ev-specs">
-              <li>+ per-joint motion</li>
-              <li>+ temperature</li>
-              <li>15 joints</li>
-              <li>Bosch BMP581</li>
-            </ul>
+            <div className="ev-bignums">
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">15</span>
+                <span className="ev-bignum-l">joint sensors</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">3</span>
+                <span className="ev-bignum-l">per finger</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">440</span>
+                <span className="ev-bignum-l">pressure cells</span>
+              </div>
+            </div>
             <div className="ev-actions">
-              {/* TODO: Nerve price + ship window are TBD (DESIGN.md); reserve is
-                  email capture only. */}
+              {/* Nerve price + ship window TBD (DESIGN.md); reserve = email capture only. */}
               <span className="ev-tbd">Price &amp; ship window: TBD</span>
               <a className="ev-pill ev-solid" href="#reserve">Reserve Nerve</a>
             </div>
@@ -312,19 +319,27 @@ export default function ProductsShowcase() {
               </div>
             </div>
           </div>
-          <div>
+          <div className="ev-pinfo">
             <div className="ev-idx">03 · The Skin</div>
-            <h2>Skin</h2>
-            <div className="ev-psub">Custom tactile skin for robot hands and grippers</div>
-            <p className="ev-lede">
-              Molded 1:1 to your hardware. Touch exactly where the task needs it
-              — a dexterous hand, a gripper, any surface you build.
+            <h2 className="ev-ptitle">Skin</h2>
+            <p className="ev-oneliner">
+              Custom tactile skin, molded 1:1 to a dexterous hand, a gripper,
+              any surface you build.
             </p>
-            <ul className="ev-specs">
-              <li>Custom-fit</li>
-              <li>Any surface</li>
-              <li>Per-task layout</li>
-            </ul>
+            <div className="ev-bignums">
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">1:1</span>
+                <span className="ev-bignum-l">molded fit</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">Any</span>
+                <span className="ev-bignum-l">surface</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">Per-task</span>
+                <span className="ev-bignum-l">touch layout</span>
+              </div>
+            </div>
             <div className="ev-actions">
               <a className="ev-pill ev-solid" href="#skin-contact">Talk to us</a>
             </div>
