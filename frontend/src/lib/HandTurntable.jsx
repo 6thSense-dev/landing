@@ -86,16 +86,27 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     window.addEventListener("pointerup", onUp);
 
     let raf = 0;
+    let skinPlane = null;
+    let handPlane = null;
+    const UP = new THREE.Vector3(0, 1, 0);
+    const tmpN = new THREE.Vector3();
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
       src,
       (gltf) => {
         const model = gltf.scene;
+        // Vertical split that co-rotates with the hand (updated in the tick):
+        // the bare hand renders on one half, the tactile skin on the other so
+        // you only ever see one of them per side.
+        skinPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+        handPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
         const mat = new THREE.MeshStandardMaterial({
           color: 0x171310,
           metalness: 0.38,
           roughness: 0.52,
+          clippingPlanes: [handPlane],
+          side: THREE.DoubleSide,
         });
         model.traverse((o) => {
           if (o.isMesh) o.material = mat;
@@ -112,18 +123,17 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
         model.rotation.x = -Math.PI / 2;
         pivot.add(model);
 
-        // Tactile-skin "glove" over the fingers: a slightly larger clone in a
-        // warm matte material, clipped by a HORIZONTAL plane so the skin wraps
-        // fully around the fingers (every side, like a glove) while the palm and
-        // wrist stay bare. Spin is around Y (preserves height), so the plane is
-        // fixed. Tune the constant to move the fingers/palm line up or down.
-        const skinPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.05);
+        // The tactile skin: a distinct, thicker sheath (a bigger offset clone) in
+        // a soft matte silicone material, clipped to the RIGHT half so it wraps
+        // the two right fingers + thumb. It's opaque and stands off the surface,
+        // so it reads as an applied skin (not a recolour); the hand is clipped to
+        // the opposite half, so on the skin side you see only the skin.
         const skinMat = new THREE.MeshStandardMaterial({
-          color: 0x8f4a2a,
-          metalness: 0.05,
-          roughness: 0.85,
+          color: 0xcf6a34,
+          metalness: 0.0,
+          roughness: 0.95,
           emissive: 0xf0612a,
-          emissiveIntensity: 0.16,
+          emissiveIntensity: 0.32,
           clippingPlanes: [skinPlane],
           side: THREE.DoubleSide,
         });
@@ -131,7 +141,7 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
         skin.traverse((o) => {
           if (o.isMesh) o.material = skinMat;
         });
-        skin.scale.multiplyScalar(1.04);
+        skin.scale.multiplyScalar(1.14);
         pivot.add(skin);
       },
       undefined,
@@ -141,6 +151,13 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     const tick = () => {
       raf = requestAnimationFrame(tick);
       if (!dragging) pivot.rotation.y += velocity;
+      // Co-rotate the vertical split with the hand so the same fingers stay
+      // skinned. Hand on one side, skin on the other.
+      if (skinPlane) {
+        tmpN.set(1, 0, 0).applyAxisAngle(UP, pivot.rotation.y);
+        handPlane.normal.copy(tmpN).negate();
+        skinPlane.normal.copy(tmpN);
+      }
       renderer.render(scene, camera);
     };
     tick();
