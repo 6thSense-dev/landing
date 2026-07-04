@@ -2483,3 +2483,11 @@ main .section[id] {
     box-shadow: none;
   }
 }
+
+/* Flagship-nav wordmark must stay light even when the nav is nested inside
+   .ev-home (its `a { color: inherit }` was darkening the 6THSENSE text on
+   /products). Specificity (0,2,0) beats .ev-home a (0,1,1). */
+.nav-flagship .wordmark-on-dark,
+.nav-flagship .wordmark-on-dark .nav-logo-text {
+  color: var(--paper-2);
+}

@@ -20,6 +20,9 @@ const ProductPage = lazy(() => import("./pages/ProductPage.jsx"));
 // pages above). Presents the hardware line as editorial feature rows.
 const ProductsShowcase = lazy(() => import("./pages/ProductsShowcase.jsx"));
 
+// Placeholder section linked from the nav ("People" — real content later).
+const PeoplePage = lazy(() => import("./pages/PeoplePage.jsx"));
+
 // Strip the build-time SEO prerender shell before client render so JS users
 // and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
 document.getElementById("seo-prerender")?.remove();
@@ -38,6 +41,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/product/skin" element={<ProductPage slug="/product/skin" />} />
           <Route path="/product/rig" element={<ProductPage slug="/product/rig" />} />
           <Route path="/products" element={<ProductsShowcase />} />
+          <Route path="/people" element={<PeoplePage />} />
           <Route path="/*" element={<App />} />
         </Routes>
       </Suspense>
