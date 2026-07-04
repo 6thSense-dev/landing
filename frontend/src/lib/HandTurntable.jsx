@@ -140,25 +140,21 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
           metalness: 0.12,
           roughness: 0.62,
           clippingPlanes: [skinPlane],
-          side: THREE.DoubleSide,
+          side: THREE.FrontSide,
         });
         loader.load("/skin-glove.glb", (g2) => {
           const glove = g2.scene;
+          // Single WATERTIGHT shell in the HAND's coordinate space (no separate
+          // parts to self-intersect). Apply the hand's exact centering + scale so
+          // it lines up, a hair bigger so it sits just outside as a layer.
           glove.traverse((o) => {
             if (o.isMesh) {
               o.geometry.computeVertexNormals();
+              o.geometry.translate(-center.x, -center.y, -center.z);
               o.material = skinMat;
             }
           });
-          const gbox = new THREE.Box3().setFromObject(glove);
-          const gsize = gbox.getSize(new THREE.Vector3());
-          const gcenter = gbox.getCenter(new THREE.Vector3());
-          glove.traverse((o) => {
-            if (o.isMesh) o.geometry.translate(-gcenter.x, -gcenter.y, -gcenter.z);
-          });
-          const gmax = Math.max(gsize.x, gsize.y, gsize.z) || 1;
-          // Match the hand's normalisation, a touch bigger so it sits over it.
-          glove.scale.setScalar((1.35 / gmax) * 1.05);
+          glove.scale.setScalar((1.35 / maxDim) * 1.015);
           glove.rotation.x = -Math.PI / 2;
           pivot.add(glove);
         });
