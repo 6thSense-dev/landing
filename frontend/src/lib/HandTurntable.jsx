@@ -28,6 +28,7 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     let renderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.localClippingEnabled = true;
     } catch {
       setFailed(true);
       return;
@@ -85,6 +86,8 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     window.addEventListener("pointerup", onUp);
 
     let raf = 0;
+    let skinPlane = null;
+    const UP = new THREE.Vector3(0, 1, 0);
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
@@ -106,10 +109,30 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
         const center = box.getCenter(new THREE.Vector3());
         model.position.sub(center);
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        model.scale.setScalar(1.9 / maxDim);
+        model.scale.setScalar(1.35 / maxDim);
         // The CAD arrives palm-down along Z; tip it up so it reads as a hand.
         model.rotation.x = -Math.PI / 2;
         pivot.add(model);
+
+        // Tactile-skin shell over one half of the hand: a slightly larger clone
+        // in a warm matte material, clipped by a plane through the spin axis so
+        // the same half stays covered as the hand rotates.
+        skinPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+        const skinMat = new THREE.MeshStandardMaterial({
+          color: 0x8f4a2a,
+          metalness: 0.05,
+          roughness: 0.85,
+          emissive: 0xf0612a,
+          emissiveIntensity: 0.16,
+          clippingPlanes: [skinPlane],
+          side: THREE.DoubleSide,
+        });
+        const skin = model.clone(true);
+        skin.traverse((o) => {
+          if (o.isMesh) o.material = skinMat;
+        });
+        skin.scale.multiplyScalar(1.04);
+        pivot.add(skin);
       },
       undefined,
       () => setFailed(true),
@@ -118,6 +141,9 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     const tick = () => {
       raf = requestAnimationFrame(tick);
       if (!dragging) pivot.rotation.y += velocity;
+      // Keep the skin's clip plane aligned to the hand so the same half stays
+      // covered as it spins.
+      if (skinPlane) skinPlane.normal.set(1, 0, 0).applyAxisAngle(UP, pivot.rotation.y);
       renderer.render(scene, camera);
     };
     tick();
