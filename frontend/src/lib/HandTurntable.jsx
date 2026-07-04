@@ -154,7 +154,7 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
               o.material = skinMat;
             }
           });
-          glove.scale.setScalar((1.35 / maxDim) * 1.03);
+          glove.scale.setScalar((1.35 / maxDim) * 1.06);
           glove.rotation.x = -Math.PI / 2;
           pivot.add(glove);
         });
