@@ -181,27 +181,8 @@ export default function ProductsShowcase() {
       </header>
 
       <div className="ev-frame">
-        {/* ---------- page head (dark hero band) ---------- */}
-        <section className="ev-hero ev-hero--compact" aria-label="6thSense products">
-          <div className="ev-phead">
-            <div className="ev-idx">The hardware</div>
-            <h1>
-              One glove. Then the
-              <br />
-              robot feels it too.
-            </h1>
-            <div className="ev-rule" />
-            <p className="ev-phead-deck">
-              Tactile capture hardware for teams training dexterous robots.
-              Record how a human hand touches — how hard and exactly where —
-              then move that sensing onto the robot. Hand ships today; Nerve
-              adds per-joint sensing; Skin puts it on your hardware.
-            </p>
-          </div>
-        </section>
-
-        {/* ---------- HAND (light) — 01, available now ---------- */}
-        <section className="ev-prow ev-plight" id="hand">
+        {/* ---------- HAND — 01, available now (first section, clears the nav) ---------- */}
+        <section className="ev-prow ev-plight ev-prow--first" id="hand">
           <div className="ev-pstage">
             <span className="ev-badge ev-live">Available now</span>
             {/*
@@ -229,22 +210,27 @@ export default function ProductsShowcase() {
               <div className="ev-prod-ph-cap">Hand glove — photo pending</div>
             </div>
           </div>
-          <div>
+          <div className="ev-pinfo">
             <div className="ev-idx">01 · The Hand</div>
-            <h2>Hand</h2>
-            <div className="ev-psub">Human tactile data glove — tactile + orientation</div>
-            <p className="ev-lede">
-              440 pressure cells, synced and training-ready. Records force the
-              instant you make contact, with hand orientation for every frame —
-              pro-grade touch at a fraction of a motion-capture glove's price.
-            </p>
-            <ul className="ev-specs">
-              <li>440 cells</li>
-              <li>0.1–350 N</li>
-              <li>16-bit</li>
-              <li>&lt;1 ms</li>
-              <li>≥200 Hz</li>
-            </ul>
+            <h2 className="ev-ptitle">Hand</h2>
+            {/* One line only, and accurate: the Hand is tactile (+ hand
+                orientation). It does NOT do per-joint motion capture — that is
+                Nerve. Never imply mocap here. */}
+            <p className="ev-oneliner">A data glove that feels. Every touch, recorded as force.</p>
+            <div className="ev-bignums">
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">440</span>
+                <span className="ev-bignum-l">pressure cells</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">200<small>Hz</small></span>
+                <span className="ev-bignum-l">sustained</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">&lt;1<small>ms</small></span>
+                <span className="ev-bignum-l">response</span>
+              </div>
+            </div>
             <div className="ev-actions">
               <span className="ev-price">$1,000</span>
               <a className="ev-pill ev-solid" href="#reserve">Buy the Hand</a>
