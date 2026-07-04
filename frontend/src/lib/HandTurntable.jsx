@@ -86,8 +86,6 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     window.addEventListener("pointerup", onUp);
 
     let raf = 0;
-    let skinPlane = null;
-    const UP = new THREE.Vector3(0, 1, 0);
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
@@ -114,10 +112,12 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
         model.rotation.x = -Math.PI / 2;
         pivot.add(model);
 
-        // Tactile-skin shell over one half of the hand: a slightly larger clone
-        // in a warm matte material, clipped by a plane through the spin axis so
-        // the same half stays covered as the hand rotates.
-        skinPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+        // Tactile-skin "glove" over the fingers: a slightly larger clone in a
+        // warm matte material, clipped by a HORIZONTAL plane so the skin wraps
+        // fully around the fingers (every side, like a glove) while the palm and
+        // wrist stay bare. Spin is around Y (preserves height), so the plane is
+        // fixed. Tune the constant to move the fingers/palm line up or down.
+        const skinPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.05);
         const skinMat = new THREE.MeshStandardMaterial({
           color: 0x8f4a2a,
           metalness: 0.05,
@@ -141,9 +141,6 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     const tick = () => {
       raf = requestAnimationFrame(tick);
       if (!dragging) pivot.rotation.y += velocity;
-      // Keep the skin's clip plane aligned to the hand so the same half stays
-      // covered as it spins.
-      if (skinPlane) skinPlane.normal.set(1, 0, 0).applyAxisAngle(UP, pivot.rotation.y);
       renderer.render(scene, camera);
     };
     tick();
