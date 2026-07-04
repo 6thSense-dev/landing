@@ -46,15 +46,17 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
     camera.position.set(0, 0.15, 3.1);
 
     // Warm, dark studio lighting to match the paper/orange palette.
-    scene.add(new THREE.AmbientLight(0x3a2418, 0.7));
-    const key = new THREE.DirectionalLight(0xfff1e6, 2.4);
+    // Neutral base so the light-gray hand reads gray and the black glove stays
+    // visible, with a warm orange rim to tie into the palette.
+    scene.add(new THREE.AmbientLight(0x6c6c6c, 0.9));
+    const key = new THREE.DirectionalLight(0xffffff, 2.1);
     key.position.set(2.5, 3, 2.5);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0xf0612a, 5.5);
+    const rim = new THREE.DirectionalLight(0xf0612a, 3.2);
     rim.position.set(-3, 1.2, -2.5);
     scene.add(rim);
-    const fill = new THREE.DirectionalLight(0xf0612a, 1.4);
-    fill.position.set(0.5, -2.5, 2.5);
+    const fill = new THREE.DirectionalLight(0xffd9c2, 0.75);
+    fill.position.set(0.5, -2, 2.5);
     scene.add(fill);
 
     const pivot = new THREE.Group();
@@ -101,10 +103,11 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
         // you only ever see one of them per side.
         skinPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
         handPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+        // Light-gray robotic hand.
         const mat = new THREE.MeshStandardMaterial({
-          color: 0x171310,
-          metalness: 0.38,
-          roughness: 0.52,
+          color: 0xbcbcbc,
+          metalness: 0.28,
+          roughness: 0.5,
           clippingPlanes: [handPlane],
           side: THREE.DoubleSide,
         });
@@ -112,37 +115,53 @@ export default function HandTurntable({ src = "/dexterous-hand.glb" }) {
           if (o.isMesh) o.material = mat;
         });
 
-        // Center, normalise scale, stand it up.
+        // Center the geometry at the origin, normalise, stand it up. Centering
+        // the geometry (not the object) keeps it aligned with the glove below.
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        model.position.sub(center);
+        model.traverse((o) => {
+          if (o.isMesh) o.geometry.translate(-center.x, -center.y, -center.z);
+        });
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
         model.scale.setScalar(1.35 / maxDim);
         // The CAD arrives palm-down along Z; tip it up so it reads as a hand.
         model.rotation.x = -Math.PI / 2;
         pivot.add(model);
 
-        // The tactile skin: a distinct, thicker sheath (a bigger offset clone) in
-        // a soft matte silicone material, clipped to the RIGHT half so it wraps
-        // the two right fingers + thumb. It's opaque and stands off the surface,
-        // so it reads as an applied skin (not a recolour); the hand is clipped to
-        // the opposite half, so on the skin side you see only the skin.
+        // The tactile-skin GLOVE: a SEPARATE, voxel-remeshed shell of the hand
+        // (public/skin-glove.glb), smoothed so it encompasses the hand's curves
+        // like a glove instead of molding to every crease and tendon. Matte black
+        // like the real glove. Clipped to the RIGHT half (two fingers + thumb);
+        // the hand is clipped to the opposite half, so on the glove side you see
+        // only the glove, not the hand under it.
         const skinMat = new THREE.MeshStandardMaterial({
-          color: 0xcf6a34,
-          metalness: 0.0,
-          roughness: 0.95,
-          emissive: 0xf0612a,
-          emissiveIntensity: 0.32,
+          color: 0x242424,
+          metalness: 0.12,
+          roughness: 0.62,
           clippingPlanes: [skinPlane],
           side: THREE.DoubleSide,
         });
-        const skin = model.clone(true);
-        skin.traverse((o) => {
-          if (o.isMesh) o.material = skinMat;
+        loader.load("/skin-glove.glb", (g2) => {
+          const glove = g2.scene;
+          glove.traverse((o) => {
+            if (o.isMesh) {
+              o.geometry.computeVertexNormals();
+              o.material = skinMat;
+            }
+          });
+          const gbox = new THREE.Box3().setFromObject(glove);
+          const gsize = gbox.getSize(new THREE.Vector3());
+          const gcenter = gbox.getCenter(new THREE.Vector3());
+          glove.traverse((o) => {
+            if (o.isMesh) o.geometry.translate(-gcenter.x, -gcenter.y, -gcenter.z);
+          });
+          const gmax = Math.max(gsize.x, gsize.y, gsize.z) || 1;
+          // Match the hand's normalisation, a touch bigger so it sits over it.
+          glove.scale.setScalar((1.35 / gmax) * 1.05);
+          glove.rotation.x = -Math.PI / 2;
+          pivot.add(glove);
         });
-        skin.scale.multiplyScalar(1.14);
-        pivot.add(skin);
       },
       undefined,
       () => setFailed(true),
