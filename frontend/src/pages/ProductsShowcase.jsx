@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { useReducedMotion } from "framer-motion";
 
 import LeadForm from "../lib/LeadForm.jsx";
-import SiteNav from "../lib/SiteNav.jsx";
+import { useRevealNav } from "../useRevealNav.js";
 import { TactileField } from "../TactileField.jsx";
 // Reuse the homepage's approved Evora stylesheet verbatim (all .ev-* classes
 // and the joint-reveal visual live there, scoped under .ev-home). This file
@@ -138,6 +139,11 @@ export default function ProductsShowcase() {
   const nerveStageRef = useRef(null);
   useJointReveal(nerveRowRef, nerveStageRef);
 
+  // Same floating flagship nav as the homepage (styles.css .nav-flagship).
+  // No #story on this page, so useRevealNav keeps it always visible.
+  const reduceMotion = useReducedMotion();
+  const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
+
   useEffect(() => {
     const prev = document.title;
     document.title = "Products — Hand · Nerve · Skin | 6thSense";
@@ -153,20 +159,37 @@ export default function ProductsShowcase() {
       <div className="ev-bg-field" aria-hidden="true">
         <TactileField />
       </div>
-      <div className="ev-frame">
-        {/* ---------- nav + page head (dark hero band) ---------- */}
-        <section className="ev-hero ev-hero--compact" aria-label="6thSense products">
-          <SiteNav
-            cta="Reserve Nerve"
-            ctaHref="#reserve"
-            links={[
-              { label: "Products", href: "/products" },
-              { label: "Hand", href: "#hand" },
-              { label: "Nerve", href: "#nerve" },
-              { label: "Skin", href: "#skin" },
-            ]}
-          />
+      {/* Same floating flagship nav as the homepage. */}
+      <header className={navClassName} role="banner">
+        <nav className="nav-flagship-inner" aria-label="Primary">
+          <Link className="wordmark wordmark-on-dark" to="/" aria-label="6thSense home">
+            <img className="nav-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
+            <span className="nav-logo-text">6THSENSE</span>
+          </Link>
+          <div className="nav-links nav-links-on-dark">
+            <Link
+              to="/products"
+              className="nav-cta-on-dark"
+              style={{
+                color: "var(--dark-ink, #ece8dc)",
+                textDecoration: "none",
+                fontWeight: 500,
+                marginRight: "1.5rem",
+                letterSpacing: "0.01em",
+              }}
+            >
+              Products
+            </Link>
+            <Link to="/login" className="nav-cta nav-cta-on-dark">
+              Partner login
+            </Link>
+          </div>
+        </nav>
+      </header>
 
+      <div className="ev-frame">
+        {/* ---------- page head (dark hero band) ---------- */}
+        <section className="ev-hero ev-hero--compact" aria-label="6thSense products">
           <div className="ev-phead">
             <div className="ev-idx">The hardware</div>
             <h1>
