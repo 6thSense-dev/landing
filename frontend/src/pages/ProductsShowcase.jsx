@@ -1,9 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 
 import LeadForm from "../lib/LeadForm.jsx";
 import { useRevealNav } from "../useRevealNav.js";
+
+// Lazy so three.js + the .glb only load for visitors who reach /products.
+const HandTurntable = lazy(() => import("../lib/HandTurntable.jsx"));
 import { TactileField } from "../TactileField.jsx";
 // Reuse the homepage's approved Evora stylesheet verbatim (all .ev-* classes
 // and the joint-reveal visual live there, scoped under .ev-home). This file
@@ -302,22 +305,23 @@ export default function ProductsShowcase() {
 
         {/* ---------- SKIN (light) — 03, contact ---------- */}
         <section className="ev-prow ev-plight" id="skin">
-          <div className="ev-pstage">
+          <div className="ev-pstage ev-pstage--3d">
             <span className="ev-badge ev-soon">In development</span>
-            {/* CSS render-slot placeholder. TODO(hardware): CAD turntable render
-                of skin conforming to a dexterous hand. Never fake it, and never
-                name the partner hand — always "a dexterous hand". */}
-            <div className="ev-skin-slot" aria-hidden="true">
-              <div className="ev-skin-ring" />
-              <div className="ev-skin-ph">
-                <div className="ev-skin-mark">◑</div>
-                <div className="ev-skin-cap">
-                  CAD turntable render
-                  <br />
-                  skin conforming to a dexterous hand
+            {/* Live turntable of the dexterous hand, tessellated from the real
+                open-hardware CAD (public/dexterous-hand.glb). The skin story is a
+                concept — the model is the bare hand. Never name the partner hand. */}
+            <div className="ev-skin-ring" aria-hidden="true" />
+            <Suspense
+              fallback={
+                <div className="ev-skin-ph" aria-hidden="true">
+                  <div className="ev-skin-mark">◑</div>
+                  <div className="ev-skin-cap">Loading model…</div>
                 </div>
-              </div>
-            </div>
+              }
+            >
+              <HandTurntable />
+            </Suspense>
+            <span className="ev-pstage-cap">concept · drag to rotate</span>
           </div>
           <div className="ev-pinfo">
             <div className="ev-idx">03 · The Skin</div>

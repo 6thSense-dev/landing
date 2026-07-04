@@ -352,3 +352,10 @@
   text-transform: uppercase;
   color: var(--on-dark-mut);
 }
+
+/* ---- live CAD turntable (Skin) -------------------------------------- */
+.ev-products .ev-pstage--3d { min-height: 440px; }
+.ev-hand3d { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.ev-hand3d canvas { display: block; }
+.ev-pstage--3d .ev-skin-ring { z-index: 0; }
+.ev-pstage--3d .ev-hand3d { z-index: 1; }
