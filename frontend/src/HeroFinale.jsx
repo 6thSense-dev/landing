@@ -70,15 +70,15 @@ export function HeroFinale() {
       <div className="hero-finale-formwrap">
         <h2 className="hero-finale-title">Give your robot a sixth sense.</h2>
         <p className="hero-finale-subtitle">
-          We build the tactile dataset that closes the gap.
+          We build the tactile hardware that closes the gap.
         </p>
         {/* The one shared LeadForm, tagged kind="waitlist" (finale variant). */}
         <LeadForm
           kind="waitlist"
           idPrefix="hero"
           variant="finale"
-          submitLabel="Discuss your data need"
-          successMessage="Received. The 6thSense team will follow up with a dataset scoping call."
+          submitLabel="Talk to us"
+          successMessage="Received. The 6thSense team will follow up shortly."
         />
       </div>
 

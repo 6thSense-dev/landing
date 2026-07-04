@@ -78,7 +78,7 @@ function AppInner() {
         <div id="top" />
         <section id="story" aria-label="6thSense hero">
           <h1 className="visually-hidden">
-            6thSense — tactile egocentric datasets for dexterous robotics
+            6thSense — tactile capture hardware for dexterous robotics
           </h1>
           <ScrollHero />
         </section>

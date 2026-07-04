@@ -199,9 +199,10 @@ export default function ProductsShowcase() {
             </h1>
             <div className="ev-rule" />
             <p className="ev-phead-deck">
-              Capture touch on a human hand, know exactly where it lands, then
-              move that sensing onto the robot. Hand ships today; Nerve adds
-              per-joint sensing; Skin puts it on your hardware.
+              Tactile capture hardware for teams training dexterous robots.
+              Record how a human hand touches — how hard and exactly where —
+              then move that sensing onto the robot. Hand ships today; Nerve
+              adds per-joint sensing; Skin puts it on your hardware.
             </p>
           </div>
         </section>
@@ -241,7 +242,8 @@ export default function ProductsShowcase() {
             <div className="ev-psub">Human tactile data glove — tactile + orientation</div>
             <p className="ev-lede">
               440 pressure cells, synced and training-ready. Records force the
-              instant you make contact, with hand orientation for every frame.
+              instant you make contact, with hand orientation for every frame —
+              pro-grade touch at a fraction of a motion-capture glove's price.
             </p>
             <ul className="ev-specs">
               <li>440 cells</li>
@@ -289,8 +291,8 @@ export default function ProductsShowcase() {
             <div className="ev-psub">Everything the Hand feels — plus per-joint motion + temperature</div>
             <p className="ev-lede">
               The same glove, with a sensor at every finger joint. Each touch
-              localized in space, with temperature. Your data knows not just how
-              hard, but exactly where.
+              localized in space, with temperature. Motion-capture gloves track
+              the hand but feel nothing, and run $2,000+ — Nerve does both.
             </p>
             <ul className="ev-specs">
               <li>+ per-joint motion</li>
