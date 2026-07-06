@@ -67,6 +67,43 @@
   --dur-med: 260ms;
   --dur-slow: 420ms;
   --shadow-lift: 0 12px 28px rgb(var(--sasi-1-rgb) / 0.1), 0 2px 4px rgb(var(--sasi-1-rgb) / 0.06);
+
+  /* ------------------------------------------------------------------ */
+  /* Evora design tokens — the approved dark-cinematic direction.        */
+  /* Source of truth: DESIGN.md (repo root) + evora.html reference.      */
+  /* Namespaced --ev-* so they never clobber the legacy SASI palette     */
+  /* still used by the portal and secondary pages. Consumed by the       */
+  /* homepage (EvoraHome.jsx / evora-home.css).                          */
+  /* ------------------------------------------------------------------ */
+  --ev-backdrop: #e7e1d5;
+  --ev-ink: #0e0d0a;
+  --ev-ink-soft: #17150f;
+  --ev-on-dark: #f4f1ea;
+  --ev-on-dark-mut: #a49c86;
+  --ev-on-light: #17150f;
+  --ev-on-light-mut: #6b6555;
+  --ev-surface: #ffffff;
+  --ev-surface-2: #f7f4ee;
+  --ev-accent: #f0612a;
+  --ev-accent-ink: #1a0b04;
+  --ev-line-d: rgba(255, 255, 255, 0.12);
+  --ev-line-l: rgba(20, 18, 12, 0.1);
+  --ev-success: #8fd08a;
+  --ev-error: #d9534f;
+  --ev-fs: "General Sans", system-ui, sans-serif;
+  --ev-fm: "Geist Mono", ui-monospace, monospace;
+  --ev-r-sm: 8px;
+  --ev-r-md: 14px;
+  --ev-r-media: 18px;
+  --ev-r-card: 24px;
+  --ev-r-frame: 30px;
+  --ev-r-pill: 999px;
+  --ev-ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ev-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ev-dur-micro: 80ms;
+  --ev-dur-short: 180ms;
+  --ev-dur-med: 260ms;
+  --ev-dur-long: 420ms;
 }
 
 /*
@@ -2445,4 +2482,12 @@ main .section[id] {
     transform: none;
     box-shadow: none;
   }
+}
+
+/* Flagship-nav wordmark must stay light even when the nav is nested inside
+   .ev-home (its `a { color: inherit }` was darkening the 6THSENSE text on
+   /products). Specificity (0,2,0) beats .ev-home a (0,1,1). */
+.nav-flagship .wordmark-on-dark,
+.nav-flagship .wordmark-on-dark .nav-logo-text {
+  color: var(--paper-2);
 }

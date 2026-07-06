@@ -12,8 +12,52 @@
 .product-nav {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   padding: 1.5rem clamp(1.25rem, 5vw, 4rem);
   border-bottom: 1px solid rgb(var(--sasi-1-rgb, 38 35 18) / 0.1);
+}
+
+/* Site nav on the light SEO product pages: Products link, buyer CTA, and a
+   small Partner login — the same three affordances every page carries. */
+.product-navlinks {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.75rem, 2.5vw, 1.5rem);
+  font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
+}
+
+.product-navlink {
+  text-decoration: none;
+  color: var(--ink, #262312);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+.product-navlink:hover { text-decoration: underline; }
+
+.product-cta {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #fff;
+  background: var(--accent, #f0612a);
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.product-cta:hover { background: #ff6f38; }
+
+.product-login {
+  text-decoration: none;
+  font-size: 0.82rem;
+  color: var(--ink, #262312);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.product-login:hover { opacity: 1; }
+
+@media (max-width: 560px) {
+  .product-navlink { display: none; }
 }
 
 .product-wordmark {

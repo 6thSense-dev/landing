@@ -1,4 +1,4 @@
-import { useState } from "react";
+import LeadForm from "./lib/LeadForm.jsx";
 
 /**
  * Finale scene: 5 brown dots rise from fingertip positions to form the 6-dot
@@ -39,70 +39,6 @@ const BACKERS = [
 ];
 
 export function HeroFinale() {
-  const [form, setForm] = useState({ name: "", email: "", organization: "" });
-  const [errors, setErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState("");
-  const [tone, setTone] = useState("idle");
-
-  const apiBase = import.meta.env.VITE_API_URL ?? "";
-
-  const setField = (key) => (e) => {
-    setForm((f) => ({ ...f, [key]: e.target.value }));
-    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
-    if (tone === "error") setTone("idle");
-  };
-
-  const onSubmit = async (event) => {
-    event.preventDefault();
-    const trimmed = {
-      name: form.name.trim(),
-      email: form.email.trim().toLowerCase(),
-      organization: form.organization.trim(),
-    };
-    if (!trimmed.name || !trimmed.email || !trimmed.organization) {
-      setStatus("Please fill in all fields.");
-      setTone("error");
-      return;
-    }
-    if (!trimmed.email.includes("@")) {
-      setStatus("Enter a valid email address.");
-      setTone("error");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch(`${apiBase}/api/leads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(trimmed),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (res.status === 429)
-          setStatus("Too many requests. Please wait a minute and try again.");
-        else if (res.status === 413)
-          setStatus("That submission is too large. Please shorten and try again.");
-        else if (res.status >= 500)
-          setStatus("Server error. Please try again shortly.");
-        else
-          setStatus("Please correct the errors and try again.");
-        setErrors(data.errors ?? {});
-        setTone("error");
-        return;
-      }
-      setStatus("Received. The 6thSense team will follow up with a dataset scoping call.");
-      setTone("success");
-      setForm({ name: "", email: "", organization: "" });
-      setErrors({});
-    } catch {
-      setStatus("Network error. Please try again.");
-      setTone("error");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const SHOW_ASSEMBLE_DOTS = false;
 
   return (
@@ -131,70 +67,20 @@ export function HeroFinale() {
         );
       })}
 
-      <form className="hero-finale-form" onSubmit={onSubmit} noValidate>
+      <div className="hero-finale-formwrap">
         <h2 className="hero-finale-title">Give your robot a sixth sense.</h2>
         <p className="hero-finale-subtitle">
-          We build the tactile dataset that closes the gap.
+          We build the tactile hardware that closes the gap.
         </p>
-
-        <label className="hero-finale-label" htmlFor="hero-name">Name</label>
-        <input
-          id="hero-name"
-          type="text"
-          autoComplete="name"
-          value={form.name}
-          onChange={setField("name")}
-          aria-invalid={errors.name ? "true" : undefined}
-          required
+        {/* The one shared LeadForm, tagged kind="waitlist" (finale variant). */}
+        <LeadForm
+          kind="waitlist"
+          idPrefix="hero"
+          variant="finale"
+          submitLabel="Talk to us"
+          successMessage="Received. The 6thSense team will follow up shortly."
         />
-        {errors.name && <p className="hero-finale-fielderror">{errors.name}</p>}
-
-        <label className="hero-finale-label" htmlFor="hero-email">Work email</label>
-        <p className="hero-finale-hint" id="hero-email-hint">
-          Used only for technical follow-up and project scoping.
-        </p>
-        <input
-          id="hero-email"
-          type="email"
-          autoComplete="email"
-          value={form.email}
-          aria-describedby="hero-email-hint"
-          aria-invalid={errors.email ? "true" : undefined}
-          onChange={setField("email")}
-          required
-        />
-        {errors.email && <p className="hero-finale-fielderror">{errors.email}</p>}
-
-        <label className="hero-finale-label" htmlFor="hero-org">Organization</label>
-        <input
-          id="hero-org"
-          type="text"
-          autoComplete="organization"
-          value={form.organization}
-          onChange={setField("organization")}
-          aria-invalid={errors.organization ? "true" : undefined}
-          required
-        />
-        {errors.organization && (
-          <p className="hero-finale-fielderror">{errors.organization}</p>
-        )}
-
-        <button
-          type="submit"
-          className="hero-finale-submit"
-          disabled={submitting}
-        >
-          {submitting ? "Sending…" : "Discuss your data need"}
-        </button>
-
-        <p
-          className={`hero-finale-status hero-finale-status--${tone}`}
-          role="status"
-          aria-live="polite"
-        >
-          {status || " "}
-        </p>
-      </form>
+      </div>
 
       <div className="hero-finale-backed">
         <p className="hero-finale-backed-label">Backed by</p>

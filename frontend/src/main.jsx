@@ -16,6 +16,18 @@ const PortalLayout = lazy(() => import("./portal/PortalLayout.jsx"));
 // variant (see scripts/seoPrerenderPlugin.js).
 const ProductPage = lazy(() => import("./pages/ProductPage.jsx"));
 
+// Designed, human-facing product showcase (distinct from the text-only SEO
+// pages above). Presents the hardware line as editorial feature rows.
+const ProductsShowcase = lazy(() => import("./pages/ProductsShowcase.jsx"));
+
+// Placeholder section linked from the nav ("People" — real content later).
+const PeoplePage = lazy(() => import("./pages/PeoplePage.jsx"));
+
+// TEMPORARY: interactive alignment tool for the Skin composite (/skin-tune).
+// Remove this + the route below once the robotic/glove alignment is locked in.
+const SkinTune = lazy(() => import("./pages/SkinTune.jsx"));
+const RoboShot = lazy(() => import("./pages/RoboShot.jsx"));
+
 // Strip the build-time SEO prerender shell before client render so JS users
 // and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
 document.getElementById("seo-prerender")?.remove();
@@ -33,6 +45,10 @@ createRoot(document.getElementById("root")).render(
           <Route path="/product/gloves" element={<ProductPage slug="/product/gloves" />} />
           <Route path="/product/skin" element={<ProductPage slug="/product/skin" />} />
           <Route path="/product/rig" element={<ProductPage slug="/product/rig" />} />
+          <Route path="/products" element={<ProductsShowcase />} />
+          <Route path="/skin-tune" element={<SkinTune />} />
+          <Route path="/robo-shot" element={<RoboShot />} />
+          <Route path="/people" element={<PeoplePage />} />
           <Route path="/*" element={<App />} />
         </Routes>
       </Suspense>

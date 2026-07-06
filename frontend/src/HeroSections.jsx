@@ -13,7 +13,7 @@ export function PipelineSection() {
   return (
     <section className="hero-section hero-pipeline">
       <h2 className="hero-pipeline-title">
-        We label tactile data end&nbsp;to&nbsp;end.
+        The hardware that captures it, end&nbsp;to&nbsp;end.
       </h2>
       <ol className="hero-pipeline-row">
         <li>Collect</li>

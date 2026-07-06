@@ -380,7 +380,9 @@
 }
 
 /* Finale form: centered column, settles up into place as it fades in. */
-.hero-finale-form {
+/* The positioned wrapper (title + subtitle + the shared LeadForm). The inner
+   .hero-finale-form below is now the shared component's own <form> element. */
+.hero-finale-formwrap {
   position: absolute;
   /* Biased above center so the form has room below for the status / field-error
      line and the Backed-by row at bottom: 1.5rem. Mobile (below) overrides this
@@ -402,8 +404,17 @@
   gap: 0.35rem;
 }
 
+.hero-finale-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  gap: 0.6rem;
+  width: 100%;
+}
+
 /* Made interactive only once the form is actually visible (see comment above). */
-.hero-stage-two.hero-form-active .hero-finale-form {
+.hero-stage-two.hero-form-active .hero-finale-formwrap {
   visibility: visible;
   pointer-events: auto;
 }
@@ -937,5 +948,53 @@
   font-size: 0.78rem;
   color: #ff8888;
   line-height: 1.3;
+}
+
+/* Shared LeadForm (finale variant) — extra elements the finale didn't have
+   before: the message textarea, the submit row, and the consent checkbox +
+   short privacy note. Inputs / labels / submit / status reuse existing rules. */
+.hero-finale-textarea {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: #f1f1ec;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  resize: vertical;
+  min-height: 4.5rem;
+  line-height: 1.5;
+}
+.hero-finale-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent, #f0612a);
+}
+.hero-finale-row {
+  display: flex;
+  margin-top: 0.2rem;
+}
+.hero-finale-consent-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: start;
+  margin-top: 0.2rem;
+  text-align: left;
+}
+.hero-finale-consent-box {
+  margin-top: 0.15rem;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent, #f0612a);
+  cursor: pointer;
+}
+.hero-finale-consent {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(241, 241, 236, 0.72);
+  cursor: pointer;
 }
 

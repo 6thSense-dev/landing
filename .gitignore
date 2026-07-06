@@ -50,3 +50,4 @@ docs/superpowers/
 # Superpowers brainstorm visual companion session files — local only
 .superpowers/
 media-sources/
+.gstack/

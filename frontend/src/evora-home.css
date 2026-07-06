@@ -1,0 +1,699 @@
+/*
+ * Evora homepage — the approved dark-cinematic direction.
+ * Source of truth: DESIGN.md (repo root) + .context/design-reference/evora.html.
+ *
+ * Everything is scoped under .ev-home and uses .ev-* class names + --ev-*
+ * tokens so it lives entirely alongside the legacy stylesheet without any
+ * cascade collisions (the legacy sheet owns bare .hero/.nav/.stat/etc).
+ * .ev-home resets its own font-family and background so it never inherits the
+ * legacy body{background:#000; font-family:Newsreader} rules.
+ */
+
+.ev-home {
+  --backdrop: var(--ev-backdrop);
+  --ink: var(--ev-ink);
+  --on-dark: var(--ev-on-dark);
+  --on-dark-mut: var(--ev-on-dark-mut);
+  --on-light: var(--ev-on-light);
+  --on-light-mut: var(--ev-on-light-mut);
+  --surface: var(--ev-surface);
+  --surface-2: var(--ev-surface-2);
+  --accent: var(--ev-accent);
+  --accent-ink: var(--ev-accent-ink);
+  --line-d: var(--ev-line-d);
+  --line-l: var(--ev-line-l);
+  --fs: var(--ev-fs);
+  --fm: var(--ev-fm);
+
+  min-height: 100vh;
+  padding: 22px;
+  font-family: var(--fs);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background: radial-gradient(120% 90% at 50% -10%, #f3ecdd, #d9d2c2 60%, #cfc7b4);
+}
+
+.ev-home a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.ev-home *,
+.ev-home *::before,
+.ev-home *::after {
+  box-sizing: border-box;
+}
+
+/* The rounded page frame that floats on the warm backdrop. */
+.ev-frame {
+  max-width: 1160px;
+  margin: 0 auto;
+  border-radius: var(--ev-r-frame);
+  overflow: hidden;
+  box-shadow: 0 30px 80px -30px rgba(40, 30, 12, 0.4);
+}
+
+/* ---- shared bits ---------------------------------------------------- */
+.ev-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+.ev-pill {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: var(--ev-r-pill);
+  border: 1px solid var(--line-d);
+  color: var(--on-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform var(--ev-dur-short) var(--ev-ease-enter),
+    background var(--ev-dur-short) var(--ev-ease-enter),
+    border-color var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-pill:hover { transform: translateY(-1px); }
+.ev-pill.ev-solid {
+  background: var(--accent);
+  border: none;
+  color: var(--accent-ink);
+}
+.ev-pill.ev-solid:hover { background: #ff6f38; }
+.ev-pill.ev-dark {
+  background: #1c1810;
+  border: 1px solid var(--line-d);
+}
+.ev-pill.ev-onlight {
+  border-color: var(--line-l);
+  color: var(--on-light);
+}
+.ev-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* Small, low-emphasis Partner login in the nav (distinct from the buyer CTA). */
+.ev-pill.ev-nav-login {
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 7px 13px;
+  color: var(--on-dark-mut);
+}
+.ev-pill.ev-nav-login:hover { color: var(--on-dark); }
+
+.ev-idx {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ---- HERO (dark) ---------------------------------------------------- */
+.ev-hero {
+  background: radial-gradient(90% 120% at 78% 20%, #241a12, #0e0d0a 62%);
+  color: var(--on-dark);
+  padding: 22px 40px 54px;
+  position: relative;
+  min-height: 600px;
+}
+.ev-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 0;
+}
+.ev-wm {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-size: 19px;
+}
+.ev-wm-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.ev-nav-c {
+  display: flex;
+  gap: 26px;
+  font-size: 14.5px;
+  color: var(--on-dark-mut);
+  font-weight: 500;
+}
+.ev-nav-c a {
+  transition: color var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-nav-c a:hover { color: var(--on-dark); }
+.ev-nav-r {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ev-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: center;
+  margin-top: 26px;
+}
+.ev-hero h1 {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(44px, 6vw, 74px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  margin: 18px 0 0;
+}
+.ev-rule {
+  height: 1px;
+  background: var(--line-d);
+  margin: 34px 0 18px;
+}
+.ev-hero-foot {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 40px;
+  align-items: center;
+}
+.ev-welcome {
+  font-size: 12.5px;
+  letter-spacing: 0.12em;
+  color: var(--on-dark-mut);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+}
+.ev-hero-foot p {
+  margin: 0 0 14px;
+  color: var(--on-dark-mut);
+  max-width: 34ch;
+  font-size: 15px;
+}
+
+/* ---- HERO STAGE: one glove, two states ------------------------------ */
+.ev-stage {
+  position: relative;
+  height: 440px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ev-glow {
+  position: absolute;
+  width: 74%;
+  height: 70%;
+  background: radial-gradient(closest-side, rgba(240, 97, 42, 0.55), transparent);
+  filter: blur(30px);
+  top: 12%;
+  left: 16%;
+  pointer-events: none;
+}
+.ev-prod {
+  position: relative;
+  width: 80%;
+  height: 82%;
+  border-radius: 16px;
+  overflow: hidden;
+  animation: ev-float 6.5s ease-in-out infinite;
+  box-shadow: 0 0 0 1px rgba(240, 97, 42, 0.5), 0 0 60px -6px rgba(240, 97, 42, 0.5);
+}
+.ev-prod img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 56% 46%;
+  display: block;
+}
+/* Graceful placeholder shown when the (not-yet-shot) product photo 404s, so
+   the hero reads as "photo pending" rather than a broken image. */
+.ev-prod-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--on-dark-mut);
+  background: radial-gradient(closest-side, rgba(240, 97, 42, 0.18), transparent 72%), #141009;
+}
+.ev-prod-ph[hidden] { display: none; }
+.ev-prod-ph-mark {
+  font-size: 40px;
+  color: var(--accent);
+  line-height: 1;
+}
+.ev-prod-ph-cap {
+  font-family: var(--fm);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+/* The 15-joint overlay sits on top of the one glove. Joints light on scroll:
+   opacity is driven by --joints-lit (0 = Hand, 1 = Nerve). */
+.ev-joints {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.ev-joints .ev-jh {
+  fill: rgba(240, 97, 42, 0.2);
+  opacity: var(--joints-lit, 0);
+  transition: opacity var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-joints .ev-j {
+  fill: var(--accent);
+  opacity: var(--joints-lit, 0);
+  transition: opacity var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-tt {
+  position: absolute;
+  bottom: 8px;
+  right: 6px;
+  font-family: var(--fm);
+  font-size: 11px;
+  color: var(--on-dark-mut);
+}
+/* State label that crossfades Hand -> Nerve as the joints light. */
+.ev-statelabel {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font-family: var(--fm);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--on-dark);
+  background: rgba(14, 13, 10, 0.55);
+  border: 1px solid var(--line-d);
+  border-radius: 999px;
+  padding: 5px 11px;
+  display: grid;
+}
+.ev-statelabel span { grid-area: 1 / 1; transition: opacity var(--ev-dur-med) var(--ev-ease-enter); }
+.ev-statelabel .ev-state-hand { opacity: calc(1 - var(--joints-lit, 0)); }
+.ev-statelabel .ev-state-nerve { opacity: var(--joints-lit, 0); color: var(--accent); }
+
+@keyframes ev-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+/* ---- LIGHT stats band ----------------------------------------------- */
+.ev-light {
+  background: var(--surface);
+  color: var(--on-light);
+  padding: 60px 40px;
+}
+.ev-intro {
+  font-weight: 500;
+  font-size: clamp(22px, 2.6vw, 32px);
+  line-height: 1.28;
+  letter-spacing: -0.01em;
+  max-width: 22ch;
+  margin: 0 0 44px;
+}
+.ev-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+.ev-stat {
+  padding: 0 22px;
+  border-left: 1px solid var(--line-l);
+}
+.ev-stat:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+.ev-stat .ev-lab {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-light-mut);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+.ev-stat .ev-num {
+  font-family: var(--fm);
+  font-weight: 500;
+  font-size: 46px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.ev-stat .ev-num small {
+  font-size: 20px;
+  color: var(--on-light-mut);
+  font-weight: 500;
+}
+.ev-stat .ev-substat {
+  font-size: 13px;
+  color: var(--on-light-mut);
+  margin-top: 12px;
+  max-width: 22ch;
+}
+
+/* ---- product rows --------------------------------------------------- */
+.ev-prow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 44px;
+  align-items: center;
+  padding: 56px 40px;
+}
+.ev-prow.ev-pdark {
+  background: radial-gradient(90% 130% at 20% 20%, #221913, #0e0d0a 60%);
+  color: var(--on-dark);
+}
+.ev-prow.ev-plight {
+  background: var(--surface);
+  color: var(--on-light);
+}
+.ev-prow.ev-flip .ev-pstage { order: 2; }
+.ev-pstage {
+  position: relative;
+  aspect-ratio: 5 / 4;
+  border-radius: var(--ev-r-card);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ev-prow.ev-pdark .ev-pstage { background: #141009; }
+.ev-prow.ev-plight .ev-pstage { background: var(--surface-2); }
+.ev-pstage-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ev-pstage-cap {
+  position: absolute;
+  bottom: 10px;
+  left: 14px;
+  font-family: var(--fm);
+  font-size: 10.5px;
+  color: #fff;
+  mix-blend-mode: difference;
+}
+.ev-glowdots {
+  position: absolute;
+  width: 66%;
+  height: 64%;
+  background: radial-gradient(closest-side, rgba(240, 97, 42, 0.4), transparent);
+  filter: blur(26px);
+  pointer-events: none;
+}
+.ev-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 999px;
+  z-index: 1;
+}
+.ev-badge.ev-live {
+  background: rgba(240, 97, 42, 0.14);
+  color: var(--accent);
+}
+.ev-badge.ev-soon {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.ev-prow h2 {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(30px, 4vw, 46px);
+  letter-spacing: -0.02em;
+  margin: 0.2em 0 0.05em;
+}
+.ev-prow .ev-psub {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--on-light-mut);
+  margin-bottom: 0.7em;
+}
+.ev-prow.ev-pdark .ev-psub { color: var(--on-dark-mut); }
+.ev-prow .ev-lede {
+  max-width: 38ch;
+  margin: 0.2em 0 1em;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.ev-specs {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0 0 22px;
+  font-family: var(--fm);
+  font-size: 12px;
+}
+.ev-specs li {
+  border: 1px solid var(--line-l);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--on-light-mut);
+}
+.ev-prow.ev-pdark .ev-specs li {
+  border-color: var(--line-d);
+  color: var(--on-dark-mut);
+}
+.ev-actions {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ev-price {
+  font-family: var(--fm);
+  font-weight: 500;
+  font-size: 24px;
+  margin-right: 6px;
+}
+.ev-tbd {
+  font-family: var(--fm);
+  font-size: 13px;
+  color: var(--on-dark-mut);
+  margin-right: 6px;
+}
+
+/* Nerve joint diagram (in the product row) — always lit here. */
+.ev-nervesvg .ev-bone {
+  fill: #231a12;
+  stroke: var(--line-d);
+  stroke-width: 1.4;
+}
+.ev-nervesvg .ev-jh { fill: rgba(240, 97, 42, 0.2); }
+.ev-nervesvg .ev-j { fill: var(--accent); }
+.ev-nervesvg .ev-svglbl {
+  font-family: var(--fm);
+  font-size: 10.5px;
+  fill: var(--on-dark-mut);
+}
+
+/* Skin placeholder mark */
+.ev-skin-ph {
+  text-align: center;
+  color: var(--on-light-mut);
+  font-family: var(--fs);
+}
+.ev-skin-ph .ev-skin-mark {
+  font-size: 48px;
+  color: var(--accent);
+  line-height: 1;
+}
+.ev-skin-ph .ev-skin-cap {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+/* ---- full-bleed media band ------------------------------------------ */
+.ev-band {
+  padding: 0;
+}
+.ev-bandmedia {
+  position: relative;
+  height: 360px;
+  background: linear-gradient(120deg, #1c2a2f, #0e1416);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-dark);
+  overflow: hidden;
+}
+.ev-bandmedia video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.42;
+}
+.ev-bandmedia h3 {
+  position: relative;
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.01em;
+  opacity: 0.96;
+  margin: 0;
+}
+
+/* ---- reserve capture (dark) ----------------------------------------- */
+.ev-reserve {
+  background: radial-gradient(90% 120% at 78% 20%, #241a12, #0e0d0a 62%);
+  color: var(--on-dark);
+  padding: 60px 40px;
+}
+.ev-reserve-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 44px;
+  align-items: center;
+}
+.ev-reserve h2 {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(28px, 3.6vw, 42px);
+  letter-spacing: -0.02em;
+  margin: 0.3em 0 0.2em;
+}
+.ev-reserve p {
+  color: var(--on-dark-mut);
+  max-width: 40ch;
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.ev-form {
+  display: grid;
+  gap: 12px;
+}
+.ev-field { display: grid; gap: 6px; }
+.ev-field label {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-dark-mut);
+}
+.ev-field input {
+  font-family: var(--fs);
+  font-size: 15px;
+  color: var(--on-dark);
+  background: #141009;
+  border: 1px solid var(--line-d);
+  border-radius: var(--ev-r-md);
+  padding: 12px 14px;
+}
+.ev-field input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.ev-form-row { display: flex; gap: 11px; align-items: center; flex-wrap: wrap; }
+.ev-fielderror { color: var(--ev-error); font-size: 12.5px; margin: 0; }
+/* Consent checkbox + short privacy note, shown before submit on every form. */
+.ev-consent-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  align-items: start;
+}
+.ev-consent-box {
+  margin-top: 2px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.ev-consent-row .ev-consent { margin: 0; cursor: pointer; }
+/* When the note is a direct child of the row, keep it compact (the standalone
+   .ev-consent used elsewhere already has its own spacing). */
+.ev-status { min-height: 1.2em; font-size: 13px; margin: 4px 0 0; }
+.ev-status.ev-status--success { color: var(--ev-success); }
+.ev-status.ev-status--error { color: var(--ev-error); }
+
+/* ---- footer --------------------------------------------------------- */
+.ev-footer {
+  background: var(--ink);
+  color: var(--on-dark-mut);
+  padding: 30px 40px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+}
+
+/* ---- responsive ----------------------------------------------------- */
+@media (max-width: 780px) {
+  .ev-home { padding: 12px; }
+  .ev-nav-c { display: none; }
+  .ev-hero { padding: 18px 22px 40px; }
+  .ev-hero-grid,
+  .ev-prow,
+  .ev-hero-foot,
+  .ev-reserve-grid { grid-template-columns: 1fr; gap: 22px; }
+  .ev-hero-foot { gap: 14px; }
+  .ev-prow.ev-flip .ev-pstage { order: 0; }
+  .ev-stage { height: 300px; }
+  .ev-stats { grid-template-columns: 1fr 1fr; gap: 26px 0; }
+  .ev-stat { border-left: none; padding: 0; }
+  .ev-light,
+  .ev-prow,
+  .ev-reserve,
+  .ev-bandmedia { padding-left: 22px; padding-right: 22px; }
+  .ev-footer { flex-direction: column; gap: 8px; }
+}
+
+/* All motion gated by prefers-reduced-motion (DESIGN.md). */
+@media (prefers-reduced-motion: reduce) {
+  .ev-home { animation: none; }
+  .ev-prod { animation: none; }
+  .ev-joints .ev-j,
+  .ev-joints .ev-jh,
+  .ev-statelabel span,
+  .ev-pill { transition: none; }
+}
+
+/* ---- /products: unify to the site's dark background + page fade-in ----
+ * The products page reuses these shared .ev-* classes but must match the home
+ * page's dark background, not the light/paper treatment. Rebinding the
+ * light-surface tokens on the light containers flips every child that reads
+ * --on-light / --surface / --line-l to its on-dark equivalent, so contrast
+ * stays correct without touching each rule. */
+.ev-home {
+  background: #000;
+  animation: ev-page-in 0.34s ease both;
+}
+.ev-light,
+.ev-prow.ev-plight {
+  --surface: #0e0d0a;
+  --surface-2: #141009;
+  --on-light: var(--ev-on-dark);
+  --on-light-mut: var(--ev-on-dark-mut);
+  --line-l: var(--ev-line-d);
+  background: radial-gradient(90% 130% at 20% 20%, #1a130d, #0e0d0a 62%);
+  color: var(--on-dark);
+}
+.ev-prow.ev-plight .ev-pstage { background: #141009; }
+.ev-pill.ev-onlight { color: var(--on-dark); border-color: var(--line-d); }
+@keyframes ev-page-in { from { opacity: 0; } to { opacity: 1; } }

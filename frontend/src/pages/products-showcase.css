@@ -1,0 +1,483 @@
+/*
+ * /products page — deltas on top of the shared Evora stylesheet.
+ * Source of truth: DESIGN.md (repo root) + .context/design-reference/evora.html.
+ *
+ * evora-home.css already owns every shared .ev-* class and the --ev-* tokens
+ * (defined in styles.css). This file adds ONLY what is unique to /products:
+ *   - a compact dark hero band used as the page header
+ *   - the scroll-driven Hand -> Nerve joint reveal on the Nerve product row
+ *   - the honeypot hide, consent note, and contact textarea
+ *   - the Skin CSS render-slot placeholder (turntable ring)
+ * All values reuse DESIGN.md tokens; nothing new is invented.
+ */
+
+/* ---- compact hero used as the products page header ------------------- */
+.ev-hero--compact {
+  min-height: auto;
+  padding: 22px 40px 48px;
+}
+.ev-phead {
+  margin-top: 40px;
+  max-width: 760px;
+}
+.ev-phead h1 {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(40px, 5.2vw, 64px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin: 14px 0 0;
+}
+.ev-phead-deck {
+  margin: 0;
+  color: var(--on-dark-mut);
+  max-width: 56ch;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.ev-products .ev-hero--compact .ev-rule {
+  margin: 26px 0 20px;
+}
+
+/* ---- Nerve row: scroll-driven joint reveal (one glove, two states) ---- */
+/* The reused .ev-nervesvg lights its joints statically; on /products we tie
+   the joint + label opacity to --joints-lit so they fade in as the row scrolls
+   into view — the Hand becoming the Nerve. Gated by reduced motion below. */
+.ev-nervesvg--reveal .ev-jh {
+  fill: rgba(240, 97, 42, 0.2);
+  opacity: var(--joints-lit, 0);
+  transition: opacity var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-nervesvg--reveal .ev-j {
+  fill: var(--accent);
+  opacity: var(--joints-lit, 0);
+  transition: opacity var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-nervesvg--reveal .ev-bone {
+  /* Bones read as the plain Hand at rest, warming slightly as joints light. */
+  transition: stroke var(--ev-dur-med) var(--ev-ease-enter);
+}
+
+/* State label pinned inside the Nerve stage, crossfading Hand -> Nerve. */
+.ev-statelabel--stage {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  left: auto;
+}
+
+/* ---- honeypot: visually hidden, off-screen, out of the tab order ------ */
+.ev-hp {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- consent note under each form ----------------------------------- */
+.ev-consent {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--on-dark-mut);
+  max-width: 42ch;
+  margin: 6px 0 0;
+}
+
+/* ---- contact textarea (mirrors the .ev-field input styling) ---------- */
+.ev-textarea {
+  font-family: var(--fs);
+  font-size: 15px;
+  color: var(--on-dark);
+  background: #141009;
+  border: 1px solid var(--line-d);
+  border-radius: var(--ev-r-md);
+  padding: 12px 14px;
+  resize: vertical;
+  min-height: 84px;
+  line-height: 1.5;
+}
+.ev-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.ev-textarea::placeholder {
+  color: var(--on-dark-mut);
+}
+
+/* ---- second (Skin contact) capture band ----------------------------- */
+/* Subtle variant so the two stacked dark capture bands read as distinct. */
+.ev-reserve--alt {
+  background: radial-gradient(90% 120% at 22% 20%, #221913, #0e0d0a 62%);
+  border-top: 1px solid var(--line-d);
+}
+
+/* ---- footer home link ------------------------------------------------ */
+.ev-footer-home {
+  transition: color var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-footer-home:hover {
+  color: var(--on-dark);
+}
+
+/* ---- Skin CSS render-slot placeholder (turntable ring) --------------- */
+.ev-skin-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ev-skin-ring {
+  position: absolute;
+  width: 62%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid var(--line-l);
+  box-shadow: 0 0 0 1px rgba(240, 97, 42, 0.08) inset;
+  /* Slow turntable ring (DESIGN.md motion: 28s linear). */
+  background: conic-gradient(
+    from 0deg,
+    rgba(240, 97, 42, 0.16),
+    transparent 30% 70%,
+    rgba(240, 97, 42, 0.16)
+  );
+  animation: ev-turntable 28s linear infinite;
+  opacity: 0.7;
+}
+.ev-skin-slot .ev-skin-ph {
+  position: relative;
+}
+
+@keyframes ev-turntable {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 780px) {
+  .ev-hero--compact {
+    padding: 18px 22px 36px;
+  }
+  .ev-phead {
+    margin-top: 26px;
+  }
+  .ev-statelabel--stage {
+    top: 12px;
+    right: 12px;
+  }
+}
+
+/* All motion gated by prefers-reduced-motion (DESIGN.md). With reduced motion
+   the joints are shown fully lit (driven to 1 in JS) and the turntable stops. */
+@media (prefers-reduced-motion: reduce) {
+  .ev-nervesvg--reveal .ev-j,
+  .ev-nervesvg--reveal .ev-jh,
+  .ev-nervesvg--reveal .ev-bone {
+    transition: none;
+  }
+  .ev-skin-ring {
+    animation: none;
+  }
+}
+
+/* ---- flying-dots background + flat (boxless) layout, matching the homepage ---
+ * /products shares the homepage's TactileField dots, mounted fixed behind
+ * everything. Sections + product stages go transparent so the dots read as one
+ * continuous background, and the frame/stage boxes are flattened (no fills,
+ * borders, radius, shadow) so content floats on the field like the main page. */
+.ev-products.ev-home {
+  background: transparent;
+}
+.ev-products .ev-bg-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+  pointer-events: none;
+}
+.ev-products .ev-bg-field .tactile-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+.ev-products .ev-frame {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+/* Every section transparent — the dots are the background. */
+.ev-products .ev-hero,
+.ev-products .ev-light,
+.ev-products .ev-prow,
+.ev-products .ev-prow.ev-pdark,
+.ev-products .ev-prow.ev-plight,
+.ev-products .ev-reserve,
+.ev-products .ev-reserve--alt,
+.ev-products .ev-footer,
+.ev-products .ev-band {
+  background: transparent;
+  border-top: none;
+}
+/* Flatten the product stages — no boxed containers. */
+.ev-products .ev-pstage,
+.ev-products .ev-prow.ev-pdark .ev-pstage,
+.ev-products .ev-prow.ev-plight .ev-pstage {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+/* Hand "photo pending" slot: soft glow only, no solid fill box. */
+.ev-products .ev-prod-ph {
+  background: radial-gradient(closest-side, rgba(240, 97, 42, 0.16), transparent 72%);
+}
+/* Band is now just the centered line on the dots (video removed). */
+.ev-products .ev-band {
+  padding: 72px 40px;
+  display: flex;
+  justify-content: center;
+}
+.ev-products .ev-band-line {
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.01em;
+  color: var(--on-dark);
+  text-align: center;
+  margin: 0;
+}
+@media (max-width: 780px) {
+  .ev-products .ev-band { padding: 48px 22px; }
+}
+
+/* ---- full-bleed: sections fill the entire screen width (no centered cap) --- */
+.ev-products .ev-frame {
+  max-width: none;
+}
+/* Keep long-form copy readable even when the section spans the full width. */
+.ev-products .ev-phead { max-width: 820px; }
+.ev-products .ev-reserve-grid,
+.ev-products .ev-prow {
+  padding-left: clamp(22px, 5vw, 96px);
+  padding-right: clamp(22px, 5vw, 96px);
+}
+
+/* ---- flagship-nav clearance + readability type bump ------------------ */
+/* The floating flagship nav is fixed at the top; give the hero clearance. */
+.ev-products .ev-hero--compact { padding-top: 104px; }
+
+/* Larger, more readable type + more breathing room between text blocks. */
+.ev-products .ev-idx { font-size: 13px; letter-spacing: 0.16em; margin-bottom: 8px; }
+.ev-products .ev-phead-deck {
+  font-size: clamp(16px, 1.5vw, 19px);
+  line-height: 1.62;
+  margin-top: 22px;
+  max-width: 62ch;
+}
+.ev-products .ev-prow h2 { margin: 0.15em 0 0.12em; }
+.ev-products .ev-psub { font-size: 17px; line-height: 1.4; margin-bottom: 1.05em; }
+.ev-products .ev-lede { font-size: 18.5px; line-height: 1.62; margin: 0.35em 0 1.35em; max-width: 40ch; }
+.ev-products .ev-specs { font-size: 13px; gap: 9px; margin-bottom: 26px; }
+/* Whole products page sits on the dark field, so spec pills read light even on
+   the "light" (Hand) row. */
+.ev-products .ev-specs li { padding: 7px 12px; color: var(--on-dark-mut); border-color: var(--line-d); }
+.ev-products .ev-intro { font-size: clamp(24px, 2.9vw, 34px); line-height: 1.36; margin-bottom: 48px; }
+.ev-products .ev-stat .ev-substat { font-size: 14px; line-height: 1.45; }
+.ev-products .ev-reserve h2 { margin: 0.3em 0 0.35em; }
+.ev-products .ev-reserve p { font-size: 17.5px; line-height: 1.6; max-width: 46ch; }
+.ev-products .ev-field label { font-size: 12.5px; }
+.ev-products .ev-field input { font-size: 16px; padding: 14px 15px; }
+/* A touch more vertical rhythm between rows/sections. */
+.ev-products .ev-prow { gap: 56px; padding-top: 72px; padding-bottom: 72px; }
+.ev-products .ev-reserve { padding-top: 68px; padding-bottom: 68px; }
+/* Slightly airier kicker->heading and heading->subtitle rhythm. */
+.ev-products .ev-idx { margin-bottom: 13px; }
+.ev-products .ev-prow h2 { margin: 0.1em 0 0.34em; }
+
+/* ---- Hand-style product layout: big title (main-page Heming) + big numbers ---
+ * The hero blurb is gone, so the first product row clears the fixed nav. The
+ * title uses the homepage display face (Heming); the key specs render as a few
+ * big, bold numbers instead of a wordy paragraph + chip list. */
+.ev-products .ev-prow--first { padding-top: 130px; }
+
+.ev-products .ev-ptitle {
+  font-family: "Heming", "Anton", system-ui, sans-serif;
+  font-size: clamp(58px, 8vw, 108px);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  margin: 0.06em 0 0.2em;
+}
+.ev-products .ev-oneliner {
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.45;
+  color: var(--on-dark);
+  max-width: 32ch;
+  margin: 0 0 1.5em;
+}
+.ev-products .ev-bignums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px 46px;
+  margin: 0 0 32px;
+}
+.ev-products .ev-bignum { display: flex; flex-direction: column; gap: 7px; }
+.ev-products .ev-bignum-n {
+  font-family: "Heming", "Anton", system-ui, sans-serif;
+  font-size: clamp(42px, 4.8vw, 66px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--on-dark);
+}
+.ev-products .ev-bignum-n small {
+  font-size: 0.36em;
+  font-weight: 600;
+  margin-left: 3px;
+  color: var(--on-dark-mut);
+}
+/* Small tucked prefix (the "<" in <1 ms) so it reads as a qualifier, not a
+   floating monospace glyph next to the number. */
+.ev-products .ev-bignum-n .ev-pre {
+  font-size: 0.5em;
+  font-weight: 600;
+  margin-right: 0.04em;
+  vertical-align: 0.34em;
+  color: var(--on-dark-mut);
+}
+.ev-products .ev-bignum-l {
+  font-family: var(--fm);
+  font-size: 11.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--on-dark-mut);
+}
+
+/* ---- live CAD turntable (Skin) -------------------------------------- */
+.ev-products .ev-pstage--3d { min-height: 440px; }
+.ev-hand3d { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.ev-hand3d canvas { display: block; }
+.ev-pstage--3d .ev-skin-ring { z-index: 0; }
+.ev-pstage--3d .ev-hand3d { z-index: 1; }
+
+/* ---- Skin: static layered composite — robotic (left) | glove photo (right) --
+   Bottom: the bare robotic hand (still). Middle: a black mask over the right.
+   Top: the open-hand glove photo, clipped + placed so the two halves read as
+   ONE hand. All values dialled in via /skin-tune (2026-07). The stage keeps the
+   tuning page's 8:7 aspect so those numbers transfer 1:1 at any width. */
+/* Tunable values (--skin-size, mask left, glove clip/transform) are set inline
+   from src/lib/skinAlign.js — see ProductsShowcase. This file is structure only. */
+.ev-skin-layered { aspect-ratio: 8 / 7; min-height: 0; overflow: visible; }
+/* The composite is authored at a FIXED 640×560 — identical to the /skin-tune
+   stage — so the tuned values transfer 1:1. It's centred in the stage and
+   scaled as one unit by --skin-size (keeps robotic + glove in register). */
+.ev-skin-layered .ev-skin-composite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 640px;
+  height: 560px;
+  transform: translate(-50%, -50%) scale(var(--skin-size, 0.5));
+  transform-origin: center;
+}
+.ev-skin-layered .ev-skin-robotic { position: absolute; inset: 0; z-index: 1; }
+.ev-skin-layered .ev-skin-mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* left (robotic crop) set inline from skinAlign.js */
+  z-index: 2;
+  background: #050505;
+  /* Feather the seam edge so the black doesn't read as a hard rectangle. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 7%);
+  mask-image: linear-gradient(to right, transparent 0, #000 7%);
+}
+.ev-skin-layered .ev-skin-glove {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  /* clip-path (glove crop) + transform (pos/scale/flip) set inline from skinAlign.js */
+}
+
+/* ---- CTA pills are now <button>s: strip native chrome (keep below ev-solid's
+   specificity so the solid pill stays orange) ---------------------------- */
+button.ev-pill { background: transparent; -webkit-appearance: none; appearance: none; }
+
+/* ---- intake pop-ups: Reserve (Nerve) / Contact (Skin) / Quote (Hand) ---- */
+.ev-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 5, 4, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  overflow-y: auto;
+  animation: ev-modal-fade 170ms ease;
+}
+@keyframes ev-modal-fade { from { opacity: 0; } to { opacity: 1; } }
+.ev-modal {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: auto;
+  background: #14110f;
+  border: 1px solid var(--line-d);
+  border-radius: 16px;
+  padding: 32px 30px 28px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  animation: ev-modal-rise 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ev-modal-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.ev-modal-x {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--on-dark-mut);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 9px;
+}
+.ev-modal-x:hover { color: var(--on-dark); background: rgba(255, 255, 255, 0.06); }
+.ev-modal-title {
+  font-family: var(--fs);
+  font-weight: 700;
+  font-size: clamp(21px, 3vw, 27px);
+  letter-spacing: -0.01em;
+  color: var(--on-dark);
+  margin: 8px 0 8px;
+  max-width: 22ch;
+}
+.ev-modal-desc {
+  color: var(--on-dark-mut);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
