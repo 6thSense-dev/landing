@@ -275,21 +275,21 @@
   transform: translate(-50%, -50%) rotate(-8deg);
 }
 .ev-products .ev-pstage--hand::before {
-  left: 32%;
-  top: 46%;
-  width: min(620px, 118%);
-  height: min(610px, 126%);
+  left: 29%;
+  top: 49%;
+  width: min(720px, 128%);
+  height: min(640px, 132%);
   background:
-    radial-gradient(ellipse 40% 34% at 44% 30%, rgba(64, 37, 82, 0.6), rgba(64, 37, 82, 0.18) 54%, transparent 78%),
-    radial-gradient(ellipse 46% 38% at 48% 46%, rgba(42, 69, 36, 0.72), rgba(42, 69, 36, 0.28) 56%, transparent 80%),
-    radial-gradient(ellipse 40% 32% at 46% 66%, rgba(101, 69, 34, 0.58), rgba(101, 69, 34, 0.22) 54%, transparent 80%),
-    radial-gradient(ellipse 56% 48% at 48% 52%, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.24) 48%, transparent 78%);
+    radial-gradient(ellipse 36% 32% at 40% 28%, rgba(64, 37, 82, 0.66), rgba(64, 37, 82, 0.22) 54%, transparent 78%),
+    radial-gradient(ellipse 48% 40% at 43% 46%, rgba(42, 69, 36, 0.8), rgba(42, 69, 36, 0.32) 56%, transparent 80%),
+    radial-gradient(ellipse 42% 34% at 41% 68%, rgba(101, 69, 34, 0.64), rgba(101, 69, 34, 0.24) 54%, transparent 80%),
+    radial-gradient(ellipse 52% 48% at 46% 52%, rgba(0, 0, 0, 0.64), rgba(0, 0, 0, 0.28) 48%, transparent 78%);
 }
 .ev-products .ev-pstage--hand::after {
-  left: 30%;
-  top: 54%;
-  width: min(420px, 82%);
-  height: min(500px, 96%);
+  left: 28%;
+  top: 55%;
+  width: min(500px, 94%);
+  height: min(540px, 104%);
 }
 .ev-products .ev-pstage--nerve::before {
   top: 45%;
@@ -673,7 +673,22 @@
   }
   .ev-skin-layered {
     --skin-size: 0.5 !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: stretch;
     min-height: clamp(300px, 82vw, 380px);
+  }
+  .ev-products #skin > .ev-pstage,
+  .ev-products #skin > .ev-pinfo {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    justify-self: stretch;
+  }
+  .ev-products #skin .ev-pinfo {
+    width: 100%;
+    max-width: 100%;
   }
   .ev-skin-layered .ev-skin-composite {
     left: 42%;
