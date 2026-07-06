@@ -194,6 +194,7 @@
  * borders, radius, shadow) so content floats on the field like the main page. */
 .ev-products.ev-home {
   background: transparent;
+  overflow-x: clip;
 }
 .ev-products .ev-bg-field {
   position: fixed;
@@ -238,6 +239,7 @@
   border: none;
   border-radius: 0;
   isolation: isolate;
+  overflow: visible;
 }
 .ev-products .ev-pstage::before,
 .ev-products .ev-pstage::after {
@@ -515,6 +517,12 @@
 .ev-products .ev-pstage--nerve .ev-statelabel .ev-state-nerve {
   opacity: 1;
 }
+.ev-products .ev-pstage--nerve .ev-statelabel--stage .ev-state-nerve {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ev-products .ev-pstage--nerve .ev-statelabel--stage {
   top: clamp(18px, 3vw, 34px);
   right: clamp(18px, 4vw, 52px);
@@ -652,6 +660,41 @@
   object-fit: contain;
   object-position: center;
   /* clip-path (glove crop) + transform (pos/scale/flip) set inline from skinAlign.js */
+}
+
+@media (max-width: 780px) {
+  .ev-products .ev-pstage {
+    margin-block: clamp(10px, 4vw, 18px);
+  }
+  .ev-products .ev-pstage-img {
+    inset: -2%;
+    width: 104%;
+    height: 104%;
+  }
+  .ev-skin-layered {
+    --skin-size: 0.5 !important;
+    min-height: clamp(300px, 82vw, 380px);
+  }
+  .ev-skin-layered .ev-skin-composite {
+    left: 42%;
+  }
+  .ev-products .ev-bignums {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 26px;
+  }
+  .ev-products .ev-bignum {
+    min-width: 0;
+  }
+  .ev-products #skin .ev-bignum:last-child {
+    grid-column: 1 / -1;
+  }
+  .ev-products #skin .ev-bignums {
+    grid-template-columns: 1fr;
+  }
+  .ev-products #skin .ev-bignum-n {
+    font-size: clamp(42px, 13vw, 54px);
+  }
 }
 
 /* ---- CTA pills are now <button>s: strip native chrome (keep below ev-solid's

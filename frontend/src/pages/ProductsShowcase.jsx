@@ -326,6 +326,11 @@ export default function ProductsShowcase() {
           </div>
         </section>
 
+        {/* ---------- band: just the line, on the flying-dots background ---------- */}
+        <section className="ev-band">
+          <h3 className="ev-band-line">Every touch, localized.</h3>
+        </section>
+
         {/* ---------- NERVE (dark) — 02, reserve. Same glove, joints lit. ---------- */}
         <section className="ev-prow ev-pdark ev-flip" id="nerve" ref={nerveRowRef}>
           <div className="ev-pstage ev-pstage--nerve" ref={nerveStageRef}>
@@ -378,11 +383,6 @@ export default function ProductsShowcase() {
               <button type="button" className="ev-pill ev-solid" onClick={() => setModal("reserve")}>Reserve Nerve</button>
             </div>
           </div>
-        </section>
-
-        {/* ---------- band: just the line, on the flying-dots background ---------- */}
-        <section className="ev-band">
-          <h3 className="ev-band-line">Every touch, localized.</h3>
         </section>
 
         {/* ---------- SKIN (light) — 03, contact ---------- */}
