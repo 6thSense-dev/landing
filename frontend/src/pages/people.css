@@ -1,0 +1,222 @@
+/*
+ * /people — the team page. Structure borrowed from ltf.vc/team (centered hero,
+ * 3-up portrait/name/role/bio cards, "backed by" strip), rendered in the
+ * 6thSense system from DESIGN.md: General Sans + Geist Mono, warm orange accent,
+ * the rounded frame floating on the warm backdrop, alternating warm-light tones.
+ *
+ * Reuses the base .ev-home / .ev-frame / .ev-idx / .ev-footer from evora-home.css
+ * (imported before this file). Everything here is scoped under .ev-people.
+ */
+
+.ev-people .ev-frame {
+  background: var(--surface);
+}
+
+/* ---- hero (warm-light, centered) ----------------------------------- */
+.ev-people .pp-hero {
+  background: var(--surface-2);
+  text-align: center;
+  /* Clear the fixed floating nav pill (matches /products' 104px clearance). */
+  padding: 104px clamp(22px, 6vw, 72px) 56px;
+}
+.ev-people .pp-hero .ev-idx {
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  margin-bottom: 12px;
+}
+.ev-people .pp-title {
+  margin: 0 auto;
+  max-width: 18ch;
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(34px, 5vw, 60px);
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  color: var(--on-light);
+}
+.ev-people .pp-deck {
+  margin: 18px auto 0;
+  max-width: 60ch;
+  font-size: clamp(16px, 1.5vw, 19px);
+  line-height: 1.6;
+  color: var(--on-light-mut);
+}
+
+/* ---- grid (white) --------------------------------------------------- */
+.ev-people .pp-grid-wrap {
+  background: var(--surface);
+  padding: clamp(48px, 6vw, 80px) clamp(22px, 6vw, 72px);
+}
+.ev-people .pp-grid {
+  display: grid;
+  /* Exactly four founders -> one balanced 4-across row (no orphan card). */
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(32px, 3vw, 44px) clamp(20px, 2vw, 30px);
+}
+
+/* ---- person card ---------------------------------------------------- */
+.ev-people .pp-card {
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--ev-dur-med) var(--ev-ease-enter);
+}
+.ev-people .pp-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Portrait: a warm "paper" tile that unifies whatever photo is dropped in
+   (public/people/<slug>.jpg) into one cohesive black-and-white engraving look,
+   the way ltf.vc's illustrated portraits read as a single set. */
+.ev-people .pp-portrait {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--ev-r-card);
+  overflow: hidden;
+  background: #efe8db;
+  border: 1px solid var(--line-l);
+}
+.ev-people .pp-portrait-img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.08) brightness(1.03);
+  transition: filter var(--ev-dur-long) var(--ev-ease-enter);
+}
+.ev-people .pp-card:hover .pp-portrait-img {
+  filter: grayscale(0.72) contrast(1.06) brightness(1.02);
+}
+
+/* Placeholder shown until a photo exists (sits behind the img; the img's
+   onError hides itself and reveals this). Initials on cross-hatched paper. */
+.ev-people .pp-portrait-ph {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(120% 100% at 50% 0%, #f6f0e5, #e7ddca 78%),
+    repeating-linear-gradient(45deg, rgba(20, 18, 12, 0.05) 0 1px, transparent 1px 6px);
+}
+.ev-people .pp-initials {
+  font-family: var(--fm);
+  font-size: clamp(34px, 4vw, 46px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--on-light);
+  opacity: 0.5;
+}
+.ev-people .pp-portrait-ph::after {
+  /* small orange accent dot, echoes the joint-sensor motif */
+  content: "";
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ev-people .pp-namerow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+.ev-people .pp-name {
+  margin: 0;
+  font-family: var(--fs);
+  font-weight: 600;
+  font-size: clamp(20px, 1.8vw, 23px);
+  letter-spacing: -0.01em;
+  color: var(--on-light);
+}
+.ev-people .pp-li {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ev-r-sm);
+  color: var(--on-light-mut);
+  border: 1px solid var(--line-l);
+  transition: color var(--ev-dur-short) var(--ev-ease-enter),
+    border-color var(--ev-dur-short) var(--ev-ease-enter),
+    background var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-people .pp-li:hover {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ev-people .pp-li svg { width: 16px; height: 16px; }
+
+.ev-people .pp-role {
+  margin-top: 6px;
+  font-family: var(--fm);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.ev-people .pp-bio {
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--on-light-mut);
+}
+
+/* ---- backed-by strip (warm-light) ---------------------------------- */
+.ev-people .pp-backed {
+  background: var(--surface-2);
+  border-top: 1px solid var(--line-l);
+  text-align: center;
+  padding: clamp(40px, 5vw, 64px) clamp(22px, 6vw, 72px);
+}
+.ev-people .pp-backed .ev-idx {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  margin-bottom: 20px;
+}
+.ev-people .pp-backed-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.ev-people .pp-yc {
+  height: 30px;
+  width: auto;
+}
+.ev-people .pp-backed-note {
+  margin: 0;
+  max-width: 48ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--on-light-mut);
+}
+
+/* ---- responsive ----------------------------------------------------- */
+@media (max-width: 900px) {
+  .ev-people .pp-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 620px) {
+  .ev-people .pp-grid { grid-template-columns: 1fr; }
+  /* The nav pill wraps to two rows on narrow screens; clear it. */
+  .ev-people .pp-hero { padding-top: 132px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ev-people .pp-card,
+  .ev-people .pp-card:hover { transform: none; }
+  .ev-people .pp-portrait-img,
+  .ev-people .pp-card:hover .pp-portrait-img { transition: none; }
+}

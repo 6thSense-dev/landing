@@ -1,12 +1,12 @@
-import { useEffect, useRef, lazy, Suspense } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 
 import LeadForm from "../lib/LeadForm.jsx";
 import { useRevealNav } from "../useRevealNav.js";
-
-// Lazy so three.js + the .glb only load for visitors who reach /products.
-const HandTurntable = lazy(() => import("../lib/HandTurntable.jsx"));
+// Skin section: robotic image + glove photo composite (2D, no WebGL). Add
+// ?align to the /products URL for the on-page alignment panel.
+import SkinStage from "../lib/SkinStage.jsx";
 import { TactileField } from "../TactileField.jsx";
 // Reuse the homepage's approved Evora stylesheet verbatim (all .ev-* classes
 // and the joint-reveal visual live there, scoped under .ev-home). This file
@@ -137,10 +137,89 @@ function ContactForm() {
   );
 }
 
+/**
+ * Hand quote request. Shared LeadForm, tagged kind="contact", product="hand".
+ */
+function QuoteForm() {
+  return (
+    <LeadForm
+      kind="contact"
+      product="hand"
+      idPrefix="quote"
+      submitLabel="Request quote"
+      messageLabel="What do you need?"
+      messagePlaceholder="Quantity, your use case, and any timeline."
+      successMessage="Thanks — we'll send a quote for the Hand shortly."
+    />
+  );
+}
+
+/* The three intake forms now open as pop-ups instead of living inline on the
+   page, keyed by which CTA opened them. */
+const MODALS = {
+  quote: {
+    eyebrow: "Quote · Hand",
+    title: "Request a quote",
+    desc: "Tell us quantity and use case and we'll get you a quote for the Hand.",
+    Form: QuoteForm,
+  },
+  reserve: {
+    eyebrow: "Reserve · Nerve",
+    title: "Be first when per-joint sensing ships.",
+    desc: "An email reservation only — no charge now, price and ship window still TBD. We'll reach out the moment pre-orders open.",
+    Form: ReserveForm,
+  },
+  contact: {
+    eyebrow: "Contact · Skin",
+    title: "Building a dexterous hand?",
+    desc: "Tell us the hand or gripper and the task. We'll figure out what tactile skin belongs on it and where.",
+    Form: ContactForm,
+  },
+};
+
+function Modal({ which, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  const m = MODALS[which];
+  if (!m) return null;
+  const { Form } = m;
+  return (
+    <div className="ev-modal-overlay" onClick={onClose}>
+      <div
+        className="ev-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={m.title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button className="ev-modal-x" onClick={onClose} aria-label="Close" type="button">
+          ×
+        </button>
+        <div className="ev-idx">{m.eyebrow}</div>
+        <h2 className="ev-modal-title">{m.title}</h2>
+        <p className="ev-modal-desc">{m.desc}</p>
+        <Form />
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsShowcase() {
   const nerveRowRef = useRef(null);
   const nerveStageRef = useRef(null);
   useJointReveal(nerveRowRef, nerveStageRef);
+
+  // Which intake pop-up is open: "quote" | "reserve" | "contact" | null.
+  const [modal, setModal] = useState(null);
 
   // Same floating flagship nav as the homepage (styles.css .nav-flagship).
   // No #story on this page, so useRevealNav keeps it always visible.
@@ -173,9 +252,6 @@ export default function ProductsShowcase() {
             <Link to="/products" className="nav-cta nav-cta-on-dark">
               Products
             </Link>
-            <Link to="/people" className="nav-cta nav-cta-on-dark">
-              People
-            </Link>
             <Link to="/login" className="nav-cta nav-cta-on-dark">
               Partner login
             </Link>
@@ -189,19 +265,16 @@ export default function ProductsShowcase() {
           <div className="ev-pstage">
             <span className="ev-badge ev-live">Available now</span>
             {/*
-              hand-studio.png is an AI-CLEANED studio rendition generated from the
-              real glove reference (public/hand.jpg): background removed, relit on
-              the site palette, sensor module kept blank/unbranded. Honest — based
-              on the real product, no fake brand or invented features — but it is a
-              rendition, not a literal photo of the exact unit.
-              TODO(hardware): replace with a real studio knockout of the Hand glove
-              + a 360° turntable capture so it can truly spin (DESIGN.md "Imagery
-              Rules"). Falls back to a "photo pending" panel on error.
+              Real photo of the Hand glove, index raised — the "1" frame from the
+              glove capture sequence (public/hero/glove/pose-hand.webp, tight crop
+              of /hero/glove/frame-001.webp). A genuine product photo, not a render
+              or AI image (DESIGN.md "Imagery Rules"). Falls back to a "photo
+              pending" panel on error.
             */}
             <img
               className="ev-pstage-img"
-              src="/hand-studio.png"
-              alt="6thSense Hand — tactile data glove"
+              src="/hero/glove/pose-hand.webp"
+              alt="6thSense Hand — tactile data glove, index finger raised"
               style={{ objectFit: "contain", objectPosition: "center" }}
               onError={(e) => {
                 e.currentTarget.style.display = "none";
@@ -223,21 +296,32 @@ export default function ProductsShowcase() {
             <div className="ev-bignums">
               <div className="ev-bignum">
                 <span className="ev-bignum-n">440</span>
-                <span className="ev-bignum-l">pressure cells</span>
+                <span className="ev-bignum-l">tactile channels</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n">0.01<small>N</small></span>
+                <span className="ev-bignum-l">resolution</span>
+              </div>
+              <div className="ev-bignum">
+                <span className="ev-bignum-n"><span className="ev-pre">&lt;</span>1<small>ms</small></span>
+                <span className="ev-bignum-l">response</span>
               </div>
               <div className="ev-bignum">
                 <span className="ev-bignum-n">200<small>Hz</small></span>
                 <span className="ev-bignum-l">sustained</span>
               </div>
-              <div className="ev-bignum">
-                <span className="ev-bignum-n">&lt;1<small>ms</small></span>
-                <span className="ev-bignum-l">response</span>
-              </div>
             </div>
+            {/* Supporting specs — credibility/integration detail for the
+                technical buyer (see the full key-spec sheet). */}
+            <ul className="ev-specs">
+              <li>6-axis IMU</li>
+              <li>16-bit resolution</li>
+              <li>USB-C / BLE 5.x</li>
+              <li>µs-monotonic sync</li>
+            </ul>
             <div className="ev-actions">
-              <span className="ev-price">$1,000</span>
-              <a className="ev-pill ev-solid" href="#reserve">Buy the Hand</a>
-              <a className="ev-pill ev-onlight" href="#skin-contact">Talk to us</a>
+              <button type="button" className="ev-pill ev-solid" onClick={() => setModal("quote")}>Get a quote</button>
+              <button type="button" className="ev-pill ev-onlight" onClick={() => setModal("contact")}>Talk to us</button>
             </div>
           </div>
         </section>
@@ -246,26 +330,24 @@ export default function ProductsShowcase() {
         <section className="ev-prow ev-pdark ev-flip" id="nerve" ref={nerveRowRef}>
           <div className="ev-pstage ev-pstage--nerve" ref={nerveStageRef}>
             <span className="ev-badge ev-soon">Reserve — in build</span>
-            <div className="ev-glowdots" />
             {/*
-              Nerve CONCEPT render generated from the real Hand glove
-              (public/nerve-concept.png): the SAME glove with glowing per-joint
-              sensors — the Hand upgraded to Nerve, one glove two states.
-              It is a concept, NOT a shipping product photo: Nerve isn't shipping
-              and the sensor count/placement is illustrative (the real sensors
-              sit palm-side). Stays badged "in build" + captioned "concept render".
+              Real photo of the SAME glove raised in a peace sign — the "2" frame
+              from the glove capture sequence (public/hero/glove/pose-nerve.webp,
+              tight crop of /hero/glove/frame-002.webp). Nerve is the Hand glove
+              with per-joint sensing added; not yet shipping, so it stays badged
+              "in build". A genuine photo, not a render or AI image.
             */}
+            <div className="ev-glowdots" />
             <img
               className="ev-pstage-img"
-              src="/nerve-concept.png"
-              alt="6thSense Nerve concept render — the Hand glove with per-joint sensors"
+              src="/hero/glove/pose-nerve.webp"
+              alt="6thSense Nerve — the Hand glove raised in a peace sign"
               style={{ objectFit: "contain", objectPosition: "center" }}
             />
             <span className="ev-statelabel ev-statelabel--stage" aria-hidden="true">
               <span className="ev-state-hand">Hand · tactile</span>
               <span className="ev-state-nerve">Nerve · force in space</span>
             </span>
-            <span className="ev-pstage-cap">concept render · sensors illustrative</span>
           </div>
           <div className="ev-pinfo">
             <div className="ev-idx">02 · The Nerve</div>
@@ -274,7 +356,7 @@ export default function ProductsShowcase() {
                 accurate here (unlike Hand). Keep it. */}
             <p className="ev-oneliner">
               Mocap gloves track the hand but can't feel. Nerve does both —
-              touch at every finger joint, plus temperature.
+              tactile sensing and joint tracking at every finger.
             </p>
             <div className="ev-bignums">
               <div className="ev-bignum">
@@ -293,7 +375,7 @@ export default function ProductsShowcase() {
             <div className="ev-actions">
               {/* Nerve price + ship window TBD (DESIGN.md); reserve = email capture only. */}
               <span className="ev-tbd">Price &amp; ship window: TBD</span>
-              <a className="ev-pill ev-solid" href="#reserve">Reserve Nerve</a>
+              <button type="button" className="ev-pill ev-solid" onClick={() => setModal("reserve")}>Reserve Nerve</button>
             </div>
           </div>
         </section>
@@ -305,24 +387,11 @@ export default function ProductsShowcase() {
 
         {/* ---------- SKIN (light) — 03, contact ---------- */}
         <section className="ev-prow ev-plight" id="skin">
-          <div className="ev-pstage ev-pstage--3d">
-            <span className="ev-badge ev-soon">In development</span>
-            {/* Live turntable of the dexterous hand, tessellated from the real
-                open-hardware CAD (public/dexterous-hand.glb). The skin story is a
-                concept — the model is the bare hand. Never name the partner hand. */}
-            <div className="ev-skin-ring" aria-hidden="true" />
-            <Suspense
-              fallback={
-                <div className="ev-skin-ph" aria-hidden="true">
-                  <div className="ev-skin-mark">◑</div>
-                  <div className="ev-skin-cap">Loading model…</div>
-                </div>
-              }
-            >
-              <HandTurntable />
-            </Suspense>
-            <span className="ev-pstage-cap">concept · drag to rotate</span>
-          </div>
+          {/* Skin: ONE hand, split down the middle — LEFT half the robotic
+              dexterous-hand image, RIGHT half the tactile-skin glove photo. Both
+              are flat 2D images (no WebGL), so page == aligner at any size.
+              Add ?align to the URL for the on-page alignment panel. */}
+          <SkinStage />
           <div className="ev-pinfo">
             <div className="ev-idx">03 · The Skin</div>
             <h2 className="ev-ptitle">Skin</h2>
@@ -345,47 +414,21 @@ export default function ProductsShowcase() {
               </div>
             </div>
             <div className="ev-actions">
-              <a className="ev-pill ev-solid" href="#skin-contact">Talk to us</a>
+              <button type="button" className="ev-pill ev-solid" onClick={() => setModal("contact")}>Talk to us</button>
             </div>
           </div>
         </section>
 
-        {/* ---------- RESERVE (dark) — Nerve pre-order email capture ---------- */}
-        <section className="ev-reserve" id="reserve">
-          <div className="ev-reserve-grid">
-            <div>
-              <div className="ev-idx">Reserve · Nerve</div>
-              <h2>Be first when per-joint sensing ships.</h2>
-              <p>
-                Reserve Nerve to hold your place in the first build. It's an email
-                reservation only — no charge now, and price and ship window are
-                still TBD. We'll reach out the moment pre-orders open.
-              </p>
-            </div>
-            <ReserveForm />
-          </div>
-        </section>
-
-        {/* ---------- CONTACT (dark) — Skin enquiry ---------- */}
-        <section className="ev-reserve ev-reserve--alt" id="skin-contact">
-          <div className="ev-reserve-grid">
-            <div>
-              <div className="ev-idx">Contact · Skin</div>
-              <h2>Building a dexterous hand?</h2>
-              <p>
-                Tell us the hand or gripper and the task. We'll figure out what
-                tactile skin belongs on it and where.
-              </p>
-            </div>
-            <ContactForm />
-          </div>
-        </section>
+        {/* Reserve / Contact / Quote now open as pop-ups (see the Modal below),
+            so they no longer live as inline sections on the page. */}
 
         <footer className="ev-footer">
           <span>6thSense · tactile hardware for dexterous robotics</span>
           <Link className="ev-footer-home" to="/">Hand · Nerve · Skin</Link>
         </footer>
       </div>
+
+      {modal && <Modal which={modal} onClose={() => setModal(null)} />}
     </div>
   );
 }

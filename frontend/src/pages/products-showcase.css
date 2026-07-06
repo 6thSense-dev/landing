@@ -289,7 +289,9 @@
 .ev-products .ev-psub { font-size: 17px; line-height: 1.4; margin-bottom: 1.05em; }
 .ev-products .ev-lede { font-size: 18.5px; line-height: 1.62; margin: 0.35em 0 1.35em; max-width: 40ch; }
 .ev-products .ev-specs { font-size: 13px; gap: 9px; margin-bottom: 26px; }
-.ev-products .ev-specs li { padding: 7px 12px; }
+/* Whole products page sits on the dark field, so spec pills read light even on
+   the "light" (Hand) row. */
+.ev-products .ev-specs li { padding: 7px 12px; color: var(--on-dark-mut); border-color: var(--line-d); }
 .ev-products .ev-intro { font-size: clamp(24px, 2.9vw, 34px); line-height: 1.36; margin-bottom: 48px; }
 .ev-products .ev-stat .ev-substat { font-size: 14px; line-height: 1.45; }
 .ev-products .ev-reserve h2 { margin: 0.3em 0 0.35em; }
@@ -345,6 +347,15 @@
   margin-left: 3px;
   color: var(--on-dark-mut);
 }
+/* Small tucked prefix (the "<" in <1 ms) so it reads as a qualifier, not a
+   floating monospace glyph next to the number. */
+.ev-products .ev-bignum-n .ev-pre {
+  font-size: 0.5em;
+  font-weight: 600;
+  margin-right: 0.04em;
+  vertical-align: 0.34em;
+  color: var(--on-dark-mut);
+}
 .ev-products .ev-bignum-l {
   font-family: var(--fm);
   font-size: 11.5px;
@@ -359,3 +370,114 @@
 .ev-hand3d canvas { display: block; }
 .ev-pstage--3d .ev-skin-ring { z-index: 0; }
 .ev-pstage--3d .ev-hand3d { z-index: 1; }
+
+/* ---- Skin: static layered composite — robotic (left) | glove photo (right) --
+   Bottom: the bare robotic hand (still). Middle: a black mask over the right.
+   Top: the open-hand glove photo, clipped + placed so the two halves read as
+   ONE hand. All values dialled in via /skin-tune (2026-07). The stage keeps the
+   tuning page's 8:7 aspect so those numbers transfer 1:1 at any width. */
+/* Tunable values (--skin-size, mask left, glove clip/transform) are set inline
+   from src/lib/skinAlign.js — see ProductsShowcase. This file is structure only. */
+.ev-skin-layered { aspect-ratio: 8 / 7; min-height: 0; overflow: visible; }
+/* The composite is authored at a FIXED 640×560 — identical to the /skin-tune
+   stage — so the tuned values transfer 1:1. It's centred in the stage and
+   scaled as one unit by --skin-size (keeps robotic + glove in register). */
+.ev-skin-layered .ev-skin-composite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 640px;
+  height: 560px;
+  transform: translate(-50%, -50%) scale(var(--skin-size, 0.5));
+  transform-origin: center;
+}
+.ev-skin-layered .ev-skin-robotic { position: absolute; inset: 0; z-index: 1; }
+.ev-skin-layered .ev-skin-mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* left (robotic crop) set inline from skinAlign.js */
+  z-index: 2;
+  background: #050505;
+  /* Feather the seam edge so the black doesn't read as a hard rectangle. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 7%);
+  mask-image: linear-gradient(to right, transparent 0, #000 7%);
+}
+.ev-skin-layered .ev-skin-glove {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  /* clip-path (glove crop) + transform (pos/scale/flip) set inline from skinAlign.js */
+}
+
+/* ---- CTA pills are now <button>s: strip native chrome (keep below ev-solid's
+   specificity so the solid pill stays orange) ---------------------------- */
+button.ev-pill { background: transparent; -webkit-appearance: none; appearance: none; }
+
+/* ---- intake pop-ups: Reserve (Nerve) / Contact (Skin) / Quote (Hand) ---- */
+.ev-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(6, 5, 4, 0.72);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  overflow-y: auto;
+  animation: ev-modal-fade 170ms ease;
+}
+@keyframes ev-modal-fade { from { opacity: 0; } to { opacity: 1; } }
+.ev-modal {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: auto;
+  background: #14110f;
+  border: 1px solid var(--line-d);
+  border-radius: 16px;
+  padding: 32px 30px 28px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  animation: ev-modal-rise 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ev-modal-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.ev-modal-x {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--on-dark-mut);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 9px;
+}
+.ev-modal-x:hover { color: var(--on-dark); background: rgba(255, 255, 255, 0.06); }
+.ev-modal-title {
+  font-family: var(--fs);
+  font-weight: 700;
+  font-size: clamp(21px, 3vw, 27px);
+  letter-spacing: -0.01em;
+  color: var(--on-dark);
+  margin: 8px 0 8px;
+  max-width: 22ch;
+}
+.ev-modal-desc {
+  color: var(--on-dark-mut);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
