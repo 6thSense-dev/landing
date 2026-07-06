@@ -262,7 +262,7 @@ export default function ProductsShowcase() {
       <div className="ev-frame">
         {/* ---------- HAND — 01, available now (first section, clears the nav) ---------- */}
         <section className="ev-prow ev-plight ev-prow--first" id="hand">
-          <div className="ev-pstage">
+          <div className="ev-pstage ev-pstage--hand">
             <span className="ev-badge ev-live">Available now</span>
             {/*
               Real photo of the Hand glove, index raised — the "1" frame from the
@@ -346,7 +346,7 @@ export default function ProductsShowcase() {
             />
             <span className="ev-statelabel ev-statelabel--stage" aria-hidden="true">
               <span className="ev-state-hand">Hand · tactile</span>
-              <span className="ev-state-nerve">Nerve · force in space</span>
+              <span className="ev-state-nerve">Teleop glove with tactile capabilities.</span>
             </span>
           </div>
           <div className="ev-pinfo">

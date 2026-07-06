@@ -237,6 +237,113 @@
   background: transparent;
   border: none;
   border-radius: 0;
+  isolation: isolate;
+}
+.ev-products .ev-pstage::before,
+.ev-products .ev-pstage::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+.ev-products .ev-pstage::before {
+  left: 50%;
+  top: 50%;
+  width: min(680px, 112%);
+  height: min(560px, 116%);
+  background:
+    radial-gradient(ellipse 38% 30% at 40% 34%, rgba(64, 37, 82, 0.58), rgba(64, 37, 82, 0.18) 54%, transparent 78%),
+    radial-gradient(ellipse 44% 34% at 54% 48%, rgba(42, 69, 36, 0.62), rgba(42, 69, 36, 0.24) 56%, transparent 80%),
+    radial-gradient(ellipse 44% 32% at 44% 64%, rgba(101, 69, 34, 0.56), rgba(101, 69, 34, 0.22) 54%, transparent 80%),
+    radial-gradient(ellipse 56% 46% at 50% 52%, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0.22) 48%, transparent 78%);
+  filter: blur(34px);
+  opacity: 0.96;
+  transform: translate(-50%, -50%) rotate(6deg);
+}
+.ev-products .ev-pstage::after {
+  left: 50%;
+  top: 54%;
+  width: min(520px, 86%);
+  height: min(460px, 86%);
+  background:
+    radial-gradient(ellipse 42% 34% at 48% 42%, rgba(120, 133, 66, 0.2), rgba(120, 133, 66, 0.08) 48%, transparent 72%),
+    radial-gradient(ellipse 48% 42% at 52% 58%, rgba(89, 34, 2, 0.24), rgba(89, 34, 2, 0.08) 52%, transparent 76%);
+  filter: blur(18px);
+  opacity: 0.76;
+  transform: translate(-50%, -50%) rotate(-8deg);
+}
+.ev-products .ev-pstage--hand::before {
+  left: 32%;
+  top: 46%;
+  width: min(620px, 118%);
+  height: min(610px, 126%);
+  background:
+    radial-gradient(ellipse 40% 34% at 44% 30%, rgba(64, 37, 82, 0.6), rgba(64, 37, 82, 0.18) 54%, transparent 78%),
+    radial-gradient(ellipse 46% 38% at 48% 46%, rgba(42, 69, 36, 0.72), rgba(42, 69, 36, 0.28) 56%, transparent 80%),
+    radial-gradient(ellipse 40% 32% at 46% 66%, rgba(101, 69, 34, 0.58), rgba(101, 69, 34, 0.22) 54%, transparent 80%),
+    radial-gradient(ellipse 56% 48% at 48% 52%, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.24) 48%, transparent 78%);
+}
+.ev-products .ev-pstage--hand::after {
+  left: 30%;
+  top: 54%;
+  width: min(420px, 82%);
+  height: min(500px, 96%);
+}
+.ev-products .ev-pstage--nerve::before {
+  top: 45%;
+  background:
+    radial-gradient(ellipse 34% 28% at 46% 24%, rgba(64, 37, 82, 0.64), rgba(64, 37, 82, 0.2) 54%, transparent 78%),
+    radial-gradient(ellipse 42% 32% at 54% 42%, rgba(42, 69, 36, 0.7), rgba(42, 69, 36, 0.28) 56%, transparent 80%),
+    radial-gradient(ellipse 28% 20% at 56% 28%, rgba(120, 133, 66, 0.26), rgba(120, 133, 66, 0.1) 48%, transparent 72%),
+    radial-gradient(ellipse 44% 32% at 46% 64%, rgba(101, 69, 34, 0.62), rgba(101, 69, 34, 0.24) 54%, transparent 80%),
+    radial-gradient(ellipse 56% 46% at 50% 50%, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0.22) 48%, transparent 78%);
+}
+.ev-products .ev-pstage--nerve::after {
+  top: 48%;
+  opacity: 0.88;
+}
+.ev-products .ev-skin-layered::before {
+  left: 46%;
+  top: 49%;
+  width: min(820px, 142%);
+  height: min(700px, 136%);
+  background:
+    radial-gradient(ellipse 38% 34% at 42% 28%, rgba(64, 37, 82, 0.72), rgba(64, 37, 82, 0.26) 54%, transparent 78%),
+    radial-gradient(ellipse 50% 38% at 52% 48%, rgba(42, 69, 36, 0.78), rgba(42, 69, 36, 0.32) 56%, transparent 80%),
+    radial-gradient(ellipse 46% 34% at 48% 68%, rgba(101, 69, 34, 0.72), rgba(101, 69, 34, 0.28) 54%, transparent 80%),
+    radial-gradient(ellipse 58% 50% at 50% 52%, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.22) 48%, transparent 78%);
+  opacity: 1;
+}
+.ev-products .ev-skin-layered::after {
+  left: 47%;
+  top: 50%;
+  width: min(640px, 112%);
+  height: min(590px, 112%);
+  background:
+    radial-gradient(ellipse 38% 30% at 42% 42%, rgba(120, 133, 66, 0.3), rgba(120, 133, 66, 0.12) 48%, transparent 72%),
+    radial-gradient(ellipse 46% 40% at 52% 60%, rgba(89, 34, 2, 0.34), rgba(89, 34, 2, 0.12) 52%, transparent 76%),
+    radial-gradient(ellipse 34% 32% at 62% 34%, rgba(64, 37, 82, 0.28), transparent 72%);
+  opacity: 0.98;
+}
+.ev-products .ev-pstage-img,
+.ev-products .ev-skin-composite,
+.ev-products .ev-prod-ph,
+.ev-products .ev-glowdots {
+  z-index: 1;
+}
+.ev-products .ev-pstage .ev-badge,
+.ev-products .ev-pstage .ev-statelabel,
+.ev-products .ev-pstage .ev-pstage-cap {
+  z-index: 2;
+}
+@keyframes ev-stage-aurora-breathe {
+  from { opacity: 0.78; filter: blur(32px) saturate(1); }
+  to { opacity: 1; filter: blur(38px) saturate(1.16); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ev-products .ev-pstage::before {
+    animation: ev-stage-aurora-breathe 8s var(--ev-ease-enter) infinite alternate;
+  }
 }
 /* Hand "photo pending" slot: soft glow only, no solid fill box. */
 .ev-products .ev-prod-ph {
@@ -273,6 +380,89 @@
   padding-right: clamp(22px, 5vw, 96px);
 }
 
+/* ---- atmospheric readability mist -----------------------------------
+ * Keep copy floating on the tactile field, but calm the dots behind it with
+ * text-anchored aurora glow. No backdrop panel, no card edge. */
+.ev-products .ev-phead,
+.ev-products .ev-pinfo,
+.ev-products .ev-band-line,
+.ev-products .ev-footer {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+}
+.ev-products .ev-phead::before,
+.ev-products .ev-pinfo::before,
+.ev-products .ev-pinfo::after,
+.ev-products .ev-band-line::before,
+.ev-products .ev-footer::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+.ev-products .ev-pinfo::before {
+  left: clamp(-74px, -6vw, -38px);
+  top: clamp(-46px, -5vw, -24px);
+  width: min(820px, calc(100% + 260px));
+  height: calc(100% + 150px);
+  background:
+    radial-gradient(ellipse 38% 28% at 24% 18%, rgba(64, 37, 82, 0.72), rgba(64, 37, 82, 0.28) 52%, transparent 78%),
+    radial-gradient(ellipse 46% 30% at 32% 34%, rgba(42, 69, 36, 0.78), rgba(42, 69, 36, 0.34) 55%, transparent 80%),
+    radial-gradient(ellipse 26% 18% at 42% 42%, rgba(120, 133, 66, 0.34), rgba(120, 133, 66, 0.12) 48%, transparent 72%),
+    radial-gradient(ellipse 42% 30% at 26% 58%, rgba(101, 69, 34, 0.66), rgba(101, 69, 34, 0.28) 54%, transparent 80%),
+    radial-gradient(ellipse 34% 26% at 48% 78%, rgba(59, 31, 70, 0.58), rgba(59, 31, 70, 0.2) 54%, transparent 78%),
+    radial-gradient(ellipse 54% 48% at 30% 48%, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.5) 48%, transparent 78%);
+  filter: blur(30px);
+  transform: rotate(-5deg);
+  opacity: 1;
+}
+.ev-products .ev-pinfo::after {
+  left: clamp(-46px, -4vw, -24px);
+  top: clamp(-10px, -1vw, -4px);
+  width: min(620px, calc(100% + 120px));
+  height: calc(100% + 42px);
+  background:
+    radial-gradient(ellipse 52% 38% at 18% 18%, rgba(8, 11, 6, 0.78), rgba(8, 11, 6, 0.42) 46%, transparent 76%),
+    radial-gradient(ellipse 48% 30% at 22% 50%, rgba(20, 17, 12, 0.76), rgba(20, 17, 12, 0.38) 50%, transparent 78%),
+    radial-gradient(ellipse 36% 20% at 34% 86%, rgba(89, 34, 2, 0.28), transparent 72%);
+  filter: blur(14px);
+  opacity: 0.82;
+}
+.ev-products .ev-phead::before {
+  left: clamp(-76px, -8vw, -46px);
+  top: clamp(-58px, -7vw, -36px);
+  width: min(840px, calc(100% + 240px));
+  height: calc(100% + 130px);
+  background:
+    radial-gradient(ellipse 42% 30% at 24% 26%, rgba(64, 37, 82, 0.64), rgba(64, 37, 82, 0.22) 54%, transparent 80%),
+    radial-gradient(ellipse 46% 32% at 34% 48%, rgba(42, 69, 36, 0.68), rgba(42, 69, 36, 0.26) 56%, transparent 80%),
+    radial-gradient(ellipse 30% 22% at 45% 55%, rgba(120, 133, 66, 0.22), transparent 72%),
+    radial-gradient(ellipse 52% 42% at 28% 48%, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.34) 48%, transparent 78%);
+  filter: blur(28px);
+  transform: rotate(-5deg);
+  opacity: 0.98;
+}
+.ev-products .ev-band-line::before,
+.ev-products .ev-footer::before {
+  left: 50%;
+  top: 50%;
+  width: min(620px, calc(100vw - 44px));
+  height: 180px;
+  background:
+    radial-gradient(ellipse 44% 34% at 34% 38%, rgba(64, 37, 82, 0.6), rgba(64, 37, 82, 0.18) 54%, transparent 78%),
+    radial-gradient(ellipse 54% 42% at 54% 52%, rgba(42, 69, 36, 0.54), rgba(42, 69, 36, 0.2) 52%, transparent 78%),
+    radial-gradient(ellipse 70% 54% at 50% 52%, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.22) 48%, transparent 78%);
+  filter: blur(22px);
+  transform: translate(-50%, -50%) rotate(-4deg);
+}
+.ev-products .ev-pinfo > *,
+.ev-products .ev-phead > *,
+.ev-products .ev-band-line,
+.ev-products .ev-footer > * {
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
 /* ---- flagship-nav clearance + readability type bump ------------------ */
 /* The floating flagship nav is fixed at the top; give the hero clearance. */
 .ev-products .ev-hero--compact { padding-top: 104px; }
@@ -304,6 +494,55 @@
 /* Slightly airier kicker->heading and heading->subtitle rhythm. */
 .ev-products .ev-idx { margin-bottom: 13px; }
 .ev-products .ev-prow h2 { margin: 0.1em 0 0.34em; }
+
+/* Nerve badge: clear the fixed nav and keep the status label legible on the
+   transparent stage. */
+.ev-products .ev-pstage--nerve .ev-badge.ev-soon {
+  top: clamp(62px, 7vw, 86px);
+  left: clamp(18px, 3.6vw, 42px);
+  max-width: calc(100% - clamp(36px, 7.2vw, 84px));
+  color: #ff7a3d;
+  background: rgba(10, 8, 5, 0.58);
+  border-color: rgba(255, 122, 61, 0.8);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+  -webkit-backdrop-filter: blur(8px) saturate(1.12);
+  backdrop-filter: blur(8px) saturate(1.12);
+  white-space: nowrap;
+}
+.ev-products .ev-pstage--nerve .ev-statelabel .ev-state-hand {
+  opacity: 0;
+}
+.ev-products .ev-pstage--nerve .ev-statelabel .ev-state-nerve {
+  opacity: 1;
+}
+.ev-products .ev-pstage--nerve .ev-statelabel--stage {
+  top: clamp(18px, 3vw, 34px);
+  right: clamp(18px, 4vw, 52px);
+  width: max-content;
+  max-width: calc(100% - clamp(36px, 8vw, 104px));
+  padding: 7px 12px;
+  line-height: 1.28;
+  white-space: nowrap;
+  text-align: left;
+  background: rgba(10, 8, 5, 0.66);
+  -webkit-backdrop-filter: blur(7px) saturate(1.08);
+  backdrop-filter: blur(7px) saturate(1.08);
+}
+@media (max-width: 780px) {
+  .ev-products .ev-pstage--nerve .ev-statelabel--stage {
+    top: 14px;
+    left: 22px;
+    right: auto;
+    max-width: calc(100% - 44px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ev-products .ev-pstage--nerve .ev-badge.ev-soon {
+    top: 116px;
+    left: 22px;
+  }
+}
 
 /* ---- Hand-style product layout: big title (main-page Heming) + big numbers ---
  * The hero blurb is gone, so the first product row clears the fixed nav. The
