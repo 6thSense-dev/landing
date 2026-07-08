@@ -23,7 +23,7 @@ async def client(db_session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_429_after_limit(client):
-    body = {"name": "A", "email": "a@x.com", "organization": "Acme"}
+    body = {"name": "A", "email": "a@x.com", "organization": "Acme", "message": "hi"}
     for i in range(3):
         body["email"] = f"a{i}@x.com"
         res = await client.post("/api/leads", json=body)

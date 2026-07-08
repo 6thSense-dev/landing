@@ -53,9 +53,9 @@ async def test_migration_0002_creates_users_and_sessions(postgres_container):
 
 
 @pytest.mark.asyncio
-async def test_migration_0004_leads_kind_product_message(postgres_container):
-    """After upgrade head: leads has kind/product/message, a UNIQUE(email,kind)
-    index, and no email-only unique constraint."""
+async def test_migration_0005_collapses_leads_to_contact(postgres_container):
+    """After upgrade head: leads has no kind/product, message is NOT NULL, and
+    uniqueness is back on email alone (no composite (email, kind) index)."""
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
 
@@ -69,29 +69,27 @@ async def test_migration_0004_leads_kind_product_message(postgres_container):
         ).fetchall()
         col_map = {name: nullable for name, nullable in cols}
 
-        # UNIQUE (email, kind) index present.
-        idx = (
-            await conn.exec_driver_sql(
-                "SELECT indexdef FROM pg_indexes "
-                "WHERE tablename='leads' AND indexname='leads_email_kind_key'"
-            )
-        ).fetchall()
-
-        # Old email-only unique constraint is gone.
-        old_uc = (
+        # email-only unique constraint present.
+        email_uc = (
             await conn.exec_driver_sql(
                 "SELECT conname FROM pg_constraint WHERE conname='leads_email_key'"
             )
         ).fetchall()
+
+        # Old composite (email, kind) index is gone.
+        kind_idx = (
+            await conn.exec_driver_sql(
+                "SELECT indexname FROM pg_indexes "
+                "WHERE indexname='leads_email_kind_key'"
+            )
+        ).fetchall()
     await engine.dispose()
 
-    assert col_map.get("kind") == "NO"          # NOT NULL
-    assert col_map.get("product") == "YES"      # nullable
-    assert col_map.get("message") == "YES"      # nullable
-    assert len(idx) == 1, idx
-    assert "UNIQUE" in idx[0][0].upper()
-    assert "email" in idx[0][0] and "kind" in idx[0][0]
-    assert old_uc == []
+    assert "kind" not in col_map
+    assert "product" not in col_map
+    assert col_map.get("message") == "NO"       # NOT NULL
+    assert len(email_uc) == 1                    # email-only unique restored
+    assert kind_idx == []
 
 
 @pytest.mark.asyncio

@@ -27,33 +27,61 @@ async def client(db_session, monkeypatch):
 async def test_first_submission_returns_created_true(client, db_session):
     res = await client.post(
         "/api/leads",
-        json={"name": "Ada", "email": "ada@x.com", "organization": "Acme"},
+        json={
+            "name": "Ada",
+            "email": "ada@x.com",
+            "organization": "Acme",
+            "message": "Hello there",
+        },
     )
     assert res.status_code == 200
     assert res.json() == {"ok": True, "created": True}
-    row = (await db_session.execute(text("SELECT name, email, organization FROM leads"))).one()
-    assert row == ("Ada", "ada@x.com", "Acme")
+    row = (
+        await db_session.execute(
+            text("SELECT name, email, organization, message FROM leads")
+        )
+    ).one()
+    assert row == ("Ada", "ada@x.com", "Acme", "Hello there")
 
 
 @pytest.mark.asyncio
 async def test_duplicate_email_upserts_and_returns_created_false(client, db_session):
-    body = {"name": "Ada", "email": "ada@x.com", "organization": "Acme"}
+    body = {
+        "name": "Ada",
+        "email": "ada@x.com",
+        "organization": "Acme",
+        "message": "First",
+    }
     await client.post("/api/leads", json=body)
     res = await client.post(
         "/api/leads",
-        json={"name": "Ada Lovelace", "email": "ADA@x.com", "organization": "Analytical"},
+        json={
+            "name": "Ada Lovelace",
+            "email": "ADA@x.com",
+            "organization": "Analytical",
+            "message": "Second",
+        },
     )
     assert res.status_code == 200
     assert res.json() == {"ok": True, "created": False}
-    rows = (await db_session.execute(text("SELECT name, organization FROM leads"))).all()
-    assert rows == [("Ada Lovelace", "Analytical")]  # one row, latest values
+    rows = (
+        await db_session.execute(
+            text("SELECT name, organization, message FROM leads")
+        )
+    ).all()
+    assert rows == [("Ada Lovelace", "Analytical", "Second")]  # one row, latest
 
 
 @pytest.mark.asyncio
 async def test_invalid_email_returns_422_with_field_errors(client):
     res = await client.post(
         "/api/leads",
-        json={"name": "Ada", "email": "not-an-email", "organization": "Acme"},
+        json={
+            "name": "Ada",
+            "email": "not-an-email",
+            "organization": "Acme",
+            "message": "Hi",
+        },
     )
     assert res.status_code == 422
     body = res.json()
@@ -62,12 +90,28 @@ async def test_invalid_email_returns_422_with_field_errors(client):
 
 
 @pytest.mark.asyncio
+async def test_missing_message_returns_422(client, db_session):
+    res = await client.post(
+        "/api/leads",
+        json={"name": "Ada", "email": "ada@x.com", "organization": "Acme"},
+    )
+    assert res.status_code == 422
+    count = (await db_session.execute(text("SELECT COUNT(*) FROM leads"))).scalar_one()
+    assert count == 0
+
+
+@pytest.mark.asyncio
 async def test_success_log_contains_no_pii(client, caplog):
     import logging
     caplog.set_level(logging.INFO)
     await client.post(
         "/api/leads",
-        json={"name": "Ada", "email": "ada@x.com", "organization": "Acme"},
+        json={
+            "name": "Ada",
+            "email": "ada@x.com",
+            "organization": "Acme",
+            "message": "secret sauce",
+        },
     )
     captured = " ".join(caplog.messages + [str(r.__dict__) for r in caplog.records])
     assert "ada@x.com" not in captured
