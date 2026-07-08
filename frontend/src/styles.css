@@ -73,7 +73,7 @@
   /* Source of truth: DESIGN.md (repo root) + evora.html reference.      */
   /* Namespaced --ev-* so they never clobber the legacy SASI palette     */
   /* still used by the portal and secondary pages. Consumed by the       */
-  /* homepage (EvoraHome.jsx / evora-home.css).                          */
+  /* /products page (ProductsShowcase.jsx / evora-home.css).             */
   /* ------------------------------------------------------------------ */
   --ev-backdrop: #e7e1d5;
   --ev-ink: #0e0d0a;

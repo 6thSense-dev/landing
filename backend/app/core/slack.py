@@ -28,33 +28,27 @@ def slack_configured() -> bool:
 
 def _format_message(
     *,
-    kind: str,
-    product: str | None,
     name: str,
     organization: str,
     email: str,
-    message: str | None,
+    message: str,
     is_new: bool,
 ) -> str:
     verb = "New" if is_new else "Updated"
-    scope = f" · {product}" if product else ""
     lines = [
-        f"*{verb} lead — {kind}{scope}*",
+        f"*{verb} contact*",
         f"{name} ({organization}) <{email}>",
+        f"> {message}",
     ]
-    if message:
-        lines.append(f"> {message}")
     return "\n".join(lines)
 
 
 def notify_new_lead(
     *,
-    kind: str,
-    product: str | None,
     name: str,
     organization: str,
     email: str,
-    message: str | None,
+    message: str,
     is_new: bool,
 ) -> None:
     """Post a lead notification to Slack. Never raises."""
@@ -64,8 +58,6 @@ def notify_new_lead(
         return
     try:
         text = _format_message(
-            kind=kind,
-            product=product,
             name=name,
             organization=organization,
             email=email,

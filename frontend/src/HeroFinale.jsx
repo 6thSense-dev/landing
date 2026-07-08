@@ -67,17 +67,20 @@ export function HeroFinale() {
         );
       })}
 
-      <div className="hero-finale-formwrap">
+      {/* The site's single Contact Us form. #contact is the anchor other pages
+          (e.g. /products CTAs) link to via /#contact. */}
+      <div className="hero-finale-formwrap" id="contact">
         <h2 className="hero-finale-title">Give your robot a sixth sense.</h2>
         <p className="hero-finale-subtitle">
-          We build the tactile hardware that closes the gap.
+          We build the tactile hardware that closes the gap. Tell us what you're
+          working on.
         </p>
-        {/* The one shared LeadForm, tagged kind="waitlist" (finale variant). */}
         <LeadForm
-          kind="waitlist"
           idPrefix="hero"
           variant="finale"
           submitLabel="Talk to us"
+          messageLabel="What are you building?"
+          messagePlaceholder="The hand or gripper, the task, and where you need touch."
           successMessage="Received. The 6thSense team will follow up shortly."
         />
       </div>

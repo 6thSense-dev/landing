@@ -59,7 +59,7 @@ async def test_get_health_unaffected_by_origin_check(client):
 async def test_post_leads_unaffected_by_origin_check(client):
     res = await client.post(
         "/api/leads",
-        json={"name": "Ada", "email": "a@x.com", "organization": "Acme"},
+        json={"name": "Ada", "email": "a@x.com", "organization": "Acme", "message": "hi"},
     )
     # /api/leads is NOT in the CSRF guard list, so it should not be 403.
     assert res.status_code != 403

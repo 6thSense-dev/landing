@@ -3,29 +3,19 @@ import { useState } from "react";
 import { submitLead, messageForStatus } from "./formClient.js";
 
 /**
- * The one shared lead-capture form for the whole site.
+ * The one shared Contact Us form for the whole site.
  *
- * Every marketing intake — the homepage Nerve reserve, the /products reserve
- * and Skin contact, and the waitlist — renders THIS component. It owns the full
- * form lifecycle so the idle / submitting / success / error behaviour, the
- * honeypot, the consent checkbox + privacy note, client-side validation, and the
- * POST to /api/leads (via the shared formClient) live in exactly one place.
- *
- * Callers only describe intent; the three canonical kinds are:
- *   - reserve  → kind="preorder", product="nerve"   (email capture only)
- *   - waitlist → kind="waitlist"
- *   - contact  → kind="contact",  product="skin"     (message required)
+ * It owns the full form lifecycle so the idle / submitting / success / error
+ * behaviour, the honeypot, the consent checkbox + privacy note, client-side
+ * validation, and the POST to /api/leads (via the shared formClient) live in
+ * exactly one place. Every field — name, email, organization, message — is
+ * required (the backend enforces the same).
  *
  * @param {object}  props
- * @param {string}  props.kind            "preorder" | "waitlist" | "contact"
- * @param {string}  [props.product]       "hand" | "nerve" | "skin"
  * @param {string}  props.idPrefix        unique per-instance id namespace (a page
  *                                         can render more than one form)
  * @param {string}  props.submitLabel     button text in the idle state
  * @param {string}  props.successMessage  copy shown on a successful submit
- * @param {boolean} [props.requireMessage] show + require the free-text message
- *                                         (defaults on for kind="contact", which
- *                                         the backend also enforces)
  * @param {boolean} [props.requireOrg]     require the organization field
  *                                         (backend requires a non-empty org)
  * @param {string}  [props.messageLabel]   label for the message field
@@ -35,22 +25,15 @@ import { submitLead, messageForStatus } from "./formClient.js";
  * @param {string}  [props.consentNote]    the short privacy note beside consent
  */
 export default function LeadForm({
-  kind,
-  product,
   idPrefix,
   submitLabel,
   successMessage,
-  requireMessage,
   requireOrg = true,
   messageLabel = "What are you building?",
   messagePlaceholder = "The hand or gripper, the task, and where you need touch.",
   variant = "evora",
   consentNote = "We'll only use this to reply to you about this enquiry — no spam, no sharing. See our privacy note.",
 }) {
-  // kind="contact" always needs a message (backend enforces it); other kinds
-  // opt in via the prop.
-  const wantsMessage = requireMessage ?? kind === "contact";
-
   const empty = { name: "", email: "", organization: "", message: "", website: "" };
   const [form, setForm] = useState(empty);
   const [consent, setConsent] = useState(false);
@@ -94,7 +77,7 @@ export default function LeadForm({
       return fail("Please add your organization.");
     }
     const message = form.message.trim();
-    if (wantsMessage && !message) {
+    if (!message) {
       return fail("Tell us a little about what you're building.");
     }
     if (!consent) {
@@ -105,10 +88,8 @@ export default function LeadForm({
     setTone("submitting");
     try {
       const res = await submitLead({
-        kind,
-        ...(product ? { product } : {}),
         website: form.website,
-        ...(wantsMessage ? { message } : {}),
+        message,
         ...trimmed,
       });
       if (!res.ok) {
@@ -165,21 +146,19 @@ export default function LeadForm({
         error={errors.organization}
       />
 
-      {wantsMessage && (
-        <div className={c.field}>
-          <label className={c.label} htmlFor={`${idPrefix}-message`}>{messageLabel}</label>
-          <textarea
-            id={`${idPrefix}-message`}
-            className={c.textarea}
-            rows={3}
-            value={form.message}
-            onChange={setField("message")}
-            placeholder={messagePlaceholder}
-            aria-invalid={errors.message ? "true" : undefined}
-          />
-          {errors.message && <p className={c.fielderror}>{errors.message}</p>}
-        </div>
-      )}
+      <div className={c.field}>
+        <label className={c.label} htmlFor={`${idPrefix}-message`}>{messageLabel}</label>
+        <textarea
+          id={`${idPrefix}-message`}
+          className={c.textarea}
+          rows={3}
+          value={form.message}
+          onChange={setField("message")}
+          placeholder={messagePlaceholder}
+          aria-invalid={errors.message ? "true" : undefined}
+        />
+        {errors.message && <p className={c.fielderror}>{errors.message}</p>}
+      </div>
 
       {/* Honeypot: hidden from real users; bots that fill it are dropped
           server-side by the /api/leads route. Inline visually-hidden style so
