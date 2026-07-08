@@ -77,7 +77,7 @@ export default function ProductsShowcase() {
             NOTE: product NAMES were swapped per request — this glove is now
             "Skin"; the dexterous-hand composite below is now "Hand". ---------- */}
         <section className="ev-prow ev-plight ev-prow--first" id="skin">
-          <div className="ev-pstage">
+          <div className="ev-pstage ev-pstage--hand">
             <span className="ev-badge ev-live">Available now</span>
             {/*
               Real photo of the glove, index raised (public/hero/glove/pose-hand.webp,

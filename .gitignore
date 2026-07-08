@@ -28,6 +28,7 @@ Thumbs.db
 # Cursor / local agent & GSD planning (keep on disk; do not publish)
 .cursor/
 .planning/
+tasks/
 
 # Secrets
 .env
