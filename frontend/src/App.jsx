@@ -56,6 +56,9 @@ function AppInner() {
             <Link to="/products" onClick={goProducts} className="nav-cta nav-cta-on-dark">
               Products
             </Link>
+            <Link to="/people" className="nav-cta nav-cta-on-dark">
+              People
+            </Link>
             <Link to="/login" className="nav-cta nav-cta-on-dark">
               Partner login
             </Link>

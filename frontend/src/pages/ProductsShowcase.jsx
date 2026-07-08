@@ -60,8 +60,6 @@ export default function ProductsShowcase() {
             <Link to="/products" className="nav-cta nav-cta-on-dark">
               Products
             </Link>
-            {/* LOCAL-ONLY: People is hidden from the shipped nav (removed in the
-                commit) but kept here for local dev. Remove before committing. */}
             <Link to="/people" className="nav-cta nav-cta-on-dark">
               People
             </Link>
