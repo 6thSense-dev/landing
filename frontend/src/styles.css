@@ -368,6 +368,33 @@ body.hero-video-active .nav-flagship--pill {
   box-shadow: 0 0 0 1px rgba(166, 154, 96, 0.35);
 }
 
+/* Hamburger toggle — hidden on desktop; shown below the mobile nav
+   breakpoint (see the 720px query) where the links collapse behind it. */
+.nav-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-burger-bar {
+  display: block;
+  width: 18px;
+  height: 1.5px;
+  background: var(--paper-2);
+  border-radius: 1px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
 .device-story {
   position: relative;
   background: var(--dark);
@@ -2389,8 +2416,9 @@ main .section[id] {
 }
 
 @media (max-width: 720px) {
-  /* Collapse the pill to wordmark + CTA only — the 4 middle links wrap to a
-     second row otherwise, doubling the pill's height and clipping hero copy. */
+  /* Collapse the pill to wordmark + burger — Products/People/Partner login
+     move into a dropdown panel below instead of wrapping onto a second row
+     (which doubled the pill's height and clipped hero copy). */
   .nav-flagship--pill .nav-links-on-dark a:not(.nav-cta) {
     display: none;
   }
@@ -2403,6 +2431,52 @@ main .section[id] {
   .nav-flagship-inner {
     flex-wrap: nowrap;
     gap: 0.75rem;
+    position: relative;
+  }
+
+  .nav-burger {
+    display: flex;
+  }
+
+  .nav-flagship .nav-links {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.6rem;
+    border-radius: 20px;
+    background: rgb(var(--sasi-1-rgb) / 0.96);
+    border: 1px solid rgb(var(--sasi-3-rgb) / 0.18);
+    box-shadow: 0 14px 44px rgb(var(--sasi-1-rgb) / 0.45);
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  .nav-flagship .nav-links.nav-links--open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .nav-flagship .nav-cta-on-dark {
+    display: flex;
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-flagship .nav-links {
+    transition: none;
   }
 }
 

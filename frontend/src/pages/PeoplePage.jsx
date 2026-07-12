@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 
+import SiteNav from "../SiteNav.jsx";
 import { useRevealNav } from "../useRevealNav.js";
 import ParticleImage from "../lib/ParticleImage.jsx";
 import "../evora-home.css";
@@ -24,12 +24,32 @@ const NAME_LINE_HEIGHT = 1.2;
 const LINE_LINE_HEIGHT = 1.75;
 const MIN_NAME_SIZE = 26;
 const MAX_NAME_SIZE = 92;
+const MIN_NAME_SIZE_WRAPPED = 16; // phones: shrink further before we'd rather wrap than truncate
 
 let measureCtx = null;
 function textWidth(text, px, weight) {
   if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
   measureCtx.font = `${weight} ${px}px ${BLURB_FONT}`;
   return measureCtx.measureText(text).width;
+}
+
+function countWrappedRows(text, px, weight, maxWidth) {
+  const words = text.split(" ");
+  const spaceWidth = textWidth(" ", px, weight);
+  let rows = 1;
+  let rowWidth = 0;
+  for (const word of words) {
+    const w = textWidth(word, px, weight);
+    if (rowWidth === 0) {
+      rowWidth = w;
+    } else if (rowWidth + spaceWidth + w <= maxWidth) {
+      rowWidth += spaceWidth + w;
+    } else {
+      rows++;
+      rowWidth = w;
+    }
+  }
+  return rows;
 }
 
 // Picks the largest name/info font size that lets every line sit on a single
@@ -49,6 +69,28 @@ function fitBlurbSize(person, availWidth, availHeight) {
   const byHeight = (availHeight * 0.94) / heightCoeff;
 
   const nameSize = Math.min(MAX_NAME_SIZE, Math.max(MIN_NAME_SIZE, Math.min(byWidth, byHeight)));
+  return { nameSize, lineSize: nameSize * LINE_SCALE, gap: nameSize * GAP_SCALE };
+}
+
+// Narrow phones: the box usually isn't wide enough to fit every bio line on
+// one row, so simulate the actual word-wrap at each candidate size and shrink
+// until the wrapped block fits the available height (rather than assuming
+// one row per line, which underestimates height once lines wrap to two+).
+function fitBlurbSizeWrapped(person, availWidth, availHeight) {
+  const width = availWidth * 0.96;
+  let nameSize = MAX_NAME_SIZE;
+  while (nameSize > MIN_NAME_SIZE_WRAPPED) {
+    const lineSize = nameSize * LINE_SCALE;
+    const nameRows = countWrappedRows(person.name, nameSize, 600, width);
+    const lineRows = person.lines.reduce((sum, l) => sum + countWrappedRows(l, lineSize, 400, width), 0);
+    const height =
+      nameSize * NAME_LINE_HEIGHT * nameRows +
+      nameSize * GAP_SCALE +
+      lineRows * lineSize * LINE_LINE_HEIGHT;
+    if (height <= availHeight * 0.96) break;
+    nameSize -= 2;
+  }
+  nameSize = Math.max(MIN_NAME_SIZE_WRAPPED, nameSize);
   return { nameSize, lineSize: nameSize * LINE_SCALE, gap: nameSize * GAP_SCALE };
 }
 
@@ -107,6 +149,7 @@ export default function PeoplePage() {
   const person = focus != null ? PEOPLE[focus.idx] : null;
   let blurbStyle = null;
   let fit = null;
+  let wrapText = false;
   if (focus && person) {
     const vw = window.innerWidth;
     const a = focus.anchor;
@@ -121,7 +164,15 @@ export default function PeoplePage() {
     const regionRight = rightTwo ? a.left : vw;
     const boxWidth = Math.max(0, regionRight - regionLeft);
     const pad = 32;
-    fit = fitBlurbSize(person, Math.max(0, boxWidth - pad * 2), Math.max(0, boxHeight - pad * 2));
+    const availWidth = Math.max(0, boxWidth - pad * 2);
+    const availHeight = Math.max(0, boxHeight - pad * 2);
+    // Below this width there's no font size that fits the longer bio lines on
+    // a single line (narrow phones) — wrap normally instead of shrinking to
+    // an unreadable size or truncating with an ellipsis.
+    wrapText = boxWidth < 460;
+    fit = wrapText
+      ? fitBlurbSizeWrapped(person, availWidth, availHeight)
+      : fitBlurbSize(person, availWidth, availHeight);
     blurbStyle = {
       position: "fixed", top: boxTop, height: boxHeight,
       left: regionLeft, width: boxWidth,
@@ -133,19 +184,7 @@ export default function PeoplePage() {
 
   return (
     <div className="ev-home ev-people" style={{ background: "#050506", height: "100vh", overflow: "hidden" }}>
-      <header className={navClassName} role="banner">
-        <nav className="nav-flagship-inner" aria-label="Primary">
-          <Link className="wordmark wordmark-on-dark" to="/" aria-label="6thSense home">
-            <img className="nav-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
-            <span className="nav-logo-text">6THSENSE</span>
-          </Link>
-          <div className="nav-links nav-links-on-dark">
-            <Link to="/products" className="nav-cta nav-cta-on-dark">Products</Link>
-            <Link to="/people" className="nav-cta nav-cta-on-dark">People</Link>
-            <Link to="/login" className="nav-cta nav-cta-on-dark">Partner login</Link>
-          </div>
-        </nav>
-      </header>
+      <SiteNav className={navClassName} />
 
       <main aria-label="6thSense team — hover a person to reveal them" style={{ position: "fixed", inset: 0, zIndex: 0 }}>
         <ParticleImage
@@ -163,7 +202,10 @@ export default function PeoplePage() {
           <div
             style={{
               fontSize: fit.nameSize, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: fit.gap,
-              maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              maxWidth: "100%",
+              whiteSpace: wrapText ? "normal" : "nowrap",
+              overflow: wrapText ? "visible" : "hidden",
+              textOverflow: wrapText ? "clip" : "ellipsis",
             }}
           >
             {person.name}
@@ -173,7 +215,10 @@ export default function PeoplePage() {
               key={i}
               style={{
                 fontSize: fit.lineSize, lineHeight: LINE_LINE_HEIGHT, color: "rgba(255,255,255,0.85)",
-                maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                maxWidth: "100%",
+                whiteSpace: wrapText ? "normal" : "nowrap",
+                overflow: wrapText ? "visible" : "hidden",
+                textOverflow: wrapText ? "clip" : "ellipsis",
               }}
             >
               {l}

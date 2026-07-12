@@ -19,6 +19,9 @@ import { useEffect, useRef } from "react";
 export default function ParticleImage({ src, bands, boardTop = 0.6, target = 26000, disperse = 16, onFocus, className }) {
   const canvasRef = useRef(null);
   const mouse = useRef({ x: -1e5, y: -1e5, active: false });
+  // Touch has no hover: a tap on a person locks them (tap another person to
+  // switch, tap the board/background to release back to the idle cloud).
+  const touchLock = useRef(-1);
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
 
@@ -105,7 +108,9 @@ export default function ParticleImage({ src, bands, boardTop = 0.6, target = 260
       const { ox, oy, dw, dh } = layout;
 
       let f = -1;
-      if (m.active) {
+      if (touchLock.current >= 0) {
+        f = touchLock.current;
+      } else if (m.active) {
         const xn = (m.x - ox) / dw, yn = (m.y - oy) / dh;
         if (xn >= 0 && xn <= 1 && yn >= 0 && yn < boardTop) f = bandOf(xn);
       }
@@ -154,10 +159,29 @@ export default function ParticleImage({ src, bands, boardTop = 0.6, target = 260
     img.onload = () => { build(); cancelAnimationFrame(raf); tick(); };
     img.src = src;
 
-    const onMove = (e) => { const r = canvas.getBoundingClientRect(); mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top, active: true }; };
-    const onLeave = () => { mouse.current.active = false; };
+    // Mouse/pen: continuous hover, exactly as before.
+    const onMove = (e) => {
+      if (e.pointerType === "touch") return;
+      const r = canvas.getBoundingClientRect();
+      mouse.current = { x: e.clientX - r.left, y: e.clientY - r.top, active: true };
+    };
+    const onLeave = (e) => {
+      if (e.pointerType === "touch") return;
+      mouse.current.active = false;
+    };
+    // Touch: tap-to-lock. A tap on a person locks them; a tap on the board or
+    // anywhere else in the frame releases the lock (back to the idle cloud).
+    const onDown = (e) => {
+      if (e.pointerType !== "touch") return;
+      const r = canvas.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      const { ox, oy, dw, dh } = layout;
+      const xn = (x - ox) / dw, yn = (y - oy) / dh;
+      touchLock.current = (xn >= 0 && xn <= 1 && yn >= 0 && yn < boardTop) ? bandOf(xn) : -1;
+    };
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("pointerdown", onDown);
     let rt = 0;
     const onResize = () => { clearTimeout(rt); rt = setTimeout(() => { if (img.complete && img.naturalWidth) build(); }, 160); };
     window.addEventListener("resize", onResize);
@@ -166,6 +190,7 @@ export default function ParticleImage({ src, bands, boardTop = 0.6, target = 260
       cancelAnimationFrame(raf);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("resize", onResize);
     };
   }, [src, boardTop, target, disperse, bands]);

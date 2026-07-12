@@ -1,8 +1,8 @@
 import { useReducedMotion } from "framer-motion";
-import { Link } from "react-router-dom";
 import { ScrollHero } from "./ScrollHero.jsx";
 import { OpenerAnimation } from "./OpenerAnimation.jsx";
 import ScrollProgress from "./ScrollProgress.jsx";
+import SiteNav from "./SiteNav.jsx";
 import { useRevealNav } from "./useRevealNav.js";
 
 function AppInner() {
@@ -20,30 +20,7 @@ function AppInner() {
 
       <div className="grain grain--dark" aria-hidden="true" />
 
-      <header className={navClassName} role="banner">
-        <nav className="nav-flagship-inner" aria-label="Primary">
-          <a className="wordmark wordmark-on-dark" href="#top" aria-label="6thSense home">
-            <img
-              className="nav-logo"
-              src="/logos/Logo_Alpha.png"
-              alt=""
-              aria-hidden="true"
-            />
-            <span className="nav-logo-text">6THSENSE</span>
-          </a>
-          <div className="nav-links nav-links-on-dark">
-            <Link to="/products" className="nav-cta nav-cta-on-dark">
-              Products
-            </Link>
-            <Link to="/people" className="nav-cta nav-cta-on-dark">
-              People
-            </Link>
-            <Link to="/login" className="nav-cta nav-cta-on-dark">
-              Partner login
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <SiteNav className={navClassName} homeAnchor />
 
       <main id="main" aria-label="6thSense">
         <div id="top" />
