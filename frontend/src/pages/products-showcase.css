@@ -693,22 +693,69 @@
   .ev-skin-layered .ev-skin-composite {
     left: 42%;
   }
+  /* Stats block reads as one centered unit — 2x2 for Skin's four numbers,
+     one row of 3 for Hand's — instead of a left-aligned vertical list. */
   .ev-products .ev-bignums {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px 26px;
+    justify-content: center;
+    justify-items: center;
+    max-width: fit-content;
+    margin-inline: auto;
   }
   .ev-products .ev-bignum {
     min-width: 0;
+    align-items: center;
+    text-align: center;
   }
-  .ev-products #skin .ev-bignum:last-child {
-    grid-column: 1 / -1;
+  .ev-products #hand .ev-bignums {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px 22px;
   }
-  .ev-products #skin .ev-bignums {
-    grid-template-columns: 1fr;
+  .ev-products #hand .ev-bignum-n {
+    font-size: clamp(30px, 9vw, 44px);
   }
-  .ev-products #skin .ev-bignum-n {
-    font-size: clamp(42px, 13vw, 54px);
+
+  /* Give the Skin badge its own space above the glove instead of overlapping
+     it, and re-center the (now-cropped) glove photo in the stage. */
+  .ev-products #skin .ev-pstage {
+    aspect-ratio: auto;
+    min-height: clamp(300px, 84vw, 360px);
+  }
+  .ev-products #skin .ev-pstage-img {
+    position: absolute;
+    top: 46px;
+    left: -2%;
+    width: 104%;
+    height: calc(100% - 46px);
+  }
+  .ev-products #skin .ev-badge.ev-live {
+    top: 12px;
+  }
+
+  /* Trim the desktop-tuned "breathing room" (padding-top 130px, 56/72px row
+     gap+padding, a fixed 440px CAD-stage floor) that reads as dead space once
+     stacked on a short phone viewport instead of a wide row. */
+  .ev-products .ev-prow--first {
+    padding-top: 96px;
+  }
+  .ev-products .ev-prow {
+    gap: 28px;
+    padding-top: 44px;
+    padding-bottom: 44px;
+  }
+  .ev-products .ev-pstage--3d {
+    min-height: clamp(260px, 78vw, 340px);
+  }
+  .ev-products .ev-oneliner {
+    margin-bottom: 1.1em;
+  }
+  .ev-products .ev-bignums {
+    margin-bottom: 22px;
+  }
+  .ev-products .ev-specs {
+    margin-bottom: 18px;
   }
 }
 
