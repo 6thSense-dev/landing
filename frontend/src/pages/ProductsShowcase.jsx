@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 
+import SiteNav from "../SiteNav.jsx";
 import { useRevealNav } from "../useRevealNav.js";
 // Skin section: robotic image + glove photo composite (2D, no WebGL). Add
 // ?align to the /products URL for the on-page alignment panel.
@@ -50,25 +51,7 @@ export default function ProductsShowcase() {
         <TactileField />
       </div>
       {/* Same floating flagship nav as the homepage. */}
-      <header className={navClassName} role="banner">
-        <nav className="nav-flagship-inner" aria-label="Primary">
-          <Link className="wordmark wordmark-on-dark" to="/" aria-label="6thSense home">
-            <img className="nav-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
-            <span className="nav-logo-text">6THSENSE</span>
-          </Link>
-          <div className="nav-links nav-links-on-dark">
-            <Link to="/products" className="nav-cta nav-cta-on-dark">
-              Products
-            </Link>
-            <Link to="/people" className="nav-cta nav-cta-on-dark">
-              People
-            </Link>
-            <Link to="/login" className="nav-cta nav-cta-on-dark">
-              Partner login
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <SiteNav className={navClassName} />
 
       <div className="ev-frame">
         {/* ---------- SKIN — 01, the wearable tactile glove (available now).

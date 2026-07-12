@@ -3,6 +3,8 @@
 // nearby nodes link with faint edges, nodes near the pointer grow.
 
 const NODE_COUNT = 288;
+const NODE_COUNT_MOBILE = 144;   // half density — same node count read as far denser on a narrow, tall viewport
+const MOBILE_BREAKPOINT = 780;   // CSS px, matches the site's other mobile breakpoints
 const LINK_DISTANCE = 210;     // CSS px — nodes closer than this get an edge
 const HOVER_RADIUS = 180;      // CSS px — nodes inside this scale up on hover
 const HOVER_SCALE = 2.1;       // max scale multiplier under the pointer
@@ -40,7 +42,8 @@ export function initTactileField(canvas) {
 
   const seed = () => {
     nodes.length = 0;
-    for (let i = 0; i < NODE_COUNT; i++) {
+    const count = state.w <= MOBILE_BREAKPOINT ? NODE_COUNT_MOBILE : NODE_COUNT;
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       nodes.push({
         x: Math.random() * state.w,

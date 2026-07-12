@@ -1,8 +1,10 @@
 import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 
 import App from "./App";
+import PageTransition from "./PageTransition.jsx";
 import "./styles.css";
 import "./scroll-hero.css";
 import "./portal/portal.css";
@@ -32,25 +34,39 @@ const RoboShot = lazy(() => import("./pages/RoboShot.jsx"));
 // and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
 document.getElementById("seo-prerender")?.remove();
 
+// Every top-level page fades the same way (see PageTransition.jsx). Keyed on
+// the first path segment, not the full pathname, so navigating within the
+// portal (e.g. between dashboard tabs) doesn't retrigger a full-page fade —
+// only crossing between Home/Products/People/Partner-login/etc. does.
+function AnimatedRoutes() {
+  const location = useLocation();
+  const routeKey = location.pathname.split("/")[1] || "home";
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <Routes location={location} key={routeKey}>
+        <Route element={<PortalLayout />}>
+          <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+          <Route path="/portal/*" element={<PageTransition><PortalApp /></PageTransition>} />
+        </Route>
+        <Route path="/product" element={<PageTransition><ProductPage slug="/product" /></PageTransition>} />
+        <Route path="/product/gloves" element={<PageTransition><ProductPage slug="/product/gloves" /></PageTransition>} />
+        <Route path="/product/skin" element={<PageTransition><ProductPage slug="/product/skin" /></PageTransition>} />
+        <Route path="/product/rig" element={<PageTransition><ProductPage slug="/product/rig" /></PageTransition>} />
+        <Route path="/products" element={<PageTransition><ProductsShowcase /></PageTransition>} />
+        <Route path="/skin-tune" element={<PageTransition><SkinTune /></PageTransition>} />
+        <Route path="/robo-shot" element={<PageTransition><RoboShot /></PageTransition>} />
+        <Route path="/people" element={<PageTransition><PeoplePage /></PageTransition>} />
+        <Route path="/*" element={<PageTransition><App /></PageTransition>} />
+      </Routes>
+    </AnimatePresence>
+  );
+}
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Suspense fallback={<div className="portal-loading" aria-hidden />}>
-        <Routes>
-          <Route element={<PortalLayout />}>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/portal/*" element={<PortalApp />} />
-          </Route>
-          <Route path="/product" element={<ProductPage slug="/product" />} />
-          <Route path="/product/gloves" element={<ProductPage slug="/product/gloves" />} />
-          <Route path="/product/skin" element={<ProductPage slug="/product/skin" />} />
-          <Route path="/product/rig" element={<ProductPage slug="/product/rig" />} />
-          <Route path="/products" element={<ProductsShowcase />} />
-          <Route path="/skin-tune" element={<SkinTune />} />
-          <Route path="/robo-shot" element={<RoboShot />} />
-          <Route path="/people" element={<PeoplePage />} />
-          <Route path="/*" element={<App />} />
-        </Routes>
+        <AnimatedRoutes />
       </Suspense>
     </BrowserRouter>
   </React.StrictMode>
