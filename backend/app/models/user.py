@@ -33,7 +33,7 @@ class User(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "role IN ('founder', 'customer', 'investor')",
+            "role IN ('admin', 'founder', 'customer', 'investor')",
             name="users_role_check",
         ),
         Index("users_role_idx", "role"),

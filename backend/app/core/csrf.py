@@ -15,7 +15,9 @@ from starlette.types import ASGIApp
 from app.core.config import get_settings
 
 
-GUARDED_PREFIXES: tuple[str, ...] = ("/api/auth/", "/api/portal/")
+GUARDED_PREFIXES: tuple[str, ...] = ("/api/auth/", "/api/portal/", "/api/admin/")
+# State-changing methods on cookie-authenticated routes get the Origin check.
+UNSAFE_METHODS: frozenset[str] = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 class OriginCheckMiddleware(BaseHTTPMiddleware):
@@ -23,7 +25,7 @@ class OriginCheckMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next):
-        if request.method == "POST" and any(
+        if request.method in UNSAFE_METHODS and any(
             request.url.path.startswith(p) for p in GUARDED_PREFIXES
         ):
             allowed = set(get_settings().cors_origins)

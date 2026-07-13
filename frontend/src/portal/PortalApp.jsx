@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import AdminDashboard from "./AdminDashboard.jsx";
 import CustomerHome from "./CustomerHome.jsx";
 import FounderDashboard from "./FounderDashboard.jsx";
 import InvestorHome from "./InvestorHome.jsx";
@@ -17,6 +18,9 @@ export default function PortalApp() {
   return (
     <Routes>
       <Route element={<RequireAuth />}>
+        <Route element={<RequireRole role="admin" />}>
+          <Route path="admin/*" element={<AdminDashboard />} />
+        </Route>
         <Route element={<RequireRole role="founder" />}>
           <Route path="founder/*" element={<FounderDashboard />} />
         </Route>

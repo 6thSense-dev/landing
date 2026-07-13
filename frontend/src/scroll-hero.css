@@ -345,6 +345,13 @@
   inset: 0;
   z-index: 3;
   pointer-events: none;
+  /* Formwrap + backed-by are normal flex flow (not independently absolutely
+     positioned) so they can never overlap: formwrap centers itself in
+     whatever space backed-by leaves above it (see its margin:auto below),
+     shrinking that gap instead of overlapping on short viewports. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Dots fade IN first (at fingertip positions), then MOVE to logo stair.
@@ -380,16 +387,14 @@
 }
 
 /* Finale form: centered column, settles up into place as it fades in. */
-/* The positioned wrapper (title + subtitle + the shared LeadForm). The inner
+/* The flex-flow wrapper (title + subtitle + the shared LeadForm). The inner
    .hero-finale-form below is now the shared component's own <form> element. */
 .hero-finale-formwrap {
-  position: absolute;
-  /* Biased above center so the form has room below for the status / field-error
-     line and the Backed-by row at bottom: 1.5rem. Mobile (below) overrides this
-     with a bottom-anchored layout. */
-  top: 46%;
-  left: 50%;
-  transform: translate(-50%, calc(-50% + (1 - var(--form-p, 0)) * 12px));
+  /* margin:auto (a flex column's main-axis) centers this in whatever space
+     is left above .hero-finale-backed, rather than a fixed top:% that can
+     run into the backed-by row on short viewports (see .hero-finale above). */
+  margin: auto 0;
+  transform: translateY(calc((1 - var(--form-p, 0)) * 12px));
   width: min(34rem, calc(100% - 2 * var(--gutter)));
   opacity: var(--form-p, 0);
   /* A11y: the form fades via --form-p, but opacity:0 elements stay
@@ -429,15 +434,13 @@
   color: #f1f1ec;
 }
 
-/* Partner logos pinned to the bottom of the viewport, full-width centered.
-   Sibling of .hero-finale-form (not a child) so the form stays vertically
-   centered while the logos anchor to the bottom edge. Fade-in is bound to
-   --form-p directly so the logos appear in lockstep with the form. */
+/* Partner logos, last in the flex column so they naturally sit under the
+   form and hug the bottom (see .hero-finale-formwrap's margin:auto above).
+   Fade-in is bound to --form-p directly so the logos appear in lockstep
+   with the form. */
 .hero-finale-backed {
-  position: absolute;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
+  flex-shrink: 0;
+  margin-bottom: 1.5rem;
   text-align: center;
   pointer-events: none;
   opacity: var(--form-p, 0);
@@ -579,6 +582,32 @@
 .hero-finale-status--success { color: #c5e063; }
 .hero-finale-status--error { color: #ff8888; }
 
+/* Short viewports (common laptop window heights): the form + backed-by row
+   no longer overlap (see .hero-finale's margin:auto centering), but on very
+   short heights they can still be taller combined than the viewport. Trim
+   the title and field rhythm a little so everything clears without scroll. */
+@media (max-height: 900px) {
+  .hero-finale-title {
+    font-size: clamp(1.7rem, 3vw, 2.6rem);
+  }
+  .hero-finale-form {
+    gap: 0.4rem;
+  }
+}
+
+/* Very short (e.g. a compact laptop window): shrink the trust-badge row too. */
+@media (max-height: 800px) {
+  .hero-finale-backed-label {
+    margin-bottom: 0.3rem;
+  }
+  .hero-finale-backed-logo {
+    height: clamp(2.2rem, 4vw, 3.2rem);
+  }
+  .hero-finale-backed {
+    margin-bottom: 0.75rem;
+  }
+}
+
 /* Reduced motion — simplify the blurbs and finale to static states. */
 @media (prefers-reduced-motion: reduce) {
   .hero-blurb,
@@ -597,10 +626,6 @@
     left: calc(var(--gutter) + 4vw);
     font-size: clamp(2rem, 6vw, 3.6rem);
     max-width: 18ch;
-  }
-  .hero-finale-form {
-    left: 52%;
-    right: clamp(1rem, 3vw, 2rem);
   }
 }
 
@@ -623,17 +648,11 @@
     font-size: clamp(2rem, 9vw, 3.2rem);
   }
 
-  /* Finale form becomes a full-width bottom card. Sits above the Backed-by
-     block (which is pinned to the very bottom of the viewport). */
+  /* Extra settle-in motion for the form itself (layered on top of
+     .hero-finale-formwrap's own fade — see .hero-finale-formwrap/.hero-finale
+     for how overlap with the Backed-by row below is avoided on any
+     viewport). */
   .hero-finale-form {
-    top: auto;
-    left: 1rem;
-    right: 1rem;
-    /* Bottom margin = backed-by clearance (~80px when single row) + cushion. */
-    bottom: 8.5rem;
-    width: auto;
-    /* Reset the -50% center trick used on desktop; mobile anchors via
-       left/right/bottom and only carries the fade-up translate. */
     transform: translateY(calc((1 - var(--form-p, 0)) * 4vh));
   }
 

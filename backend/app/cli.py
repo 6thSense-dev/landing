@@ -19,7 +19,7 @@ from app.core.passwords import hash_password
 from app.models import Session as SessionRow, User
 
 
-VALID_ROLES = {"founder", "customer", "investor"}
+VALID_ROLES = {"admin", "founder", "customer", "investor"}
 MIN_PASSWORD_LEN = 12
 
 

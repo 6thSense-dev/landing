@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Index, String, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -28,6 +28,13 @@ class Lead(Base):
     organization: Mapped[str] = mapped_column(String(200), nullable=False)
     # The free-text body of the enquiry. Required — this is a contact form.
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    # Admin follow-up tracking (set from the leads CRM, not the public form).
+    followed_up: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    followed_up_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -47,4 +54,6 @@ class Lead(Base):
             postgresql_using="btree",
             postgresql_ops={"created_at": "DESC"},
         ),
+        # Speeds up the CRM's "pending follow-up" filter.
+        Index("leads_followed_up_idx", "followed_up"),
     )
