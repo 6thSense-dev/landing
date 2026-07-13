@@ -22,7 +22,7 @@ async def test_insert_user_with_valid_role(db_session):
 
 @pytest.mark.asyncio
 async def test_invalid_role_rejected(db_session):
-    user = User(email="bad@x.com", name="X", role="admin", password_hash="x")
+    user = User(email="bad@x.com", name="X", role="operator", password_hash="x")
     db_session.add(user)
     with pytest.raises(IntegrityError):
         await db_session.flush()

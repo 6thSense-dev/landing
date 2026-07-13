@@ -59,7 +59,12 @@ async def test_create_user_rejects_duplicate(fresh_db):
 @pytest.mark.asyncio
 async def test_create_user_rejects_invalid_role(fresh_db):
     with pytest.raises(ValueError, match="role"):
-        await create_user(email="a@x.com", name="A", role="admin", password="twelve-chars!!")
+        await create_user(
+            email="a@x.com",
+            name="A",
+            role="operator",
+            password="twelve-chars!!",
+        )
 
 
 @pytest.mark.asyncio

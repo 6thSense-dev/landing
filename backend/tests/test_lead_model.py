@@ -12,6 +12,8 @@ def test_lead_table_columns():
         "email",
         "organization",
         "message",
+        "followed_up",
+        "followed_up_at",
         "created_at",
         "updated_at",
     }
@@ -20,11 +22,14 @@ def test_lead_table_columns():
     assert cols["name"].nullable is False
     assert cols["organization"].nullable is False
     assert cols["message"].nullable is False
+    assert cols["followed_up"].nullable is False
+    assert cols["followed_up_at"].nullable is True
 
 
 def test_lead_created_at_index():
     indexes = {ix.name for ix in Lead.__table__.indexes}
     assert any("created_at" in ix for ix in indexes)
+    assert "leads_followed_up_idx" in indexes
 
 
 @pytest.mark.asyncio
