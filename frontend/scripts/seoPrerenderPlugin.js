@@ -51,11 +51,11 @@ function buildSeoHtml() {
     .join("");
 
   return `<div id="seo-prerender" class="seo-prerender">
-  <h1>6thSense — tactile egocentric datasets for dexterous robotics</h1>
+  <h1>6thSense — tactile capture hardware for dexterous robotics</h1>
   <p>${esc(heroCopy.deck)}</p>
   <p>${esc(heroCopy.tagline)}</p>
-  <section><h2>Why touch-aware demonstration data</h2>${problem}</section>
-  <section><h2>How we build datasets</h2><p>${esc(platformSummary)}</p><ol>${stages}</ol></section>
+  <section><h2>Why tactile capture hardware</h2>${problem}</section>
+  <section><h2>How the capture stack works</h2><p>${esc(platformSummary)}</p><ol>${stages}</ol></section>
   <section><h2>${esc(catalogMeta.title)}</h2>${catalog}</section>
   <section><h2>Representative task families</h2><ul>${scenes}</ul></section>
   <section><h2>How we earn trust</h2>${principles}</section>

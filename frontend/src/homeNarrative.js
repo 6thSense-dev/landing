@@ -4,7 +4,7 @@
 export const heroCopy = {
   wordmark: "6THSENSE",
   tagline: "Robots have five senses. We are building the sixth.",
-  deck: "Touch-aware demonstration data for the next generation of dexterous robots."
+  deck: "Tactile capture hardware for the next generation of dexterous robots — gloves that feel, and custom skin molded to robot hands."
 };
 
 /** Problem framing — keep claims verifiable when replacing placeholders. */
@@ -12,19 +12,19 @@ export const tractionItems = [
   {
     label: "Signal gap",
     title: "Contact onset and grip evolution are under-captured",
-    detail: "Most datasets miss touch timing, pressure trends, and subtle adjustments that matter in dexterous manipulation.",
+    detail: "Most capture setups miss touch timing, pressure trends, and the subtle grip adjustments that decide contact-rich tasks.",
     icon: "ActivitySquare"
   },
   {
     label: "Tooling",
     title: "Off-the-shelf stacks produce unusable raw dumps",
-    detail: "Standalone sensors and recording scripts often fail calibration, synchronization, and dataset reliability requirements.",
+    detail: "Standalone sensors and DIY recording scripts fall down on calibration, synchronization, and the reliability real capture demands.",
     icon: "Wrench"
   },
   {
     label: "Operations",
-    title: "Teams need packaged data, not hardware babysitting",
-    detail: "Robot learning teams want high-value datasets, not multi-month setup and QC work for each collection effort.",
+    title: "Teams want to capture, not to build a rig",
+    detail: "Robot-learning teams want to record their own demonstrations on day one, not spend months sourcing sensors, wiring rigs, and debugging sync.",
     icon: "Boxes"
   },
   {
@@ -67,7 +67,7 @@ export const platformStages = [
 ];
 
 export const platformSummary =
-  "Hardware, sync, calibration, packaging - one stack, four stages. Robot-learning teams get aligned episodes, not raw folders.";
+  "Hardware, sync, calibration, packaging — one stack, four stages. You capture your own demonstrations and get aligned episodes, not raw folders.";
 
 /** Offering — data catalog tiles (tune specs to shipped hardware + programs). */
 export const dataCatalogTiles = [
@@ -142,7 +142,7 @@ export const catalogSceneExamples = [
 ];
 
 export const catalogMeta = {
-  kicker: "What we capture",
+  kicker: "What the hardware captures",
   title: "Eight aligned modalities, one episode"
 };
 
