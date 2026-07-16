@@ -618,6 +618,35 @@
 .ev-pstage--3d .ev-skin-ring { z-index: 0; }
 .ev-pstage--3d .ev-hand3d { z-index: 1; }
 
+/* ---- Eye2 rig: raw-CAD download affordance (on the light product row) --- */
+.ev-products .ev-downloads { margin-top: 24px; }
+.ev-products .ev-dl-label {
+  display: block;
+  font-family: var(--fm);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-light-mut);
+  margin-bottom: 10px;
+}
+.ev-products .ev-dl-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.ev-products .ev-dl {
+  font-family: var(--fs);
+  font-weight: 500;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: var(--ev-r-pill);
+  border: 1px solid var(--line-l);
+  color: var(--on-light);
+  transition: transform var(--ev-dur-short) var(--ev-ease-enter),
+    border-color var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-products .ev-dl:hover { transform: translateY(-1px); border-color: var(--accent); }
+.ev-products .ev-dl svg { width: 14px; height: 14px; }
+
 /* ---- Skin: static layered composite — robotic (left) | glove photo (right) --
    Bottom: the bare robotic hand (still). Middle: a black mask over the right.
    Top: the open-hand glove photo, clipped + placed so the two halves read as
