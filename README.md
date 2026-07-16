@@ -1,3 +1,6 @@
+> 🧠 **Part of the 6thSense nervous system** — marketing site + customer portal.
+> Full map & what-every-repo-is: **[atlas](https://github.com/6thSense-dev/atlas)**.
+
 # 6thSense
 
 **6thSense** builds **custom tactile egocentric datasets for robotics teams**: hardware, synchronized multimodal capture, calibration, quality control, and **model-ready packaged data** for contact-rich robot learning—not just raw sensors or generic recording tools.
