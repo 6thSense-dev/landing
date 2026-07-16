@@ -75,7 +75,7 @@ export const productPages = [
           "High-rate contact and pressure-aligned streams across the fingers and palm.",
           "Per-channel calibration, so each signal has documented, trainable meaning.",
           "Grasp phases and contact timing for contact-rich manipulation — not just 2D boxes in frame.",
-          "[SPEC: channel count · sample rate · sensing surface — drop in real numbers]",
+          "460 pressure taxels per hand in a 23×20 grid, sampled at ~200 Hz over USB (8-bit per taxel).",
         ],
       },
       {
@@ -106,7 +106,6 @@ export const productPages = [
           "Contact and pressure proxies with per-channel calibration.",
           "Placement tuned to the task — where touch actually matters.",
           "Signals time-aligned to the glove, video, depth, and IMU in the same episode.",
-          "[SPEC: sensing resolution · coverage area · materials — drop in real numbers]",
         ],
       },
       {
@@ -137,7 +136,7 @@ export const productPages = [
           "First-person RGB aligned to the demonstrator's view, with stable exposure for long runs.",
           "Per-frame depth (RGB-D) for geometry, reach, and clutter around the hands.",
           "IMU dynamics — acceleration, angular rates, and movement cues for inertia, rhythm, and effort.",
-          "[SPEC: camera resolution · frame rate · depth range — drop in real numbers]",
+          "Stereo capture at 4000×1200 (two 2000×1200 views), 30 fps MJPEG, with an embedded 6-axis IMU.",
         ],
       },
       {

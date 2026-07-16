@@ -10,8 +10,9 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
  *
  * Same warm-dark studio lighting rig as HandTurntable / GloveTurntable so all
  * the products read as one set (DESIGN.md). The enclosure is a single dark
- * matte-plastic material; the orange rim catches its edges. Auto-rotates; drag
- * to spin. Falls back to a caption panel where WebGL is unavailable.
+ * matte-plastic material; a bright key + front fill make the body read, and the
+ * orange rim catches its edges. Static at rest; drag to spin (a flick glides to
+ * a stop). Falls back to a caption panel where WebGL is unavailable.
  *
  * Honest imagery (DESIGN.md): this is the product's actual CAD, not an AI shot.
  *
@@ -28,10 +29,6 @@ export default function Eye2Turntable({
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     let renderer;
     try {
@@ -50,26 +47,34 @@ export default function Eye2Turntable({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, w / h, 0.01, 100);
-    camera.position.set(0, 0.1, 3.1);
+    camera.position.set(0, 0, 2.85);
 
     // Warm, dark studio lighting — same rig as the glove/hand turntables so the
-    // whole product set reads consistently (DESIGN.md palette).
-    scene.add(new THREE.AmbientLight(0x6c6c6c, 0.85));
-    const key = new THREE.DirectionalLight(0xffffff, 2.0);
+    // whole product set reads consistently (DESIGN.md palette). Brighter ambient
+    // + a front fill from the camera so the enclosure body reads (not just the
+    // rim), matching how the Skin/Hand rows sit lit and centered.
+    scene.add(new THREE.AmbientLight(0x9a958c, 1.15));
+    const key = new THREE.DirectionalLight(0xffffff, 2.6);
     key.position.set(2.5, 3, 2.5);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0xf0612a, 3.0);
+    const rim = new THREE.DirectionalLight(0xf0612a, 3.2);
     rim.position.set(-3, 1.2, -2.5);
     scene.add(rim);
-    const fill = new THREE.DirectionalLight(0xffd9c2, 0.7);
-    fill.position.set(0.5, -2, 2.5);
-    scene.add(fill);
+    // Front fill from the viewer's side so the lens face isn't in shadow.
+    const frontFill = new THREE.DirectionalLight(0xfff1e6, 1.25);
+    frontFill.position.set(0, 0.6, 4);
+    scene.add(frontFill);
+    const underFill = new THREE.DirectionalLight(0xffd9c2, 0.6);
+    underFill.position.set(0.5, -2, 2.5);
+    scene.add(underFill);
 
     const pivot = new THREE.Group();
     scene.add(pivot);
 
-    // Pointer drag to rotate (with inertia); auto-spin resumes when idle.
-    let velocity = reduce ? 0 : 0.004;
+    // Drag-to-spin only: static at rest, no continuous auto-rotation. A drag
+    // imparts inertia (velocity) that decays to zero via friction in the tick
+    // loop, so the enclosure glides to a stop rather than spinning forever.
+    let velocity = 0;
     let dragging = false;
     let lastX = 0;
     const onDown = (e) => {
@@ -86,7 +91,6 @@ export default function Eye2Turntable({
     };
     const onUp = () => {
       dragging = false;
-      if (!reduce && Math.abs(velocity) < 0.001) velocity = 0.004;
     };
     renderer.domElement.style.cursor = "grab";
     renderer.domElement.addEventListener("pointerdown", onDown);
@@ -97,9 +101,9 @@ export default function Eye2Turntable({
     // metalness so the orange rim reads on the edges; DoubleSide because the
     // raw CAD isn't watertight (open lens/port cutouts).
     const shellMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      metalness: 0.3,
-      roughness: 0.5,
+      color: 0x36342f,
+      metalness: 0.25,
+      roughness: 0.55,
       side: THREE.DoubleSide,
     });
 
@@ -125,12 +129,12 @@ export default function Eye2Turntable({
           if (o.isMesh) o.geometry.translate(-center.x, -center.y, -center.z);
         });
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        model.scale.setScalar(1.55 / maxDim);
+        model.scale.setScalar(1.85 / maxDim);
         // The CAD's +Y is already up; a small yaw + forward tilt gives a 3/4
         // read (embossed "Eye2" face + lens toward the viewer) instead of a
         // flat side-on mugshot.
-        model.rotation.y = -0.6;
-        model.rotation.x = -0.08;
+        model.rotation.y = -0.5;
+        model.rotation.x = -0.05;
         pivot.add(model);
       },
       undefined,
@@ -139,7 +143,11 @@ export default function Eye2Turntable({
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      if (!dragging) pivot.rotation.y += velocity;
+      if (!dragging) {
+        pivot.rotation.y += velocity;
+        velocity *= 0.94; // friction: flick inertia decays to a stop
+        if (Math.abs(velocity) < 0.00002) velocity = 0;
+      }
       renderer.render(scene, camera);
     };
     tick();
