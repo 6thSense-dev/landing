@@ -10,8 +10,9 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
  *
  * Same warm-dark studio lighting rig as HandTurntable / GloveTurntable so all
  * the products read as one set (DESIGN.md). The enclosure is a single dark
- * matte-plastic material; the orange rim catches its edges. Auto-rotates; drag
- * to spin. Falls back to a caption panel where WebGL is unavailable.
+ * matte-plastic material; the orange rim catches its edges. Static at rest;
+ * drag to spin (a flick glides to a stop). Falls back to a caption panel where
+ * WebGL is unavailable.
  *
  * Honest imagery (DESIGN.md): this is the product's actual CAD, not an AI shot.
  *
@@ -28,10 +29,6 @@ export default function Eye2Turntable({
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     let renderer;
     try {
@@ -68,8 +65,10 @@ export default function Eye2Turntable({
     const pivot = new THREE.Group();
     scene.add(pivot);
 
-    // Pointer drag to rotate (with inertia); auto-spin resumes when idle.
-    let velocity = reduce ? 0 : 0.004;
+    // Drag-to-spin only: static at rest, no continuous auto-rotation. A drag
+    // imparts inertia (velocity) that decays to zero via friction in the tick
+    // loop, so the enclosure glides to a stop rather than spinning forever.
+    let velocity = 0;
     let dragging = false;
     let lastX = 0;
     const onDown = (e) => {
@@ -86,7 +85,6 @@ export default function Eye2Turntable({
     };
     const onUp = () => {
       dragging = false;
-      if (!reduce && Math.abs(velocity) < 0.001) velocity = 0.004;
     };
     renderer.domElement.style.cursor = "grab";
     renderer.domElement.addEventListener("pointerdown", onDown);
@@ -139,7 +137,11 @@ export default function Eye2Turntable({
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      if (!dragging) pivot.rotation.y += velocity;
+      if (!dragging) {
+        pivot.rotation.y += velocity;
+        velocity *= 0.94; // friction: flick inertia decays to a stop
+        if (Math.abs(velocity) < 0.00002) velocity = 0;
+      }
       renderer.render(scene, camera);
     };
     tick();
