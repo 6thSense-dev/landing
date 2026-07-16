@@ -2,16 +2,22 @@
 """Assemble the Eye2 camera enclosure CAD into one turntable mesh for /products.
 
 The Eye2 is the 6thSense egocentric capture camera. Its printed enclosure ships
-as two STL parts, exported from the same CAD assembly (so they already share one
-coordinate frame — no manual alignment needed):
+as several STL parts, ALL exported from the same CAD assembly (so they already
+share one coordinate frame — no manual alignment needed). We fold them into three
+named meshes so the frontend (Eye2Turntable.jsx) can give each its own material:
 
-  Eye2 Main Frame.stl   the front housing that holds the camera        (main-frame)
-  Eye2 Back Case.stl    the rear cover / cable side                    (back-case)
+  housing   Eye2 Main Frame.stl + Eye2 Back Case.stl   dark matte plastic body
+  logo      E1 / Y / E2 / 2 .stl                        embossed "Eye2" wordmark
+  dots      Dot1-6.stl                                  six-dot 6thSense motif
 
-We load both, keep them as SEPARATE named meshes in one GLB scene, and let the
-frontend (Eye2Turntable.jsx) center the combined bounds and spin it. Kept as two
-meshes (not merged) so a future frontend can style the front/back differently,
-the same way GloveTurntable pulls out the "sensors" mesh.
+The letters (E1/Y/E2/2) and dots were confirmed by XY projection — they spell the
+product name and the brand motif on the front face; they are NOT lenses. There is
+no optical/lens geometry in this CAD (it's the printed enclosure), so the hero
+read is the branded face, not a fabricated lens.
+
+The frontend centers the combined bounds and spins it. Kept as separate meshes
+(not merged) so each gets its own PBR material, the way GloveTurntable pulls out
+the "sensors" mesh.
 
 Honest imagery (DESIGN.md): this is the REAL product CAD, not an AI render.
 
@@ -37,10 +43,25 @@ import trimesh
 _DEFAULT_CAD = Path("/Users/ronak/Documents/00-6thsense/assets/cad")
 _OUT_DIR = Path(__file__).resolve().parents[1] / "public"
 
-PARTS = [
-    ("Eye2 Main Frame.stl", "main-frame"),
-    ("Eye2 Back Case.stl", "back-case"),
-]
+# The Eye2 CAD assembly ships as several STL parts, ALL exported from the same
+# CAD file so they already share one coordinate frame (no manual alignment). We
+# group them into three named meshes so the frontend can give each its own PBR
+# material (dark matte housing vs. cream logo inlay vs. glowing brand dots):
+#
+#   housing   the printed enclosure body + rear cover
+#   logo      the embossed "Eye2" wordmark on the front face (letters E-y-e-2,
+#             the files E1/Y/E2/2 — inspected via XY projection, they spell the
+#             product name; they are NOT lenses)
+#   dots      the six-dot 6thSense motif below the wordmark (Dot1-6)
+#
+# There are no optical/lens parts in this CAD — it is the printed enclosure, so
+# the hero read is the branded front face, not a fabricated lens (honest imagery,
+# DESIGN.md).
+PART_GROUPS = {
+    "housing": ["Eye2 Main Frame.stl", "Eye2 Back Case.stl"],
+    "logo": ["E1.stl", "Y.stl", "E2.stl", "2.stl"],
+    "dots": ["Dot1.stl", "Dot2.stl", "Dot3.stl", "Dot4.stl", "Dot5.stl", "Dot6.stl"],
+}
 
 
 def load_part(path: Path) -> trimesh.Trimesh:
@@ -55,10 +76,18 @@ def load_part(path: Path) -> trimesh.Trimesh:
 
 
 def build(cad_dir: Path, out_dir: Path):
+    # The wordmark + dots are modeled coplanar with the front face (same Z as the
+    # shell), which z-fights in the viewer. Lift each group a hair along +Z (the
+    # face normal) so it sits proud like a real embossed inlay and catches light.
+    PROUD = {"logo": 0.5, "dots": 0.4}
+
     scene = trimesh.Scene()
     parts = []
-    for fname, name in PARTS:
-        m = load_part(cad_dir / fname)
+    for name, fnames in PART_GROUPS.items():
+        meshes = [load_part(cad_dir / f) for f in fnames]
+        m = trimesh.util.concatenate(meshes) if len(meshes) > 1 else meshes[0]
+        if name in PROUD:
+            m.apply_translation([0, 0, PROUD[name]])
         m.metadata["name"] = name
         scene.add_geometry(m, geom_name=name)
         parts.append((name, m))
