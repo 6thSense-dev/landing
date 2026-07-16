@@ -75,7 +75,8 @@ export const productPages = [
           "High-rate contact and pressure-aligned streams across the fingers and palm.",
           "Per-channel calibration, so each signal has documented, trainable meaning.",
           "Grasp phases and contact timing for contact-rich manipulation — not just 2D boxes in frame.",
-          "[SPEC: channel count · sample rate · sensing surface — drop in real numbers]",
+          "440 tactile channels in a 20×22 grid — fingertips, finger pads, and palm — 16-bit (~0.01 N), <1 ms response, ~200 Hz.",
+          "6-axis IMU plus device-side microsecond-monotonic timestamps; wired USB-C or wireless BLE 5.x, left and right variants.",
         ],
       },
       {
@@ -105,8 +106,8 @@ export const productPages = [
         items: [
           "Contact and pressure proxies with per-channel calibration.",
           "Placement tuned to the task — where touch actually matters.",
+          "Built on the same tactile-sensing family as the glove — 16-bit pressure sensing, <1 ms response, ~200 Hz — with the channel layout molded to each surface rather than fixed to a grid.",
           "Signals time-aligned to the glove, video, depth, and IMU in the same episode.",
-          "[SPEC: sensing resolution · coverage area · materials — drop in real numbers]",
         ],
       },
       {
@@ -137,7 +138,7 @@ export const productPages = [
           "First-person RGB aligned to the demonstrator's view, with stable exposure for long runs.",
           "Per-frame depth (RGB-D) for geometry, reach, and clutter around the hands.",
           "IMU dynamics — acceleration, angular rates, and movement cues for inertia, rhythm, and effort.",
-          "[SPEC: camera resolution · frame rate · depth range — drop in real numbers]",
+          "Global-shutter stereo at 4000×1200, 60 fps MJPEG — 1/2.6″ sensor, 3.0 µm pixels, over USB 3.0.",
         ],
       },
       {

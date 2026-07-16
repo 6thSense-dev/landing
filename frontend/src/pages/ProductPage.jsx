@@ -40,10 +40,11 @@ export default function ProductPage({ slug }) {
           <img className="product-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
           <span>6THSENSE</span>
         </Link>
-        {/* Site nav (every page): Products link, buyer CTA, small Partner login. */}
+        {/* Shared site nav (matches SiteNav): Products / People / Partner login.
+            No "Reserve Nerve" — the Nerve pre-order flow is retired (DESIGN.md). */}
         <nav className="product-navlinks" aria-label="Primary">
           <Link className="product-navlink" to="/products">Products</Link>
-          <Link className="product-cta" to="/products#reserve">Reserve Nerve</Link>
+          <Link className="product-navlink" to="/people">People</Link>
           <Link className="product-login" to="/login">Partner login</Link>
         </nav>
       </header>
