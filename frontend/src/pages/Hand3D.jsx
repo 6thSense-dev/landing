@@ -139,9 +139,11 @@ export default function Hand3D({ onReady }) {
         varying vec3 vWorld; varying vec3 vNormalW;
         void main(){
           vec3 n = normalize(normal);
-          // constant tiny outset (avoid z-fight w/ the metal shell) + warp while forming
-          float warp = (1.0 - uReveal) * 0.004 * (vnoise(position * 34.0) - 0.5);
-          vec3 p = position + n * (0.0007 + warp);
+          // Hug the metal shell tightly so the skin doesn't read as making the hand
+          // "bigger": minimal constant outset (just enough to avoid z-fight) + a
+          // much smaller formation warp than before (0.004 -> 0.0015).
+          float warp = (1.0 - uReveal) * 0.0015 * (vnoise(position * 34.0) - 0.5);
+          vec3 p = position + n * (0.0004 + warp);
           vec4 wp = modelMatrix * vec4(p, 1.0);
           vWorld = wp.xyz;
           vNormalW = normalize(mat3(modelMatrix) * n);
@@ -169,29 +171,27 @@ export default function Hand3D({ onReady }) {
           if (a < 0.01) discard;
           float rim = smoothstep(edge, 0.0, abs(coord - uReveal)); // hot line at boundary
 
-          // ---- warm sunset-aurora glow, built in layers. Warm DOMINATES (red ->
-          // orange -> amber -> gold); rose/magenta is a warm secondary; violet is
-          // a rare garnish; teal a whisper. Each layer is driven by its own noise
-          // field so the accents appear in sparse patches, not everywhere. -------
-          // Base (~dominant): warm sweep red -> orange -> amber -> gold.
-          float w1 = vnoise(vWorld * 5.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04));
-          vec3 warm = hsv2rgb(vec3(mix(0.005, 0.11, w1), mix(0.95, 0.80, w1), 1.0));
-          // w2 ramps the accent coolward: warm -> rose (mid) -> violet (high), so
-          // purple actually shows in patches (~25% of the edge) while warm stays
-          // the base. (The old top-slice threshold never fired -> no purple.)
+          // ---- FIRE glow: "the colors fire can be" — dark maroon -> red -> orange
+          // -> hot amber, with DEEP vivid violet accents and a rare flame-blue base.
+          // Darkness lives in the VALUE (low w1 = dark maroon), so it reads
+          // dark-but-vivid, not the washed-out light pink it was before. Two noise
+          // octaves give turbulent fire-like distortion. --------------------------
+          float w1 = vnoise(vWorld * 5.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04)) * 0.62
+                   + vnoise(vWorld * 12.0 + vec3(-uTime * 0.05, 3.0, uTime * 0.07)) * 0.38;
+          w1 = clamp(w1, 0.0, 1.0);
+          // hue red->amber, high sat, value dark maroon (cool flame) -> bright amber (hot).
+          vec3 warm = hsv2rgb(vec3(mix(0.0, 0.095, w1), mix(0.98, 0.82, w1), mix(0.40, 1.0, w1)));
+          // Deep violet accents in patches — dark + vivid, NOT pastel (uPurple scales).
           float w2 = vnoise(vWorld * 3.2 + vec3(37.0, uTime * 0.05, -uTime * 0.035));
-          float roseAmt = smoothstep(0.42, 0.70, w2);
-          vec3 rose = hsv2rgb(vec3(0.93, 0.78, 0.98));            // magenta-pink
-          float purpleAmt = smoothstep(0.62, 0.88, w2) * clamp(uPurple, 0.0, 1.5);
-          vec3 purple = hsv2rgb(vec3(0.77, 0.72, 0.96));          // clear violet
-          // Teal whisper: rarest, from a 3rd field's top slice.
+          float purpleAmt = smoothstep(0.52, 0.84, w2) * clamp(uPurple, 0.0, 1.5);
+          vec3 purple = hsv2rgb(vec3(0.77, 0.92, 0.60));          // dark bright violet
+          // Flame-blue whisper: rarest, the cool base of a flame.
           float w3 = vnoise(vWorld * 7.0 + vec3(-19.0, uTime * 0.09, 11.0));
-          float coolAmt = smoothstep(0.82, 0.97, w3);
-          vec3 cool = hsv2rgb(vec3(0.52, 0.50, 0.96));
+          float coolAmt = smoothstep(0.86, 0.98, w3);
+          vec3 cool = hsv2rgb(vec3(0.62, 0.80, 0.70));            // deep flame-blue
           vec3 edgeCol = warm;
-          edgeCol = mix(edgeCol, rose, roseAmt * 0.60);
-          edgeCol = mix(edgeCol, purple, purpleAmt * 0.72);
-          edgeCol = mix(edgeCol, cool, coolAmt * 0.40);
+          edgeCol = mix(edgeCol, purple, purpleAmt * 0.78);
+          edgeCol = mix(edgeCol, cool, coolAmt * 0.38);
           // Overall saturation trim (uSat: lower = more muted).
           float luma = dot(edgeCol, vec3(0.299, 0.587, 0.114));
           edgeCol = clamp(mix(vec3(luma), edgeCol, clamp(uSat / 0.82, 0.0, 1.4)), 0.0, 1.0);
