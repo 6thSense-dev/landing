@@ -178,27 +178,31 @@ export default function Hand3D({ onReady }) {
           // octaves give turbulent fire-like distortion. --------------------------
           float w1 = vnoise(vWorld * 5.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04)) * 0.62
                    + vnoise(vWorld * 12.0 + vec3(-uTime * 0.05, 3.0, uTime * 0.07)) * 0.38;
-          w1 = clamp(w1, 0.0, 1.0);
-          // hue red->amber, high sat, value dark maroon (cool flame) -> bright amber (hot).
-          vec3 warm = hsv2rgb(vec3(mix(0.0, 0.095, w1), mix(0.98, 0.82, w1), mix(0.40, 1.0, w1)));
-          // Deep violet accents in patches — dark + vivid, NOT pastel (uPurple scales).
+          w1 = pow(clamp(w1, 0.0, 1.0), 1.5);      // skew toward the dark maroon end
+          // hue red->amber, MAX sat at the dark end, value dark maroon -> bright amber.
+          vec3 warm = hsv2rgb(vec3(mix(0.0, 0.085, w1), mix(1.0, 0.85, w1), mix(0.26, 0.98, w1)));
+          // Deep violet accents — OVERRIDE strongly so they stay violet, not orange-mud.
           float w2 = vnoise(vWorld * 3.2 + vec3(37.0, uTime * 0.05, -uTime * 0.035));
-          float purpleAmt = smoothstep(0.52, 0.84, w2) * clamp(uPurple, 0.0, 1.5);
-          vec3 purple = hsv2rgb(vec3(0.77, 0.92, 0.60));          // dark bright violet
+          float purpleAmt = smoothstep(0.50, 0.80, w2) * clamp(uPurple, 0.0, 1.5);
+          vec3 purple = hsv2rgb(vec3(0.76, 0.95, 0.62));          // dark bright violet
           // Flame-blue whisper: rarest, the cool base of a flame.
           float w3 = vnoise(vWorld * 7.0 + vec3(-19.0, uTime * 0.09, 11.0));
           float coolAmt = smoothstep(0.86, 0.98, w3);
-          vec3 cool = hsv2rgb(vec3(0.62, 0.80, 0.70));            // deep flame-blue
+          vec3 cool = hsv2rgb(vec3(0.63, 0.85, 0.72));            // deep flame-blue
           vec3 edgeCol = warm;
-          edgeCol = mix(edgeCol, purple, purpleAmt * 0.78);
-          edgeCol = mix(edgeCol, cool, coolAmt * 0.38);
+          edgeCol = mix(edgeCol, purple, min(purpleAmt, 1.0) * 0.9);
+          edgeCol = mix(edgeCol, cool, coolAmt * 0.4);
           // Overall saturation trim (uSat: lower = more muted).
           float luma = dot(edgeCol, vec3(0.299, 0.587, 0.114));
           edgeCol = clamp(mix(vec3(luma), edgeCol, clamp(uSat / 0.82, 0.0, 1.4)), 0.0, 1.0);
 
-          vec3 col = mix(uColor, edgeCol, rim);
+          // Hot crest: the dissolve line flares bright amber (fire's hottest edge)
+          // while the body stays dark maroon/violet -> high-contrast drama.
+          float crest = smoothstep(0.55, 1.0, rim);
+          vec3 hot = edgeCol + vec3(0.5, 0.28, 0.05) * crest;
+          vec3 col = mix(uColor, hot, rim);
           float fres = pow(1.0 - max(dot(normalize(vNormalW), normalize(uCamPos - vWorld)), 0.0), 2.0);
-          col += edgeCol * fres * 0.45 * a;        // colored fresnel keeps the black silhouette readable
+          col += edgeCol * fres * 0.35 * a;        // subtler wash so color concentrates on the edge
           gl_FragColor = vec4(col, a * (0.5 + rim * 0.5));
         }`,
     });
@@ -325,7 +329,7 @@ export default function Hand3D({ onReady }) {
     const CYCLE = 10.0; // seconds per full power-on loop (slower, calmer motion)
     // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so
     // the tactile skin dissolving in is async from the hand's gesture.
-    const SKIN_CYCLE = 10.0;  // s per skin appear->hold->dissolve-out->pause loop
+    const SKIN_CYCLE = 7.0;   // s per skin appear->hold->dissolve-out->pause loop
     const SKIN_OFFSET = 3.1;  // s phase shift off the gesture clock
 
     const animate = (nowMs) => {
@@ -359,8 +363,8 @@ export default function Hand3D({ onReady }) {
       // Skin dissolve on its own async clock: dissolve IN, hold, dissolve OUT,
       // then a long pause with no skin (reveal reverses the same threshold).
       const st = ((nowMs - startMs) / 1000 + SKIN_OFFSET) % SKIN_CYCLE;
-      // Sweep-on (2.2s), hold, dissolve-off (2.2s), then a short pause.
-      const reveal = smoother(0.0, 2.2, st) * (1.0 - smoother(6.2, 8.4, st));
+      // Faster: sweep-on (1.5s), brief hold, dissolve-off (1.5s), short pause.
+      const reveal = smoother(0.0, 1.5, st) * (1.0 - smoother(3.6, 5.1, st));
       skinMaterial.uniforms.uReveal.value = reveal;
       skinMaterial.uniforms.uTime.value = (nowMs - startMs) / 1000;
       skinMaterial.uniforms.uCamPos.value.copy(camera.position);
