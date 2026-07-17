@@ -329,7 +329,7 @@ export default function Hand3D({ onReady }) {
     const CYCLE = 10.0; // seconds per full power-on loop (slower, calmer motion)
     // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so
     // the tactile skin dissolving in is async from the hand's gesture.
-    const SKIN_CYCLE = 7.0;   // s per skin appear->hold->dissolve-out->pause loop
+    const SKIN_CYCLE = 7.5;   // s per skin appear->hold->dissolve-out->pause loop
     const SKIN_OFFSET = 3.1;  // s phase shift off the gesture clock
 
     const animate = (nowMs) => {
@@ -363,8 +363,8 @@ export default function Hand3D({ onReady }) {
       // Skin dissolve on its own async clock: dissolve IN, hold, dissolve OUT,
       // then a long pause with no skin (reveal reverses the same threshold).
       const st = ((nowMs - startMs) / 1000 + SKIN_OFFSET) % SKIN_CYCLE;
-      // Faster: sweep-on (1.5s), brief hold, dissolve-off (1.5s), short pause.
-      const reveal = smoother(0.0, 1.5, st) * (1.0 - smoother(3.6, 5.1, st));
+      // 2.5s sweep-on, brief hold, 2.5s dissolve-off, short pause.
+      const reveal = smoother(0.0, 2.5, st) * (1.0 - smoother(4.0, 6.5, st));
       skinMaterial.uniforms.uReveal.value = reveal;
       skinMaterial.uniforms.uTime.value = (nowMs - startMs) / 1000;
       skinMaterial.uniforms.uCamPos.value.copy(camera.position);
