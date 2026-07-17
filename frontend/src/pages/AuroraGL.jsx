@@ -71,7 +71,15 @@ export default function AuroraGL() {
 
     let renderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, alpha: false, powerPreference: "low-power" });
+      // preserveDrawingBuffer:true is REQUIRED here. The shared `.aurora-bg` CSS
+      // applies `filter: blur(30px)`, which forces this canvas onto its own
+      // compositor layer. With the default preserveDrawingBuffer:false, the
+      // compositor snapshots the *cleared* (black) buffer for that filter layer
+      // instead of the just-rendered frame — so the aurora renders correctly in
+      // the framebuffer but displays as solid black on real GPUs (Canvas2D is
+      // immune because its bitmap always persists). Keeping the buffer alive
+      // makes the blur read the real rendered frame. Perf impact is negligible.
+      renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, alpha: false, powerPreference: "low-power", preserveDrawingBuffer: true });
     } catch (e) {
       // WebGL unavailable — ProductsV2 keeps the Canvas2D fallback, so just bail quietly.
       console.warn("AuroraGL: WebGL unavailable, no GL aurora.", e);
