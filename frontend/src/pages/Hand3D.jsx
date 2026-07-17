@@ -116,7 +116,12 @@ export default function Hand3D({ onReady }) {
         uYMin: { value: -0.1 },
         uYMax: { value: 0.1 },
         uColor: { value: new THREE.Color(0x14090a) }, // near-black glove body, faint red tint
-        uEdge: { value: new THREE.Color(0xff2a2a) },  // bright clear-red rim at the growth line (Ronak-approved)
+        // Rim/glow color is now sampled per-fragment from a warm-biased aurora
+        // palette (see warmPalette() in the fragment shader) instead of one flat
+        // color, so the dissolving edge shimmers red/orange/amber with a band of
+        // purple and occasional cool hits. uSat/uPurple are live-tunable knobs.
+        uSat: { value: 0.82 },     // overall saturation of the glow (subtle when lower)
+        uPurple: { value: 1.0 },   // 0..1.5 weight on how much the purple band shows
         uCamPos: { value: new THREE.Vector3() },
       },
       vertexShader: `
@@ -137,8 +142,37 @@ export default function Hand3D({ onReady }) {
         ${GLSL_NOISE}
         uniform float uReveal; uniform float uTime;
         uniform float uYMin; uniform float uYMax;
-        uniform vec3 uColor; uniform vec3 uEdge; uniform vec3 uCamPos;
+        uniform vec3 uColor; uniform vec3 uCamPos;
+        uniform float uSat; uniform float uPurple;
         varying vec3 vWorld; varying vec3 vNormalW;
+
+        vec3 hsv2rgb(vec3 c){
+          vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+          vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+          return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        }
+        // Warm-biased aurora palette for the glow. w in [0,1): ~60% red->orange->
+        // amber, ~18% deep crimson/rose, ~14% purple/violet, ~8% cool cyan->ice.
+        // Warm stays high-value; purple/cool are gently desaturated so it reads
+        // as a subtle shimmer, not a rainbow.
+        vec3 warmPalette(float w){
+          w = fract(w);
+          float hue, sat, val;
+          if (w < 0.60) {                 // warm: red -> orange -> amber
+            float k = w / 0.60;
+            hue = mix(0.005, 0.09, k); sat = mix(0.95, 0.78, k); val = 1.0;
+          } else if (w < 0.78) {          // deep crimson / rose (wraps through red)
+            float k = (w - 0.60) / 0.18;
+            hue = mix(0.97, 1.005, k); sat = 0.88; val = 0.97;
+          } else if (w < 0.92) {          // purple / violet
+            float k = (w - 0.78) / 0.14;
+            hue = mix(0.80, 0.74, k); sat = 0.66 * clamp(uPurple, 0.0, 1.5); val = 0.92;
+          } else {                        // cool hit: cyan -> ice blue
+            float k = (w - 0.92) / 0.08;
+            hue = mix(0.52, 0.60, k); sat = 0.52; val = 0.95;
+          }
+          return hsv2rgb(vec3(fract(hue), clamp(sat * (uSat / 0.82), 0.0, 1.0), val));
+        }
         void main(){
           float g = clamp((vWorld.y - uYMin) / max(uYMax - uYMin, 1e-4), 0.0, 1.0);
           float n = vnoise(vWorld * 55.0 + vec3(0.0, 0.0, uTime * 0.15));
@@ -147,9 +181,13 @@ export default function Hand3D({ onReady }) {
           float a = smoothstep(uReveal + edge, uReveal - edge, coord);
           if (a < 0.01) discard;
           float rim = smoothstep(edge, 0.0, abs(coord - uReveal)); // hot line at boundary
-          vec3 col = mix(uColor, uEdge, rim);
+          // Color-control value: low-freq noise (smooth color bands across the
+          // surface) + slow time drift, so the glow gently cycles as it forms.
+          float w = vnoise(vWorld * 6.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04));
+          vec3 edgeCol = warmPalette(w);
+          vec3 col = mix(uColor, edgeCol, rim);
           float fres = pow(1.0 - max(dot(normalize(vNormalW), normalize(uCamPos - vWorld)), 0.0), 2.0);
-          col += uEdge * fres * 0.45 * a;          // soft red fresnel keeps the black silhouette readable
+          col += edgeCol * fres * 0.45 * a;        // colored fresnel keeps the black silhouette readable
           gl_FragColor = vec4(col, a * (0.5 + rim * 0.5));
         }`,
     });

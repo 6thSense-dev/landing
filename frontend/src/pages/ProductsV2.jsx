@@ -225,14 +225,6 @@ export default function ProductsV2() {
                 ))}
               </div>
               <a className="cta" href="/#contact">{s.cta}</a>
-              {s.title === "Eye2" && (
-                <div className="eye2-toggle" role="group" aria-label="Eye2 finish">
-                  <button type="button" className={!eye2Light ? "on" : ""}
-                    aria-pressed={!eye2Light} onClick={() => setEye2Light(false)}>Dark</button>
-                  <button type="button" className={eye2Light ? "on" : ""}
-                    aria-pressed={eye2Light} onClick={() => setEye2Light(true)}>Light</button>
-                </div>
-              )}
             </div>
             {USE_HAND3D && s.title === "Hand"
               ? <div className="pimg hand3d">
@@ -257,8 +249,24 @@ export default function ProductsV2() {
                     alt="" aria-hidden="true" draggable="false" loading="eager"
                     decoding="async" style={{ opacity: 0 }} />
                 </div>
+              : s.title === "Eye2"
+              ? <div className="pimg eye2-cell">
+                  <img className="eye2-img"
+                    src={eye2Light ? "/eye2-hero.png" : "/eye2-dark.png"}
+                    alt={`6thSense ${s.title}`} draggable="false"
+                    loading="lazy" decoding="async" />
+                  {/* finish selector: dots, not words — dark (default) vs light */}
+                  <div className="eye2-dots" role="group" aria-label="Eye2 finish">
+                    <button type="button" className={!eye2Light ? "on" : ""}
+                      aria-pressed={!eye2Light} aria-label="Dark finish" title="Dark"
+                      onClick={() => setEye2Light(false)} />
+                    <button type="button" className={eye2Light ? "on" : ""}
+                      aria-pressed={eye2Light} aria-label="Light finish" title="Light"
+                      onClick={() => setEye2Light(true)} />
+                  </div>
+                </div>
               : <img className="pimg"
-                  src={s.title === "Eye2" ? (eye2Light ? "/eye2-hero.png" : "/eye2-dark.png") : s.img}
+                  src={s.img}
                   alt={`6thSense ${s.title}`} draggable="false"
                   loading={i === 0 ? "eager" : "lazy"} decoding="async" />}
           </section>
