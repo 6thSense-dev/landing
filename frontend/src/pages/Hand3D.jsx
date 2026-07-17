@@ -60,9 +60,15 @@ export default function Hand3D({ onReady }) {
     };
 
     const scene = new THREE.Scene();
-    // Telephoto (narrow FOV): compresses perspective so the fist folding toward
-    // the camera doesn't read as a "zoom"/size change. Distance auto-compensates
-    // in frameCamera() to keep the hand the same on-screen size.
+    // Telephoto (narrow FOV): flattens perspective so the fist's fingers folding
+    // toward the camera don't balloon. frameCamera() auto-scales distance with FOV,
+    // so the hand keeps the same on-screen size at any FOV. NOTE (measured): the
+    // fist's SILHOUETTE bounding box is ~0.63x the open hand's HEIGHT at FOV 32, 14,
+    // and 6 alike -- i.e. that ratio is geometry (a fist is genuinely more compact),
+    // not perspective, so ortho would not change it. The "fist looks bigger" feel is
+    // a density illusion (fist is a ~78%-filled solid block vs ~42% for the sparse
+    // open hand), not a real zoom. 14 is a good telephoto middle ground; don't chase
+    // ortho for this -- it buys nothing here.
     const camera = new THREE.PerspectiveCamera(14, 1, 0.001, 100);
     // Defensive: if WebGL context creation fails at runtime, bail without
     // crashing the page (the parent already gates on WebGL support, but a lost/
