@@ -151,28 +151,6 @@ export default function Hand3D({ onReady }) {
           vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
           return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
         }
-        // Warm-biased aurora palette for the glow. w in [0,1): ~60% red->orange->
-        // amber, ~18% deep crimson/rose, ~14% purple/violet, ~8% cool cyan->ice.
-        // Warm stays high-value; purple/cool are gently desaturated so it reads
-        // as a subtle shimmer, not a rainbow.
-        vec3 warmPalette(float w){
-          w = fract(w);
-          float hue, sat, val;
-          if (w < 0.60) {                 // warm: red -> orange -> amber
-            float k = w / 0.60;
-            hue = mix(0.005, 0.09, k); sat = mix(0.95, 0.78, k); val = 1.0;
-          } else if (w < 0.78) {          // deep crimson / rose (wraps through red)
-            float k = (w - 0.60) / 0.18;
-            hue = mix(0.97, 1.005, k); sat = 0.88; val = 0.97;
-          } else if (w < 0.92) {          // purple / violet
-            float k = (w - 0.78) / 0.14;
-            hue = mix(0.80, 0.74, k); sat = 0.66 * clamp(uPurple, 0.0, 1.5); val = 0.92;
-          } else {                        // cool hit: cyan -> ice blue
-            float k = (w - 0.92) / 0.08;
-            hue = mix(0.52, 0.60, k); sat = 0.52; val = 0.95;
-          }
-          return hsv2rgb(vec3(fract(hue), clamp(sat * (uSat / 0.82), 0.0, 1.0), val));
-        }
         void main(){
           float g = clamp((vWorld.y - uYMin) / max(uYMax - uYMin, 1e-4), 0.0, 1.0);
           float n = vnoise(vWorld * 55.0 + vec3(0.0, 0.0, uTime * 0.15));
@@ -181,10 +159,27 @@ export default function Hand3D({ onReady }) {
           float a = smoothstep(uReveal + edge, uReveal - edge, coord);
           if (a < 0.01) discard;
           float rim = smoothstep(edge, 0.0, abs(coord - uReveal)); // hot line at boundary
-          // Color-control value: low-freq noise (smooth color bands across the
-          // surface) + slow time drift, so the glow gently cycles as it forms.
-          float w = vnoise(vWorld * 6.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04));
-          vec3 edgeCol = warmPalette(w);
+
+          // ---- warm-biased aurora glow, built in layers so purple/cool actually
+          // show (a single noise field clusters near 0.5 and never reaches the
+          // accent bands, which is why it read as all-red before). --------------
+          // Base: warm sweep red -> orange -> amber, slow-drifting.
+          float w1 = vnoise(vWorld * 5.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04));
+          vec3 warm = hsv2rgb(vec3(mix(0.005, 0.095, w1), 0.90, 1.0));
+          // Purple blooms in patches from a 2nd, larger-scale field's upper range.
+          float w2 = vnoise(vWorld * 3.2 + vec3(37.0, uTime * 0.05, -uTime * 0.035));
+          float purpleAmt = smoothstep(0.42, 0.80, w2) * clamp(uPurple, 0.0, 1.5);
+          vec3 purple = hsv2rgb(vec3(0.78, 0.72, 0.96));
+          // Cool hits: rarer, from a 3rd field's top slice (cyan -> ice blue).
+          float w3 = vnoise(vWorld * 7.0 + vec3(-19.0, uTime * 0.09, 11.0));
+          float coolAmt = smoothstep(0.74, 0.95, w3);
+          vec3 cool = hsv2rgb(vec3(0.55, 0.55, 0.97));
+          vec3 edgeCol = mix(warm, purple, purpleAmt * 0.85);
+          edgeCol = mix(edgeCol, cool, coolAmt * 0.55);
+          // Overall saturation trim (uSat: lower = more muted).
+          float luma = dot(edgeCol, vec3(0.299, 0.587, 0.114));
+          edgeCol = clamp(mix(vec3(luma), edgeCol, clamp(uSat / 0.82, 0.0, 1.4)), 0.0, 1.0);
+
           vec3 col = mix(uColor, edgeCol, rim);
           float fres = pow(1.0 - max(dot(normalize(vNormalW), normalize(uCamPos - vWorld)), 0.0), 2.0);
           col += edgeCol * fres * 0.45 * a;        // colored fresnel keeps the black silhouette readable

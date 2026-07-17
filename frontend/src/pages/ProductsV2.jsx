@@ -255,13 +255,17 @@ export default function ProductsV2() {
                     src={eye2Light ? "/eye2-hero.png" : "/eye2-dark.png"}
                     alt={`6thSense ${s.title}`} draggable="false"
                     loading="lazy" decoding="async" />
-                  {/* finish selector: dots, not words — dark (default) vs light */}
-                  <div className="eye2-dots" role="group" aria-label="Eye2 finish">
-                    <button type="button" className={!eye2Light ? "on" : ""}
-                      aria-pressed={!eye2Light} aria-label="Dark finish" title="Dark"
+                  {/* finish preview (NOT a catalog/buy selector): the swatches
+                      are the actual finish colors so they read as "the camera in
+                      black / white". Default black — it looks best on-page; white
+                      is what we ship. */}
+                  <div className="eye2-finish" role="group" aria-label="Eye2 finish preview">
+                    <span className="eye2-finish-label">Finish</span>
+                    <button type="button" className={`sw sw-dark ${!eye2Light ? "on" : ""}`}
+                      aria-pressed={!eye2Light} aria-label="Black finish" title="Black"
                       onClick={() => setEye2Light(false)} />
-                    <button type="button" className={eye2Light ? "on" : ""}
-                      aria-pressed={eye2Light} aria-label="Light finish" title="Light"
+                    <button type="button" className={`sw sw-light ${eye2Light ? "on" : ""}`}
+                      aria-pressed={eye2Light} aria-label="White finish" title="White"
                       onClick={() => setEye2Light(true)} />
                   </div>
                 </div>

@@ -32,18 +32,23 @@
 .pv2 .pimg.glove-stack { position: relative; }
 .pv2 .glove-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 
-/* Eye2 dark/light finish selector — dots directly beneath the CAD, not words.
-   The image cell becomes a column: render fills, dots sit centered below it. */
+/* Eye2 finish preview — the render sits in a compact column with the finish
+   swatches directly beneath it (NOT pinned to the viewport bottom). The swatches
+   ARE the finish colors (black / white) so they self-explain; the active one
+   carries an orange ring. This is a view toggle, not a catalog/buy selector. */
 .pv2 .eye2-cell { display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 18px; height: min(88vh,860px); filter: none; }
-.pv2 .eye2-img { width: 100%; flex: 1 1 auto; min-height: 0; object-fit: contain;
+  gap: 22px; filter: none; }
+.pv2 .eye2-img { width: 100%; height: min(72vh,680px); object-fit: contain;
   filter: drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
-.pv2 .eye2-dots { display: inline-flex; gap: 13px; }
-.pv2 .eye2-dots button { appearance: none; border: 0; padding: 0; cursor: pointer;
-  width: 11px; height: 11px; border-radius: 50%; background: rgba(244,241,234,.28);
-  transition: background .25s, transform .25s, box-shadow .25s; }
-.pv2 .eye2-dots button:hover:not(.on) { background: rgba(244,241,234,.5); transform: scale(1.15); }
-.pv2 .eye2-dots button.on { background: #F0612A; box-shadow: 0 0 0 4px rgba(240,97,42,.18); }
+.pv2 .eye2-finish { display: inline-flex; align-items: center; gap: 12px; }
+.pv2 .eye2-finish-label { font: 600 10px/1 ui-monospace, monospace; letter-spacing: .2em;
+  text-transform: uppercase; color: rgba(244,241,234,.45); }
+.pv2 .eye2-finish .sw { appearance: none; padding: 0; cursor: pointer; width: 15px; height: 15px;
+  border-radius: 50%; border: 1px solid rgba(244,241,234,.35); transition: transform .2s, box-shadow .2s; }
+.pv2 .eye2-finish .sw-dark { background: #17171b; }
+.pv2 .eye2-finish .sw-light { background: #f4f1ea; }
+.pv2 .eye2-finish .sw:hover:not(.on) { transform: scale(1.15); }
+.pv2 .eye2-finish .sw.on { box-shadow: 0 0 0 3px rgba(240,97,42,.9); }
 /* robo.webp placeholder overlays the (transparent) 3D canvas until the model is
    loaded + rendered, so there's no empty gap while the ~4MB STL streams in. */
 .pv2 .hand3d-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
@@ -95,6 +100,8 @@
 @media (max-width: 880px) {
   .pv2 .scene { grid-template-columns: 1fr; gap: 8px; padding: 9vh 24px; justify-items: start; }
   .pv2 .pimg { order: -1; height: 46vh; }
+  .pv2 .eye2-cell { gap: 14px; }
+  .pv2 .eye2-img { height: 40vh; }
   .pv2 h1 { font-size: clamp(52px,15vw,88px); }
   .pv2 .copy { max-width: 100%; }
   .pv2 .sidenav { display: none; }
