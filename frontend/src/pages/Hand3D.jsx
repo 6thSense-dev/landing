@@ -124,7 +124,7 @@ export default function Hand3D({ onReady }) {
         // color, so the dissolving edge shimmers red/orange/amber with a band of
         // purple and occasional cool hits. uSat/uPurple are live-tunable knobs.
         uSat: { value: 0.82 },     // overall saturation of the glow (subtle when lower)
-        uPurple: { value: 0.7 },   // 0..1.5 weight on the (rare) violet garnish — warm-first
+        uPurple: { value: 1.0 },   // 0..1.5 weight on the violet accent (warm still dominates)
         uCamPos: { value: new THREE.Vector3() },
       },
       vertexShader: `
