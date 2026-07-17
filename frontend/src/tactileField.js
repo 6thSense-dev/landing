@@ -10,18 +10,19 @@ const HOVER_RADIUS = 180;      // CSS px — nodes inside this scale up on hover
 const HOVER_SCALE = 2.1;       // max scale multiplier under the pointer
 const DRIFT_SPEED = 0.22;      // CSS px per frame (60 fps ≈ 13 px/s)
 const MIN_LAYOUT_PX = 64;      // defer seeding until canvas has real dimensions
-const EDGE_ALPHA = 0.22;       // peak edge opacity; fades with distance
+const EDGE_ALPHA = 0.16;       // peak edge opacity; fades with distance
 const TWINKLE_ALPHA = 0.35;    // ±alpha swing from the twinkle wave
 const TWINKLE_SIZE = 0.22;     // ±size swing (fraction of base)
 const BOB_AMPLITUDE = 2.5;     // CSS px — sub-pixel water ripple
 
-const EDGE_COLOR = "197, 224, 99";   // #c5e063 lime, as r,g,b for rgba()
+const EDGE_COLOR = "234, 226, 214";   // warm off-white, on-brand (r,g,b for rgba())
 const NODE_PALETTE = [
-  "#c5e063", // brand lime
-  "#7a8f3a", // deep olive
-  "#d08a87", // muted pink
-  "#a78463", // soft tan
-  "#e8d9a6"  // cream
+  "#f4f1ea", // warm white (on-dark text)
+  "#e8d9a6", // cream
+  "#cfc7b4", // muted warm
+  "#a49c86", // muted neutral
+  "#cfc7b4", // (repeat to weight the neutrals)
+  "#F0612A"  // brand orange — sparse accent
 ];
 
 export function initTactileField(canvas) {

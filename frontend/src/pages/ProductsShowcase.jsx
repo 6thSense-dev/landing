@@ -7,9 +7,16 @@ import { useRevealNav } from "../useRevealNav.js";
 // Skin section: robotic image + glove photo composite (2D, no WebGL). Add
 // ?align to the /products URL for the on-page alignment panel.
 import SkinStage from "../lib/SkinStage.jsx";
-// Rig section: live CAD turntable of the Eye2 capture camera (public/eye2.glb).
-import Eye2Turntable from "../lib/Eye2Turntable.jsx";
+// Rig section: Eye2 is de-emphasized to a clean "In development" card (no live
+// 3D — the CAD looked weak and WebGL was flaky) until a real product photo exists.
 import { TactileField } from "../TactileField.jsx";
+// Prototype: pinned scroll-scrubbed "morph" hero (glove -> hand -> Eye2).
+// Mounted only when the URL has ?morph so the shipped page is untouched.
+import ProductMorph from "../lib/ProductMorph.jsx";
+// One-shot fade+rise as each row scrolls into view (tasteful, non-hijacking).
+import Reveal from "../lib/Reveal.jsx";
+// v2: the new Apple-style scroll page (aurora + product scenes). /products?v2 only.
+import ProductsV2 from "./ProductsV2.jsx";
 // Reuse the homepage's approved Evora stylesheet verbatim (all .ev-* classes
 // live there, scoped under .ev-home). This file only adds the small
 // products-page deltas on top.
@@ -44,10 +51,19 @@ function DownloadGlyph() {
 }
 
 export default function ProductsShowcase() {
+  // v2 preview: /products?v2 renders the new Apple-style scroll page. The query
+  // param is constant for this mount, so the early return is hook-safe.
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("v2")) {
+    return <ProductsV2 />;
+  }
   // Same floating flagship nav as the homepage (styles.css .nav-flagship).
   // No #story on this page, so useRevealNav keeps it always visible.
   const reduceMotion = useReducedMotion();
   const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
+  // Prototype gate: /products?morph shows the scroll-morph hero above the rows.
+  const showMorph =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("morph");
 
   useEffect(() => {
     const prev = document.title;
@@ -67,31 +83,31 @@ export default function ProductsShowcase() {
       {/* Same floating flagship nav as the homepage. */}
       <SiteNav className={navClassName} />
 
+      {/* Prototype: scroll-morph hero (glove -> hand -> Eye2). ?morph only. */}
+      {showMorph && <ProductMorph />}
+
       <div className="ev-frame">
         {/* ---------- SKIN — 01, the wearable tactile glove (available now).
             NOTE: product NAMES were swapped per request — this glove is now
             "Skin"; the dexterous-hand composite below is now "Hand". ---------- */}
-        <section className="ev-prow ev-plight ev-prow--first" id="skin">
+        <Reveal as="section" className="ev-prow ev-plight ev-prow--first" id="skin">
           <div className="ev-pstage ev-pstage--hand">
             <span className="ev-badge ev-live">Available now</span>
             {/*
-              Real photo of the glove, index raised (public/hero/glove/pose-hand.webp,
-              the "1" frame). A genuine product photo, not a render or AI image
-              (DESIGN.md "Imagery Rules"). Falls back to a "photo pending" panel.
+              Product render of the glove, index raised
+              (public/hero/glove/pose-hand.webp, the "1" frame). This is a CAD/
+              product render — real product photos are pending a shoot
+              (tasks/product-photo-shotlist.md). Do NOT label it a photo.
             */}
             <img
               className="ev-pstage-img"
               src="/hero/glove/pose-hand.webp"
               alt="6thSense Skin — tactile data glove, index finger raised"
               style={{ objectFit: "contain", objectPosition: "center" }}
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-                e.currentTarget.nextElementSibling?.removeAttribute("hidden");
-              }}
             />
             <div className="ev-prod-ph" hidden aria-hidden="true">
               <div className="ev-prod-ph-mark">◍</div>
-              <div className="ev-prod-ph-cap">Glove — photo pending</div>
+              <div className="ev-prod-ph-cap">Glove — image pending</div>
             </div>
           </div>
           <div className="ev-pinfo">
@@ -127,17 +143,17 @@ export default function ProductsShowcase() {
               <a className="ev-pill ev-solid" href="/#contact">Talk to us</a>
             </div>
           </div>
-        </section>
+        </Reveal>
 
         {/* ---------- band: just the line, on the flying-dots background ---------- */}
-        <section className="ev-band">
+        <Reveal as="section" className="ev-band">
           <h3 className="ev-band-line">Every touch, localized.</h3>
-        </section>
+        </Reveal>
 
         {/* ---------- HAND — 02, the dexterous-hand + molded skin composite ---------- */}
-        <section className="ev-prow ev-plight ev-flip" id="hand">
+        <Reveal as="section" className="ev-prow ev-plight ev-flip" id="hand">
           {/* Split composite: LEFT the robotic dexterous-hand image, RIGHT the
-              tactile-skin glove photo (both flat 2D). Add ?align for the panel. */}
+              tactile-skin glove render (both flat 2D). Add ?align for the panel. */}
           <SkinStage />
           <div className="ev-pinfo">
             <div className="ev-idx">02 · The Hand</div>
@@ -164,21 +180,25 @@ export default function ProductsShowcase() {
               <a className="ev-pill ev-solid" href="/#contact">Talk to us</a>
             </div>
           </div>
-        </section>
+        </Reveal>
 
         {/* ---------- band: the capture line, on the flying-dots background ---------- */}
-        <section className="ev-band">
+        <Reveal as="section" className="ev-band">
           <h3 className="ev-band-line">Sees what the hand feels.</h3>
-        </section>
+        </Reveal>
 
-        {/* ---------- RIG — 03, the Eye2 egocentric capture camera. Live CAD
-            turntable of the real printed enclosure (public/eye2.glb), plus the
-            raw .stl parts to download. ---------- */}
-        <section className="ev-prow ev-plight" id="rig">
-          <div className="ev-pstage ev-pstage--3d">
-            <span className="ev-badge ev-soon">In development</span>
-            <Eye2Turntable />
-            <span className="ev-pstage-cap">Eye2 enclosure · CAD</span>
+        {/* ---------- RIG — 03, the Eye2 egocentric capture camera. White+black
+            enclosure render (public/eye2-hero.png), plus the raw .stl parts. ---------- */}
+        <Reveal as="section" className="ev-prow ev-plight" id="rig">
+          <div className="ev-pstage ev-pstage--hand">
+            <span className="ev-badge ev-live">Available now</span>
+            <img
+              className="ev-pstage-img"
+              src="/eye2-hero.png"
+              alt="6thSense Eye2 — egocentric capture camera, white and black enclosure render"
+              style={{ objectFit: "contain", objectPosition: "center" }}
+            />
+            <span className="ev-pstage-cap">Eye2 enclosure · render</span>
           </div>
           <div className="ev-pinfo">
             <div className="ev-idx">03 · The Rig</div>
@@ -209,7 +229,7 @@ export default function ProductsShowcase() {
               </div>
             </div>
           </div>
-        </section>
+        </Reveal>
 
         <footer className="ev-footer">
           <span>6thSense · tactile hardware for dexterous robotics</span>

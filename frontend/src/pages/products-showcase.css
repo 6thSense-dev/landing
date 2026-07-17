@@ -854,3 +854,129 @@ button.ev-pill { background: transparent; -webkit-appearance: none; appearance: 
   line-height: 1.5;
   margin: 0 0 20px;
 }
+
+
+
+/* ==================================================================== *
+ *  ProductMorph v4 — pinned scroll sequence (/products?morph)           *
+ *  Full-frame informative stages, alternating sides, crossfade handoff. *
+ *  Perf: only transform+opacity animate; glow is a static layer.        *
+ * ==================================================================== */
+.pm-track { position: relative; height: 340vh; }
+.pm-sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+
+/* static ambient warmth (NOT animated -> no per-frame paint) */
+.pm-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(46% 52% at 50% 46%, rgba(240,97,42,0.16), transparent 70%),
+    radial-gradient(40% 40% at 50% 50%, rgba(120,110,150,0.10), transparent 72%);
+}
+
+.pm-stage {
+  position: absolute; inset: 0;
+  display: grid; align-items: center;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(24px, 5vw, 72px);
+  padding: 92px clamp(32px, 7vw, 112px) 64px;
+  pointer-events: none;               /* stage frame ignores clicks... */
+}
+.pm-stage--right { grid-template-areas: "text prod"; }
+.pm-stage--left  { grid-template-areas: "prod text"; }
+
+.pm-prod {
+  grid-area: prod; justify-self: center; align-self: center;
+  width: 100%; height: min(74vh, 640px);
+  display: grid; place-items: center;
+  will-change: transform, opacity;
+}
+.pm-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+.pm-cap {
+  grid-area: text; align-self: center;
+  max-width: 40ch; will-change: transform, opacity;
+}
+.pm-cap > * { pointer-events: none; }   /* ...only interactive children opt back in */
+.pm-cap a { pointer-events: auto; }
+.pm-stage--right .pm-cap { justify-self: end; text-align: right; margin-left: auto; }
+.pm-stage--left  .pm-cap { justify-self: start; text-align: left; }
+
+.pm-idx {
+  font-family: var(--fm, monospace); font-size: 13px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ev-orange, #F0612A); margin-bottom: 10px;
+}
+.pm-title {
+  font-family: var(--fs); font-weight: 600;
+  font-size: clamp(46px, 6.4vw, 92px); line-height: 0.9;
+  letter-spacing: -0.03em; margin: 0 0 14px; color: #f4f1ea;
+}
+.pm-line {
+  font-size: clamp(15px, 1.35vw, 18px); line-height: 1.5;
+  color: rgba(244, 241, 234, 0.72); margin: 0 0 22px;
+}
+
+/* stats row (reuses the look of the shipped ev-bignums) */
+.pm-stats { display: flex; flex-wrap: wrap; gap: 22px 30px; margin-bottom: 20px; }
+.pm-stage--right .pm-stats { justify-content: flex-end; }
+.pm-stat { display: flex; flex-direction: column; }
+.pm-stat-n {
+  font-family: var(--fs); font-weight: 600;
+  font-size: clamp(26px, 2.6vw, 38px); line-height: 1; color: #f4f1ea;
+}
+.pm-stat-l {
+  font-family: var(--fm, monospace); font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(244,241,234,0.5); margin-top: 6px;
+}
+
+.pm-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0 0 22px; }
+.pm-stage--right .pm-chips { justify-content: flex-end; }
+.pm-chips li {
+  font-family: var(--fm, monospace); font-size: 12px;
+  color: rgba(244,241,234,0.66);
+  border: 1px solid rgba(244,241,234,0.16); border-radius: 999px;
+  padding: 5px 12px;
+}
+
+.pm-actions { margin-bottom: 18px; }
+.pm-stage--right .pm-actions { display: flex; justify-content: flex-end; }
+
+.pm-dls { }
+.pm-dl-label {
+  display: block; font-family: var(--fm, monospace); font-size: 11px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(244,241,234,0.45); margin-bottom: 10px;
+}
+.pm-dl-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.pm-stage--right .pm-dl-row { justify-content: flex-end; }
+.pm-dl {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: rgba(244,241,234,0.82); text-decoration: none;
+  border: 1px solid rgba(244,241,234,0.18); border-radius: 10px; padding: 8px 12px;
+  transition: border-color .15s ease, color .15s ease;
+}
+.pm-dl:hover { color: #fff; border-color: var(--ev-orange, #F0612A); }
+.pm-dl svg { width: 16px; height: 16px; }
+
+.pm-hint {
+  position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+  font-family: var(--fm, monospace); font-size: 12px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(244,241,234,0.36); animation: pmBob 2.2s ease-in-out infinite;
+}
+@keyframes pmBob { 0%,100%{transform:translate(-50%,0)} 50%{transform:translate(-50%,6px)} }
+
+@media (max-width: 900px) {
+  .pm-stage {
+    grid-template-columns: 1fr; grid-template-areas: "prod" "text";
+    justify-items: center; text-align: center; padding: 84px 24px 64px; gap: 10px;
+  }
+  .pm-stage--right .pm-cap, .pm-stage--left .pm-cap { text-align: center; justify-self: center; }
+  .pm-stage--right .pm-stats, .pm-stage--right .pm-chips,
+  .pm-stage--right .pm-actions, .pm-stage--right .pm-dl-row { justify-content: center; }
+  .pm-prod { height: 40vh; }
+  .pm-title { font-size: clamp(44px, 13vw, 72px); }
+  .pm-chips { display: none; }  /* keep mobile stages uncluttered */
+}
+@media (prefers-reduced-motion: reduce) { .pm-hint { animation: none; } }

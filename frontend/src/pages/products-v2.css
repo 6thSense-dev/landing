@@ -1,0 +1,78 @@
+/* /products v2 — Apple-style scroll page: aurora bg + product scenes.
+   All selectors scoped under .pv2 so nothing leaks into the rest of the site.
+   Ported from the approved prototype (design locked with Ronak). */
+
+.pv2 { position: relative; background: #07070a; color: #f4f1ea;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+.pv2 .aurora-canvas {
+  position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
+  z-index: 0; filter: blur(30px); pointer-events: none;
+}
+
+.pv2 .page { position: relative; z-index: 1; }
+
+/* product-dominant scene: copy left, big product bleeding right */
+.pv2 .scene {
+  min-height: 100vh; display: grid; grid-template-columns: minmax(0,42%) minmax(0,58%);
+  align-items: center; gap: clamp(16px,3vw,48px);
+  padding: 7vh clamp(28px,6vw,96px) 7vh clamp(96px,10vw,168px); box-sizing: border-box;
+}
+.pv2 .copy { max-width: 34ch; position: relative; z-index: 2; }
+.pv2 .idx { font: 600 13px/1 ui-monospace, monospace; letter-spacing: .18em; color: #F0612A; text-transform: uppercase; }
+.pv2 h1 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: clamp(64px,9vw,150px); font-weight: 600; letter-spacing: -.035em; line-height: .92; margin: 12px 0 8px; }
+.pv2 .oneliner { font-size: clamp(16px,1.45vw,21px); color: rgba(244,241,234,.74); margin: 0 0 26px; line-height: 1.5; }
+.pv2 .pimg { width: 100%; height: min(88vh,860px); object-fit: contain; filter: drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
+.pv2 .stats { display: grid; grid-template-columns: max-content max-content; gap: 20px 44px; margin: 0 0 28px; }
+.pv2 .stat { display: flex; flex-direction: column; gap: 6px; }
+.pv2 .stat b { font-size: clamp(26px,2.6vw,40px); font-weight: 600; color: #f4f1ea; line-height: 1; }
+.pv2 .stat span { font: 600 11px/1 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: rgba(244,241,234,.5); }
+.pv2 .cta { display: inline-block; background: #F0612A; color: #111; font-weight: 600; font-size: 15px;
+  padding: 13px 26px; border-radius: 999px; text-decoration: none; }
+
+/* smooth transitions for the subtle light/dark scene tone */
+.pv2, .pv2 .brand, .pv2 .navlinks a, .pv2 .navcta, .pv2 .sidenav a, .pv2 .hint,
+.pv2 .idx, .pv2 h1, .pv2 .oneliner, .pv2 .stat b, .pv2 .stat span { transition: color .55s ease, border-color .55s ease; }
+.pv2.light h1, .pv2.light .stat b { color: #141210; }
+.pv2.light .oneliner, .pv2.light .stat span { color: rgba(20,18,16,.62); }
+.pv2.light .brand { color: #141210; }
+.pv2.light .navlinks a { color: rgba(20,18,16,.66); }
+.pv2.light .navlinks a:hover { color: #141210; }
+.pv2.light .navcta { border-color: rgba(20,18,16,.28); color: #141210; }
+.pv2.light .sidenav a { color: rgba(20,18,16,.42); }
+.pv2.light .sidenav a.on { color: #F0612A; }
+.pv2.light .hint { color: rgba(20,18,16,.4); }
+
+.pv2 .topnav { position: fixed; top: 0; left: 0; right: 0; z-index: 5; display: flex; align-items: center;
+  justify-content: space-between; padding: 20px clamp(24px,5vw,56px); font-size: 14px; }
+.pv2 .brand { font-weight: 700; color: #f4f1ea; text-decoration: none; letter-spacing: -.02em; font-size: 17px; }
+.pv2 .brand span { color: #F0612A; }
+.pv2 .navlinks { display: flex; align-items: center; gap: 24px; }
+.pv2 .navlinks a { color: rgba(244,241,234,.72); text-decoration: none; }
+.pv2 .navlinks a:hover { color: #f4f1ea; }
+.pv2 .navcta { border: 1px solid rgba(244,241,234,.25); padding: 8px 16px; border-radius: 999px; }
+
+.pv2 .sidenav { position: fixed; left: clamp(18px,3vw,40px); top: 50%; transform: translateY(-50%); z-index: 5;
+  display: flex; flex-direction: column; gap: 18px; }
+.pv2 .sidenav a { display: flex; align-items: center; gap: 10px; color: rgba(244,241,234,.4); text-decoration: none;
+  font: 600 12px/1 ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; cursor: pointer;
+  transition: color .25s, transform .25s; }
+.pv2 .sidenav a i { display: block; width: 14px; height: 1.5px; background: currentColor; transition: width .25s; }
+.pv2 .sidenav a:hover { color: rgba(244,241,234,.82); transform: translateX(3px); }
+.pv2 .sidenav a.on { color: #F0612A; }
+.pv2 .sidenav a.on i { width: 32px; }
+
+.pv2 .hint { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 2;
+  font: 12px/1 ui-monospace, monospace; letter-spacing: .18em; color: rgba(244,241,234,.4); }
+
+@media (max-width: 880px) {
+  .pv2 .scene { grid-template-columns: 1fr; gap: 8px; padding: 9vh 24px; justify-items: start; }
+  .pv2 .pimg { order: -1; height: 46vh; }
+  .pv2 h1 { font-size: clamp(52px,15vw,88px); }
+  .pv2 .copy { max-width: 100%; }
+  .pv2 .sidenav { display: none; }
+  .pv2 .navlinks a:not(.navcta) { display: none; }
+}
+@media (max-width: 480px) { .pv2 .pimg { height: 38vh; } .pv2 .stats { gap: 16px 26px; } }
+@media (prefers-reduced-motion: reduce) { .pv2 .aurora-canvas { filter: blur(30px); } }

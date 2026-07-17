@@ -103,7 +103,7 @@ export default function SkinStage() {
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("align");
   return (
     <div className="ev-pstage ev-pstage--3d ev-skin-layered" style={{ "--skin-size": c.size }}>
-      <span className="ev-badge ev-soon">In development</span>
+      <span className="ev-badge ev-live">Available now</span>
       <Composite c={c} />
       <span className="ev-pstage-cap">robotic hand · tactile skin</span>
       {aligning && <Panel c={c} set={set} />}
