@@ -5,10 +5,8 @@
 .pv2 { position: relative; background: #07070a; color: #f4f1ea;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
-.pv2 .aurora-canvas {
-  position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
-  z-index: 0; filter: blur(30px); pointer-events: none;
-}
+/* aurora background now lives in the shared <AuroraBg> component (lib/AuroraBg.css,
+   .aurora-bg — fixed, z-index 0, blur). .page sits above it at z-index 1. */
 
 .pv2 .page { position: relative; z-index: 1; }
 
@@ -81,4 +79,3 @@
   .pv2 .hint-mouse { display: none; }
 }
 @media (max-width: 480px) { .pv2 .pimg { height: 38vh; } .pv2 .stats { gap: 16px 26px; } }
-@media (prefers-reduced-motion: reduce) { .pv2 .aurora-canvas { filter: blur(30px); } }
