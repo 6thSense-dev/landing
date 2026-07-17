@@ -1,8 +1,18 @@
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
+import AuroraGL from "./AuroraGL.jsx";
 import { useRevealNav } from "../useRevealNav.js";
 import "./products-v2.css";
+
+// Phase 2 feature flag: GLSL aurora is opt-in via ?v2&gl (or ?v2&aurora=gl) while
+// the Canvas2D aurora stays the verified default. Flip the default once the shader
+// is confirmed in a real (non-swiftshader) browser.
+const USE_GL_AURORA = (() => {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  return q.has("gl") || q.get("aurora") === "gl";
+})();
 
 /**
  * /products v2 — Apple-style scroll page (design locked with Ronak in the prototype).
@@ -57,14 +67,20 @@ export default function ProductsV2() {
   const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
 
   useEffect(() => {
-    const root = rootRef.current, cv = canvasRef.current;
-    if (!root || !cv) return;
-    const ctx = cv.getContext("2d");
-    if (!ctx) return;
+    const root = rootRef.current;
+    if (!root) return;
+    // When the GLSL aurora is active there is no 2D canvas; the scene-reveal /
+    // sidenav / glove logic below must still run, so only the Canvas2D aurora
+    // painting is gated on `ctx`.
+    const cv = USE_GL_AURORA ? null : canvasRef.current;
+    const ctx = cv ? cv.getContext("2d") : null;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let W = 0, H = 0; const RS = 0.35;
-    const size = () => { W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * RS); cv.height = Math.round(H * RS); ctx.setTransform(RS, 0, 0, RS, 0, 0); };
+    const size = () => {
+      if (!ctx) { W = window.innerWidth; H = window.innerHeight; return; }
+      W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * RS); cv.height = Math.round(H * RS); ctx.setTransform(RS, 0, 0, RS, 0, 0);
+    };
     size();
 
     const sceneEls = [...root.querySelectorAll(".scene")].map((el) => ({ el, txt: [...el.querySelectorAll(".idx,h1,.oneliner,.stats,.cta")], img: el.querySelector(".pimg"), top: 0, h: 0 }));
@@ -109,7 +125,7 @@ export default function ProductsV2() {
       const c1 = sceneEls[1] ? (sceneEls[1].top + sceneEls[1].h / 2 - scrollY) : 9e9;
       const light = Math.max(0, Math.min(1, 1 - Math.abs(c1 - H / 2) / (H * .62)));
 
-      if (t % 2 === 0) {
+      if (ctx && t % 2 === 0) {
         ctx.setTransform(RS, 0, 0, RS, 0, 0);
         ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = `rgb(${(7 + 15 * light) | 0},${(7 + 11 * light) | 0},${(10 + 27 * light) | 0})`;
@@ -182,7 +198,9 @@ export default function ProductsV2() {
 
   return (
     <div className="pv2" ref={rootRef}>
-      <canvas className="aurora-canvas" ref={canvasRef} aria-hidden="true" />
+      {USE_GL_AURORA
+        ? <AuroraGL />
+        : <canvas className="aurora-canvas" ref={canvasRef} aria-hidden="true" />}
       {/* the site's real flagship navbar (same as the rest of 6thsense.dev) */}
       <SiteNav className={navClassName} />
       <nav className="sidenav" aria-label="Products">
