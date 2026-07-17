@@ -60,7 +60,10 @@ export default function Hand3D({ onReady }) {
     };
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(32, 1, 0.001, 100);
+    // Telephoto (narrow FOV): compresses perspective so the fist folding toward
+    // the camera doesn't read as a "zoom"/size change. Distance auto-compensates
+    // in frameCamera() to keep the hand the same on-screen size.
+    const camera = new THREE.PerspectiveCamera(14, 1, 0.001, 100);
     // Defensive: if WebGL context creation fails at runtime, bail without
     // crashing the page (the parent already gates on WebGL support, but a lost/
     // blocked context can still throw). The transparent div just stays empty.
@@ -167,20 +170,21 @@ export default function Hand3D({ onReady }) {
           // Base (~dominant): warm sweep red -> orange -> amber -> gold.
           float w1 = vnoise(vWorld * 5.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04));
           vec3 warm = hsv2rgb(vec3(mix(0.005, 0.11, w1), mix(0.95, 0.80, w1), 1.0));
-          // Rose / magenta-pink patches (still warm) — adds aurora richness.
+          // w2 ramps the accent coolward: warm -> rose (mid) -> violet (high), so
+          // purple actually shows in patches (~25% of the edge) while warm stays
+          // the base. (The old top-slice threshold never fired -> no purple.)
           float w2 = vnoise(vWorld * 3.2 + vec3(37.0, uTime * 0.05, -uTime * 0.035));
-          float roseAmt = smoothstep(0.55, 0.86, w2);
-          vec3 rose = hsv2rgb(vec3(0.95, 0.74, 0.98));
-          // Violet: only the top slice of w2, so it's a rare garnish (uPurple scales).
-          float purpleAmt = smoothstep(0.82, 0.97, w2) * clamp(uPurple, 0.0, 1.5);
-          vec3 purple = hsv2rgb(vec3(0.78, 0.66, 0.95));
-          // Teal whisper: rarest, from a 3rd field's very top slice.
+          float roseAmt = smoothstep(0.42, 0.70, w2);
+          vec3 rose = hsv2rgb(vec3(0.93, 0.78, 0.98));            // magenta-pink
+          float purpleAmt = smoothstep(0.62, 0.88, w2) * clamp(uPurple, 0.0, 1.5);
+          vec3 purple = hsv2rgb(vec3(0.77, 0.72, 0.96));          // clear violet
+          // Teal whisper: rarest, from a 3rd field's top slice.
           float w3 = vnoise(vWorld * 7.0 + vec3(-19.0, uTime * 0.09, 11.0));
-          float coolAmt = smoothstep(0.86, 0.98, w3);
+          float coolAmt = smoothstep(0.82, 0.97, w3);
           vec3 cool = hsv2rgb(vec3(0.52, 0.50, 0.96));
           vec3 edgeCol = warm;
-          edgeCol = mix(edgeCol, rose, roseAmt * 0.55);
-          edgeCol = mix(edgeCol, purple, purpleAmt * 0.70);
+          edgeCol = mix(edgeCol, rose, roseAmt * 0.60);
+          edgeCol = mix(edgeCol, purple, purpleAmt * 0.72);
           edgeCol = mix(edgeCol, cool, coolAmt * 0.40);
           // Overall saturation trim (uSat: lower = more muted).
           float luma = dot(edgeCol, vec3(0.299, 0.587, 0.114));
@@ -315,7 +319,7 @@ export default function Hand3D({ onReady }) {
     const CYCLE = 10.0; // seconds per full power-on loop (slower, calmer motion)
     // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so
     // the tactile skin dissolving in is async from the hand's gesture.
-    const SKIN_CYCLE = 14.0;  // s per skin appear->hold->dissolve-out->pause loop
+    const SKIN_CYCLE = 10.0;  // s per skin appear->hold->dissolve-out->pause loop
     const SKIN_OFFSET = 3.1;  // s phase shift off the gesture clock
 
     const animate = (nowMs) => {
@@ -349,8 +353,8 @@ export default function Hand3D({ onReady }) {
       // Skin dissolve on its own async clock: dissolve IN, hold, dissolve OUT,
       // then a long pause with no skin (reveal reverses the same threshold).
       const st = ((nowMs - startMs) / 1000 + SKIN_OFFSET) % SKIN_CYCLE;
-      // Slow sweep-on (3s), long hold, slow dissolve-off (3s), then a pause.
-      const reveal = smoother(0.0, 3.0, st) * (1.0 - smoother(9.0, 12.0, st));
+      // Sweep-on (2.2s), hold, dissolve-off (2.2s), then a short pause.
+      const reveal = smoother(0.0, 2.2, st) * (1.0 - smoother(6.2, 8.4, st));
       skinMaterial.uniforms.uReveal.value = reveal;
       skinMaterial.uniforms.uTime.value = (nowMs - startMs) / 1000;
       skinMaterial.uniforms.uCamPos.value.copy(camera.position);
