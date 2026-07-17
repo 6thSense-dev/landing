@@ -116,7 +116,7 @@ export default function Hand3D({ onReady }) {
         uYMin: { value: -0.1 },
         uYMax: { value: 0.1 },
         uColor: { value: new THREE.Color(0x14090a) }, // near-black glove body, faint red tint
-        uEdge: { value: new THREE.Color(0xe06b6b) },  // soft light-red rim at the growth line
+        uEdge: { value: new THREE.Color(0xff2a2a) },  // bright clear-red rim at the growth line (Ronak-approved)
         uCamPos: { value: new THREE.Vector3() },
       },
       vertexShader: `

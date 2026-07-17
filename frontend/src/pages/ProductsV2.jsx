@@ -85,8 +85,13 @@ const GLOVE_FRAMES = ["000", "001", "002", "003", "004", "005"].map((n) => `/her
 
 export default function ProductsV2() {
   const rootRef = useRef(null);
-  const gloveRef = useRef(null);
+  // Two stacked glove frame layers (bottom = current frame, top = next frame) that
+  // crossfade for a smooth fingers-opening loop instead of a hard flip-book swap.
+  const gloveARef = useRef(null);
+  const gloveBRef = useRef(null);
   const handSecRef = useRef(null);
+  // Eye2 finish toggle: false => /eye2-dark.png (black+orange, default), true => /eye2-hero.png (white).
+  const [eye2Light, setEye2Light] = useState(false);
   // hand3dNear: the Hand scene has scrolled near the viewport -> OK to mount the
   // heavy 3D component. hand3dReady: the model finished loading + first render ->
   // remove the robo.webp placeholder. Two stages so first paint stays cheap and
@@ -123,7 +128,7 @@ export default function ProductsV2() {
 
     let H = window.innerHeight;
 
-    const sceneEls = [...root.querySelectorAll(".scene")].map((el) => ({ el, txt: [...el.querySelectorAll(".idx,h1,.oneliner,.stats,.cta")], img: el.querySelector(".pimg"), top: 0, h: 0 }));
+    const sceneEls = [...root.querySelectorAll(".scene")].map((el) => ({ el, txt: [...el.querySelectorAll(".idx,h1,.oneliner,.stats,.cta,.eye2-toggle")], img: el.querySelector(".pimg"), top: 0, h: 0 }));
     const measure = () => { for (const s of sceneEls) { s.top = s.el.offsetTop; s.h = s.el.offsetHeight; } };
     measure();
     const navEls = [...root.querySelectorAll(".sidenav a")];
@@ -133,7 +138,7 @@ export default function ProductsV2() {
     // preload glove frames
     GLOVE_FRAMES.forEach((src) => { const im = new Image(); im.src = src; });
 
-    let scrollY = window.scrollY, t = 0, curActive = -1, gFrame = -1, raf = 0;
+    let scrollY = window.scrollY, t = 0, curActive = -1, gBase = -1, gNext = -1, raf = 0;
     const onScroll = () => { scrollY = window.scrollY; };
     const onResize = () => { H = window.innerHeight; measure(); };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -167,9 +172,19 @@ export default function ProductsV2() {
       // NOTE: no full light-mode text flip — the Eye2 scene is only a SUBTLE bg tone lift,
       // so copy must stay light (dark text on the still-dark bg was invisible). isLight unused.
 
-      if (gloveRef.current) {
-        const gi = Math.round((Math.sin(t * 0.012) * .5 + .5) * 5);
-        if (gi !== gFrame) { gFrame = gi; gloveRef.current.src = GLOVE_FRAMES[gi]; }
+      // Smooth glove crossfade: keep the SAME pace/gesture (sin drives a continuous
+      // position across the frames), then blend between the two nearest frames.
+      // Bottom layer holds the current frame at full opacity; the top layer fades
+      // the next frame in (opacity = fractional part), so it's a buttery dissolve.
+      if (gloveARef.current && gloveBRef.current) {
+        const last = GLOVE_FRAMES.length - 1;
+        const fpos = (Math.sin(t * 0.012) * .5 + .5) * last; // continuous 0..last
+        const base = Math.floor(fpos);
+        const next = Math.min(base + 1, last);
+        const blend = fpos - base;
+        if (base !== gBase) { gBase = base; gloveARef.current.src = GLOVE_FRAMES[base]; }
+        if (next !== gNext) { gNext = next; gloveBRef.current.src = GLOVE_FRAMES[next]; }
+        gloveBRef.current.style.opacity = blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
     };
@@ -210,6 +225,14 @@ export default function ProductsV2() {
                 ))}
               </div>
               <a className="cta" href="/#contact">{s.cta}</a>
+              {s.title === "Eye2" && (
+                <div className="eye2-toggle" role="group" aria-label="Eye2 finish">
+                  <button type="button" className={!eye2Light ? "on" : ""}
+                    aria-pressed={!eye2Light} onClick={() => setEye2Light(false)}>Dark</button>
+                  <button type="button" className={eye2Light ? "on" : ""}
+                    aria-pressed={eye2Light} onClick={() => setEye2Light(true)}>Light</button>
+                </div>
+              )}
             </div>
             {USE_HAND3D && s.title === "Hand"
               ? <div className="pimg hand3d">
@@ -225,8 +248,18 @@ export default function ProductsV2() {
                     </Suspense>
                   )}
                 </div>
-              : <img className="pimg" src={s.img} alt={`6thSense ${s.title}`}
-                  ref={s.glove ? gloveRef : undefined} draggable="false"
+              : s.glove
+              ? <div className="pimg glove-stack">
+                  {/* bottom = current frame (opaque); top = next frame crossfading in */}
+                  <img className="glove-layer" ref={gloveARef} src={GLOVE_FRAMES[0]}
+                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async" />
+                  <img className="glove-layer" ref={gloveBRef} src={GLOVE_FRAMES[1]}
+                    alt="" aria-hidden="true" draggable="false" loading="eager"
+                    decoding="async" style={{ opacity: 0 }} />
+                </div>
+              : <img className="pimg"
+                  src={s.title === "Eye2" ? (eye2Light ? "/eye2-hero.png" : "/eye2-dark.png") : s.img}
+                  alt={`6thSense ${s.title}`} draggable="false"
                   loading={i === 0 ? "eager" : "lazy"} decoding="async" />}
           </section>
         ))}
