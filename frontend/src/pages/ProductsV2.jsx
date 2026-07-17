@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
 import AuroraGL from "./AuroraGL.jsx";
+import Hand3D from "./Hand3D.jsx";
 import { useRevealNav } from "../useRevealNav.js";
 import "./products-v2.css";
 
@@ -12,6 +13,13 @@ const USE_GL_AURORA = (() => {
   if (typeof window === "undefined") return false;
   const q = new URLSearchParams(window.location.search);
   return q.has("gl") || q.get("aurora") === "gl";
+})();
+
+// Phase 3a feature flag: opt-in static 3D Aero-hand render on the Hand scene via
+// ?v2&hand3d. Off by default, so the Hand scene keeps the robo.webp image.
+const USE_HAND3D = (() => {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).has("hand3d");
 })();
 
 /**
@@ -223,8 +231,10 @@ export default function ProductsV2() {
               </div>
               <a className="cta" href="/#contact">{s.cta}</a>
             </div>
-            <img className="pimg" src={s.img} alt={`6thSense ${s.title}`}
-              ref={s.glove ? gloveRef : undefined} draggable="false" />
+            {USE_HAND3D && s.title === "Hand"
+              ? <div className="pimg hand3d"><Hand3D /></div>
+              : <img className="pimg" src={s.img} alt={`6thSense ${s.title}`}
+                  ref={s.glove ? gloveRef : undefined} draggable="false" />}
           </section>
         ))}
       </div>
