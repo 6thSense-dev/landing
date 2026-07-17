@@ -1,36 +1,51 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
 import AuroraGL from "./AuroraGL.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
-import Hand3D from "./Hand3D.jsx";
 import { useRevealNav } from "../useRevealNav.js";
 import "./products-v2.css";
 
-// Phase 2 feature flag: GLSL aurora is opt-in via ?v2&gl (or ?v2&aurora=gl) while
-// the Canvas2D aurora stays the verified default. Flip the default once the shader
-// is confirmed in a real (non-swiftshader) browser.
-const USE_GL_AURORA = (() => {
-  if (typeof window === "undefined") return false;
-  const q = new URLSearchParams(window.location.search);
-  return q.has("gl") || q.get("aurora") === "gl";
-})();
+// Hand3D pulls in three's STLLoader, the big skin-dissolve shaders, and (at
+// runtime) the ~4MB STL model + a second WebGL context. Load it as a separate
+// chunk via React.lazy so the Skin/Eye2 scenes and the aurora paint immediately;
+// we also defer MOUNTING it until the Hand scene is near the viewport (see the
+// IntersectionObserver below), so that heavy work never competes with first paint.
+const Hand3D = lazy(() => import("./Hand3D.jsx"));
 
-// Phase 3-polish: the animated 3D Aero-hand is now the DEFAULT on the Hand scene
-// (fingers-up, palm-to-viewer, framed as the hero, with the async tactile-skin
-// dissolve). Graceful fallback: if WebGL is unavailable we keep the robo.webp
-// image, and `?v2&nohand3d` forces the image explicitly. (`?hand3d` still works
-// as a no-op opt-in for back-compat.)
-const USE_HAND3D = (() => {
-  if (typeof window === "undefined") return false;
-  const q = new URLSearchParams(window.location.search);
-  if (q.has("nohand3d")) return false;
+// Small shared WebGL-availability probe (cheap, synchronous). Used to pick the GL
+// aurora vs the Canvas2D fallback, and to gate the 3D hand.
+const hasWebGL = () => {
   try {
     const c = document.createElement("canvas");
     return !!(c.getContext("webgl2") || c.getContext("webgl"));
   } catch {
     return false;
   }
+};
+
+// GLSL aurora is now the DEFAULT (Ronak-approved: colorful + smooth). It runs the
+// blob rasterization on the GPU. Graceful fallback: if WebGL is unavailable we
+// fall back to the Canvas2D AuroraBg, and `?v2&nogl` is an escape hatch that
+// forces Canvas2D explicitly. (The preserveDrawingBuffer:true fix lives in
+// AuroraGL and is untouched.)
+const USE_GL_AURORA = (() => {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  if (q.has("nogl")) return false; // escape hatch -> Canvas2D
+  return hasWebGL();               // otherwise GL by default, Canvas2D if no WebGL
+})();
+
+// The animated 3D Aero-hand is the DEFAULT on the Hand scene (fingers-up,
+// palm-to-viewer, framed as the hero, with the async tactile-skin dissolve).
+// Graceful fallback: if WebGL is unavailable we keep the robo.webp image, and
+// `?v2&nohand3d` forces the image explicitly. (`?hand3d` still works as a no-op
+// opt-in for back-compat.)
+const USE_HAND3D = (() => {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  if (q.has("nohand3d")) return false;
+  return hasWebGL();
 })();
 
 /**
@@ -71,12 +86,33 @@ const GLOVE_FRAMES = ["000", "001", "002", "003", "004", "005"].map((n) => `/her
 export default function ProductsV2() {
   const rootRef = useRef(null);
   const gloveRef = useRef(null);
+  const handSecRef = useRef(null);
+  // hand3dNear: the Hand scene has scrolled near the viewport -> OK to mount the
+  // heavy 3D component. hand3dReady: the model finished loading + first render ->
+  // remove the robo.webp placeholder. Two stages so first paint stays cheap and
+  // the user never sees an empty gap while the STL loads.
+  const [hand3dNear, setHand3dNear] = useState(false);
+  const [hand3dReady, setHand3dReady] = useState(false);
   // Eye2 scene "tone lift" (0..1) shared with the aurora each frame; the aurora
   // brightens its base as the Eye2 scene centers. Kept identical to the original.
   const lightRef = useRef(0);
   // reuse the site's real flagship navbar (keep the main site chrome; replace only the products content)
   const reduceMotion = useReducedMotion();
   const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
+
+  // Defer mounting the 3D hand until the Hand scene is near the viewport, so the
+  // ~4MB STL fetch + second WebGL init don't jank first paint or fight the aurora.
+  useEffect(() => {
+    if (!USE_HAND3D) return;
+    const el = handSecRef.current;
+    if (!el) return;
+    if (!("IntersectionObserver" in window)) { setHand3dNear(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { setHand3dNear(true); io.disconnect(); }
+    }, { rootMargin: "300px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -162,7 +198,8 @@ export default function ProductsV2() {
 
       <div className="page">
         {STAGES.map((s, i) => (
-          <section className="scene" id={s.title.toLowerCase()} key={s.title}>
+          <section className="scene" id={s.title.toLowerCase()} key={s.title}
+            ref={s.title === "Hand" ? handSecRef : undefined}>
             <div className="copy">
               <div className="idx">{s.idx}</div>
               <h1>{s.title}</h1>
@@ -175,9 +212,22 @@ export default function ProductsV2() {
               <a className="cta" href="/#contact">{s.cta}</a>
             </div>
             {USE_HAND3D && s.title === "Hand"
-              ? <div className="pimg hand3d"><Hand3D /></div>
+              ? <div className="pimg hand3d">
+                  {/* robo.webp stays on top until the 3D model has loaded + rendered */}
+                  {!hand3dReady && (
+                    <img className="hand3d-placeholder" src={s.img}
+                      alt={`6thSense ${s.title}`} draggable="false"
+                      loading="lazy" decoding="async" />
+                  )}
+                  {hand3dNear && (
+                    <Suspense fallback={null}>
+                      <Hand3D onReady={() => setHand3dReady(true)} />
+                    </Suspense>
+                  )}
+                </div>
               : <img className="pimg" src={s.img} alt={`6thSense ${s.title}`}
-                  ref={s.glove ? gloveRef : undefined} draggable="false" />}
+                  ref={s.glove ? gloveRef : undefined} draggable="false"
+                  loading={i === 0 ? "eager" : "lazy"} decoding="async" />}
           </section>
         ))}
       </div>

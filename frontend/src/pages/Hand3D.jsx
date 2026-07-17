@@ -43,13 +43,21 @@ function applyTransform(obj, el) {
   obj.quaternion.set(qx, qy, qz, qw); // -> three.js xyzw
 }
 
-export default function Hand3D() {
+export default function Hand3D({ onReady }) {
   const mountRef = useRef(null);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
     let disposed = false;
+    // Fire onReady exactly once, when the model has loaded + first rendered, so
+    // the parent can drop the robo.webp placeholder. Guarded against re-fires.
+    let notifiedReady = false;
+    const signalReady = () => {
+      if (notifiedReady || disposed) return;
+      notifiedReady = true;
+      if (onReady) onReady();
+    };
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(32, 1, 0.001, 100);
@@ -362,11 +370,11 @@ export default function Hand3D() {
                   applyTransform(skin, geomEl);
                   skin.renderOrder = 1;
                   g.add(skin);
-                  if (pending === 0) { orientHand(); frameCamera(); }
+                  if (pending === 0) { orientHand(); frameCamera(); signalReady(); }
                   render();
                 },
                 undefined,
-                () => { pending--; if (pending === 0) { orientHand(); frameCamera(); render(); } }
+                () => { pending--; if (pending === 0) { orientHand(); frameCamera(); render(); signalReady(); } }
               );
             } else if (child.tagName === "body") {
               walk(child, g);
@@ -384,6 +392,7 @@ export default function Hand3D() {
         sizeToMount();
         frameCamera();
         render();
+        if (pending === 0) signalReady(); // no meshes queued -> don't strand the placeholder
         startMs = performance.now();
         rafId = requestAnimationFrame(animate);
       })
