@@ -53,7 +53,16 @@ export default function Hand3D() {
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(32, 1, 0.001, 100);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Defensive: if WebGL context creation fails at runtime, bail without
+    // crashing the page (the parent already gates on WebGL support, but a lost/
+    // blocked context can still throw). The transparent div just stays empty.
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch (err) {
+      console.warn("[Hand3D] WebGL unavailable, skipping 3D hand:", err);
+      return;
+    }
     renderer.setClearColor(0x000000, 0); // transparent so the aurora shows through
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     mount.appendChild(renderer.domElement);
@@ -151,6 +160,9 @@ export default function Hand3D() {
     const meshFiles = {};
     // jointName -> { group, axis (unit Vector3, body-local), base (rest quaternion) }
     const jointGroups = {};
+    // bodyName -> THREE.Group (used to auto-orient the hand from its geometry)
+    const namedGroups = {};
+    let oriented = false;
     let pending = 0;
     let started = false;
     let rafId = 0;
@@ -162,6 +174,43 @@ export default function Hand3D() {
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+    };
+
+    // Auto-orient the hand from its own geometry (robust to the MJCF's frames):
+    // rotate so the fingers point up (+Y) and the palm faces the viewer (+Z).
+    // Runs ONCE, at pivot yaw 0, so the world frame == the pivot frame and the
+    // correction can be premultiplied onto rootGroup safely.
+    const orientHand = () => {
+      if (oriented) return;
+      const palm = namedGroups["palm"];
+      const tipNames = [
+        "right_index_distal_link", "right_middle_distal_link",
+        "right_ring_distal_link", "right_pinky_distal_link",
+      ];
+      const tips = tipNames.map((n) => namedGroups[n]).filter(Boolean);
+      if (!palm || tips.length < 2) return;
+      pivot.rotation.y = 0;
+      rootGroup.updateWorldMatrix(true, true);
+      const V = () => new THREE.Vector3();
+      const wrist = palm.getWorldPosition(V());
+      const mid = V();
+      tips.forEach((t) => mid.add(t.getWorldPosition(V())));
+      mid.multiplyScalar(1 / tips.length);
+      const fingerDir = mid.clone().sub(wrist).normalize();      // wrist -> fingertips
+      const idx = namedGroups["right_index_distal_link"].getWorldPosition(V());
+      const pnk = namedGroups["right_pinky_distal_link"].getWorldPosition(V());
+      const spread = idx.clone().sub(pnk).normalize();           // across the knuckles
+      // Build an orthonormal source basis (y = up along fingers, z = out of palm).
+      const yS = fingerDir.clone();
+      const zS = new THREE.Vector3().crossVectors(spread, yS).normalize(); // palm normal
+      const xS = new THREE.Vector3().crossVectors(yS, zS).normalize();
+      zS.crossVectors(xS, yS).normalize();
+      const mSrc = new THREE.Matrix4().makeBasis(xS, yS, zS);
+      // Inverse of the source basis maps (fingerDir->+Y, palmNormal->+Z).
+      const qCorr = new THREE.Quaternion().setFromRotationMatrix(mSrc).invert();
+      rootGroup.quaternion.premultiply(qCorr);
+      rootGroup.updateWorldMatrix(true, true);
+      oriented = true;
     };
 
     const frameCamera = () => {
@@ -178,11 +227,14 @@ export default function Hand3D() {
       // skin shader so the dissolve sweeps wrist -> fingertips.
       skinMaterial.uniforms.uYMin.value = -size.y / 2;
       skinMaterial.uniforms.uYMax.value = size.y / 2;
-      const maxDim = Math.max(size.x, size.y, size.z);
+      // Portrait hand: frame on height so it reads big in the scene column, but
+      // clamp on width so a wide 3/4 can't overflow. Product-is-hero => tight-ish.
+      const fitDim = Math.max(size.y, size.x * 1.1, size.z);
       const fov = (camera.fov * Math.PI) / 180;
-      const dist = (maxDim / 2 / Math.tan(fov / 2)) * 1.55;
-      // 3/4 view from front-right, slightly above, looking at the origin.
-      const dir = new THREE.Vector3(0.45, 0.28, 1).normalize();
+      const dist = (fitDim / 2 / Math.tan(fov / 2)) * 1.85;
+      // Gentle 3/4: mostly front-on (palm to viewer), a little from the right and
+      // slightly above. Camera sits on +Z so the palm normal (+Z) faces it.
+      const dir = new THREE.Vector3(0.32, 0.16, 1).normalize();
       camera.position.copy(dir.multiplyScalar(dist));
       camera.lookAt(0, 0, 0);
       camera.near = dist / 100;
@@ -268,6 +320,8 @@ export default function Hand3D() {
           const g = new THREE.Group();
           applyTransform(g, bodyEl);
           parentGroup.add(g);
+          const bodyName = bodyEl.getAttribute("name");
+          if (bodyName) namedGroups[bodyName] = g;
 
           for (const child of bodyEl.children) {
             if (child.tagName === "joint") {
@@ -286,6 +340,10 @@ export default function Hand3D() {
               // Only visual link meshes: skip collision/tendon helper geoms.
               // Tendon-viz meshes carry a `group` attr; skip those.
               if (!meshName || child.getAttribute("group")) continue;
+              // Skip the industrial mounting bracket — it's the robot-arm adapter,
+              // not the hand. Hiding it makes the hand the hero (design principle:
+              // "product is the hero"). The real hand frame is mesh right_frame_link.
+              if (meshName === "tetheria_mount") continue;
               const file = meshFiles[meshName];
               if (!file) continue;
               pending++;
@@ -304,11 +362,11 @@ export default function Hand3D() {
                   applyTransform(skin, geomEl);
                   skin.renderOrder = 1;
                   g.add(skin);
-                  if (pending === 0) { frameCamera(); }
+                  if (pending === 0) { orientHand(); frameCamera(); }
                   render();
                 },
                 undefined,
-                () => { pending--; if (pending === 0) { frameCamera(); render(); } }
+                () => { pending--; if (pending === 0) { orientHand(); frameCamera(); render(); } }
               );
             } else if (child.tagName === "body") {
               walk(child, g);

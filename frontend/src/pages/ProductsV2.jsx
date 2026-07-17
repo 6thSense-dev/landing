@@ -15,11 +15,21 @@ const USE_GL_AURORA = (() => {
   return q.has("gl") || q.get("aurora") === "gl";
 })();
 
-// Phase 3a feature flag: opt-in static 3D Aero-hand render on the Hand scene via
-// ?v2&hand3d. Off by default, so the Hand scene keeps the robo.webp image.
+// Phase 3-polish: the animated 3D Aero-hand is now the DEFAULT on the Hand scene
+// (fingers-up, palm-to-viewer, framed as the hero, with the async tactile-skin
+// dissolve). Graceful fallback: if WebGL is unavailable we keep the robo.webp
+// image, and `?v2&nohand3d` forces the image explicitly. (`?hand3d` still works
+// as a no-op opt-in for back-compat.)
 const USE_HAND3D = (() => {
   if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).has("hand3d");
+  const q = new URLSearchParams(window.location.search);
+  if (q.has("nohand3d")) return false;
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+  } catch {
+    return false;
+  }
 })();
 
 /**
