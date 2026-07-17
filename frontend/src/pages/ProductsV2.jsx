@@ -71,10 +71,13 @@ const STAGES = [
     idx: "02 · Eye2", title: "Eye2",
     line: "The egocentric camera that sees what the hand feels. First-person video, synced to touch.",
     img: "/eye2-dark.png", cta: "Request a demo",
-    // Specs aligned to the vetted live copy in seo/pages.js (/product/rig):
-    // "Global-shutter stereo at 4000×1200, 60 fps MJPEG — 1/2.6″ sensor, over USB 3.0."
-    // (was 30fps/Wireless — both invented overnight and contradicted the SEO copy.)
-    stats: [["4000×1200", "stereo capture"], ["60fps", "global shutter"], ["RGB + depth", "per frame"], ["USB 3.0", "wired"]],
+    // Verified against the 6thSense-authored Eye2 spec sheet (Drive: 01 Product &
+    // Hardware/Eye/Spec Sheets/_6thSense Camera Spec Sheet (Custom Order).pdf).
+    // Eye2 is the WIRELESS variant: 4000×1200 global-shutter stereo @30fps, H.264
+    // via onboard encoder, WiFi streaming, onboard compute (no Jetson) + microSD.
+    // NOTE: 60fps / USB 3.0 is the WIRED Eye1 — do NOT use those here (the SEO
+    // /product/rig copy conflates them; that's a separate fix on the live site).
+    stats: [["4000×1200", "stereo capture"], ["30fps", "global shutter"], ["Wireless", "WiFi streaming"], ["Onboard", "compute + microSD"]],
   },
   {
     idx: "03 · Hand", title: "Hand",
