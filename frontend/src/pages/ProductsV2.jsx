@@ -80,7 +80,13 @@ const STAGES = [
     idx: "03 · Hand", title: "Hand",
     line: "Custom tactile skin, molded 1:1 to a dexterous hand, a gripper, any surface you build.",
     img: "/hero/glove/robo.webp", cta: "Build with us",
-    stats: [["162", "sensing points"], ["200k", "impacts at 3MPa"], ["Any", "robot, custom-cut"]],
+    // NOTE: the previous "162 sensing points" / "200k impacts at 3MPa" came from a
+    // SUPPLIER datasheet (JQ Industries / 矩侨), NOT a 6thSense product — removed.
+    // These are our own vetted skin specs (seo/pages.js /product/skin): the robot
+    // skin is the same tactile-sensing family as the glove, molded per surface.
+    // TODO(ronak): if we have real 6thSense robot-skin figures (point count,
+    // durability), swap them in — pending the Drive audit for an owned spec doc.
+    stats: [["16-bit", "pressure sensing"], ["<1ms", "response"], ["~200Hz", "sustained"], ["Any surface", "custom-cut"]],
   },
 ];
 
