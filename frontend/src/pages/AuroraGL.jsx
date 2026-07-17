@@ -12,7 +12,7 @@ import * as THREE from "three";
  *
  * The CPU still owns the cheap part (14 blob transforms + hue + push easing) so
  * the look matches the Canvas2D version pixel-for-pixel. It reuses the exact
- * same `.aurora-canvas` CSS (fixed, behind content, blur(30px)) as the fallback.
+ * shared `.aurora-bg` CSS (fixed, behind content, blur(30px)) as the fallback.
  *
  * Feature-flagged in ProductsV2 (Canvas2D remains the default fallback).
  */
@@ -182,5 +182,5 @@ export default function AuroraGL() {
     };
   }, []);
 
-  return <canvas className="aurora-canvas" ref={canvasRef} aria-hidden="true" />;
+  return <canvas className="aurora-bg" ref={canvasRef} aria-hidden="true" />;
 }
