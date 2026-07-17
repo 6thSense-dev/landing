@@ -40,6 +40,11 @@
   gap: 22px; filter: none; }
 .pv2 .eye2-img { width: 100%; height: min(72vh,680px); object-fit: contain;
   filter: drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
+/* The white CAD render is nearly pure #fff with no shading, so it reads as a flat
+   cutout. Knock brightness down + push contrast so the matte-white surfaces
+   separate and it looks like real plastic, not blown-out CGI. Light finish only. */
+.pv2 .eye2-img.light { filter: brightness(.9) contrast(1.14) saturate(1.05)
+  drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
 .pv2 .eye2-finish { display: inline-flex; align-items: center; gap: 12px; }
 .pv2 .eye2-finish-label { font: 600 10px/1 ui-monospace, monospace; letter-spacing: .2em;
   text-transform: uppercase; color: rgba(244,241,234,.45); }

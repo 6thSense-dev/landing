@@ -251,7 +251,7 @@ export default function ProductsV2() {
                 </div>
               : s.title === "Eye2"
               ? <div className="pimg eye2-cell">
-                  <img className="eye2-img"
+                  <img className={`eye2-img${eye2Light ? " light" : ""}`}
                     src={eye2Light ? "/eye2-hero.png" : "/eye2-dark.png"}
                     alt={`6thSense ${s.title}`} draggable="false"
                     loading="lazy" decoding="async" />

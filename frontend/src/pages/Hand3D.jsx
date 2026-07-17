@@ -121,7 +121,7 @@ export default function Hand3D({ onReady }) {
         // color, so the dissolving edge shimmers red/orange/amber with a band of
         // purple and occasional cool hits. uSat/uPurple are live-tunable knobs.
         uSat: { value: 0.82 },     // overall saturation of the glow (subtle when lower)
-        uPurple: { value: 1.0 },   // 0..1.5 weight on how much the purple band shows
+        uPurple: { value: 0.7 },   // 0..1.5 weight on the (rare) violet garnish — warm-first
         uCamPos: { value: new THREE.Vector3() },
       },
       vertexShader: `
@@ -160,22 +160,28 @@ export default function Hand3D({ onReady }) {
           if (a < 0.01) discard;
           float rim = smoothstep(edge, 0.0, abs(coord - uReveal)); // hot line at boundary
 
-          // ---- warm-biased aurora glow, built in layers so purple/cool actually
-          // show (a single noise field clusters near 0.5 and never reaches the
-          // accent bands, which is why it read as all-red before). --------------
-          // Base: warm sweep red -> orange -> amber, slow-drifting.
+          // ---- warm sunset-aurora glow, built in layers. Warm DOMINATES (red ->
+          // orange -> amber -> gold); rose/magenta is a warm secondary; violet is
+          // a rare garnish; teal a whisper. Each layer is driven by its own noise
+          // field so the accents appear in sparse patches, not everywhere. -------
+          // Base (~dominant): warm sweep red -> orange -> amber -> gold.
           float w1 = vnoise(vWorld * 5.0 + vec3(uTime * 0.06, 0.0, uTime * 0.04));
-          vec3 warm = hsv2rgb(vec3(mix(0.005, 0.095, w1), 0.90, 1.0));
-          // Purple blooms in patches from a 2nd, larger-scale field's upper range.
+          vec3 warm = hsv2rgb(vec3(mix(0.005, 0.11, w1), mix(0.95, 0.80, w1), 1.0));
+          // Rose / magenta-pink patches (still warm) — adds aurora richness.
           float w2 = vnoise(vWorld * 3.2 + vec3(37.0, uTime * 0.05, -uTime * 0.035));
-          float purpleAmt = smoothstep(0.42, 0.80, w2) * clamp(uPurple, 0.0, 1.5);
-          vec3 purple = hsv2rgb(vec3(0.78, 0.72, 0.96));
-          // Cool hits: rarer, from a 3rd field's top slice (cyan -> ice blue).
+          float roseAmt = smoothstep(0.55, 0.86, w2);
+          vec3 rose = hsv2rgb(vec3(0.95, 0.74, 0.98));
+          // Violet: only the top slice of w2, so it's a rare garnish (uPurple scales).
+          float purpleAmt = smoothstep(0.82, 0.97, w2) * clamp(uPurple, 0.0, 1.5);
+          vec3 purple = hsv2rgb(vec3(0.78, 0.66, 0.95));
+          // Teal whisper: rarest, from a 3rd field's very top slice.
           float w3 = vnoise(vWorld * 7.0 + vec3(-19.0, uTime * 0.09, 11.0));
-          float coolAmt = smoothstep(0.74, 0.95, w3);
-          vec3 cool = hsv2rgb(vec3(0.55, 0.55, 0.97));
-          vec3 edgeCol = mix(warm, purple, purpleAmt * 0.85);
-          edgeCol = mix(edgeCol, cool, coolAmt * 0.55);
+          float coolAmt = smoothstep(0.86, 0.98, w3);
+          vec3 cool = hsv2rgb(vec3(0.52, 0.50, 0.96));
+          vec3 edgeCol = warm;
+          edgeCol = mix(edgeCol, rose, roseAmt * 0.55);
+          edgeCol = mix(edgeCol, purple, purpleAmt * 0.70);
+          edgeCol = mix(edgeCol, cool, coolAmt * 0.40);
           // Overall saturation trim (uSat: lower = more muted).
           float luma = dot(edgeCol, vec3(0.299, 0.587, 0.114));
           edgeCol = clamp(mix(vec3(luma), edgeCol, clamp(uSat / 0.82, 0.0, 1.4)), 0.0, 1.0);
@@ -272,7 +278,7 @@ export default function Hand3D({ onReady }) {
       // clamp on width so a wide 3/4 can't overflow. Product-is-hero => tight-ish.
       const fitDim = Math.max(size.y, size.x * 1.1, size.z);
       const fov = (camera.fov * Math.PI) / 180;
-      const dist = (fitDim / 2 / Math.tan(fov / 2)) * 1.85;
+      const dist = (fitDim / 2 / Math.tan(fov / 2)) * 2.05; // pushed back a bit -> flatter perspective, less forward "zoom" at fist
       // Gentle 3/4: mostly front-on (palm to viewer), a little from the right and
       // slightly above. Camera sits on +Z so the palm normal (+Z) faces it.
       const dir = new THREE.Vector3(0.32, 0.16, 1).normalize();
@@ -303,11 +309,13 @@ export default function Hand3D({ onReady }) {
       return u * u * u * (u * (u * 6 - 15) + 10);
     };
     const FINGERS = ["index", "middle", "ring", "pinky"];
-    const MCP = 1.45, PIP = 1.55, TH = 1.2; // curl targets (rad), within 0..1.5708
-    const CYCLE = 6.2; // seconds per full power-on loop (open pause baked in)
+    // Slightly looser fist so the fingers don't punch toward the camera (palm
+    // faces the viewer, so a tight curl reads as a forward "zoom").
+    const MCP = 1.28, PIP = 1.34, TH = 1.1; // curl targets (rad), within 0..1.5708
+    const CYCLE = 10.0; // seconds per full power-on loop (slower, calmer motion)
     // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so
     // the tactile skin dissolving in is async from the hand's gesture.
-    const SKIN_CYCLE = 9.3;   // s per skin appear->hold->dissolve-out->pause loop
+    const SKIN_CYCLE = 14.0;  // s per skin appear->hold->dissolve-out->pause loop
     const SKIN_OFFSET = 3.1;  // s phase shift off the gesture clock
 
     const animate = (nowMs) => {
@@ -316,18 +324,19 @@ export default function Hand3D({ onReady }) {
       if (!started) return;
       const t = ((nowMs - startMs) / 1000) % CYCLE;
 
-      // Thumb leads: curls 0.35->1.05s, opens last 3.30->4.00s.
-      const thumb = smoother(0.35, 1.05, t) * (1 - smoother(3.3, 4.0, t));
+      // Thumb leads: curls 0.56->1.68s, opens last 5.28->6.40s (times stretched
+      // ~1.6x from the original so the motion itself is slower, not just paused).
+      const thumb = smoother(0.56, 1.68, t) * (1 - smoother(5.28, 6.4, t));
       setJoint("right_thumb_cmc_abd", thumb * 0.9);   // opposition (axis 0 1 0)
       setJoint("right_thumb_cmc_flex", thumb * 0.5);
       setJoint("right_thumb_mcp", thumb * TH);
       setJoint("right_thumb_ip", thumb * TH);          // ip coupled to mcp
 
       // Fingers curl together after the thumb, then open one-by-one (staggered).
-      const close = smoother(1.05, 1.85, t);
+      const close = smoother(1.68, 2.96, t);
       for (let i = 0; i < FINGERS.length; i++) {
-        const openStart = 2.7 + i * 0.18;
-        const curl = close * (1 - smoother(openStart, openStart + 0.6, t));
+        const openStart = 4.32 + i * 0.29;
+        const curl = close * (1 - smoother(openStart, openStart + 0.96, t));
         const f = FINGERS[i];
         setJoint(`right_${f}_mcp_flex`, curl * MCP);
         setJoint(`right_${f}_pip`, curl * PIP);
@@ -340,7 +349,8 @@ export default function Hand3D({ onReady }) {
       // Skin dissolve on its own async clock: dissolve IN, hold, dissolve OUT,
       // then a long pause with no skin (reveal reverses the same threshold).
       const st = ((nowMs - startMs) / 1000 + SKIN_OFFSET) % SKIN_CYCLE;
-      const reveal = smoother(0.0, 1.9, st) * (1.0 - smoother(5.0, 6.9, st));
+      // Slow sweep-on (3s), long hold, slow dissolve-off (3s), then a pause.
+      const reveal = smoother(0.0, 3.0, st) * (1.0 - smoother(9.0, 12.0, st));
       skinMaterial.uniforms.uReveal.value = reveal;
       skinMaterial.uniforms.uTime.value = (nowMs - startMs) / 1000;
       skinMaterial.uniforms.uCamPos.value.copy(camera.position);
