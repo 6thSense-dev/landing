@@ -92,7 +92,7 @@ export default function Hand3D({ onReady }) {
     // ---- Skin dissolve/warp overlay (Phase 3c) ------------------------------
     // A second shell mesh over every link (shares the same STL geometry) draped
     // in the 6thSense tactile "skin". A custom shader dissolves it in from the
-    // wrist upward via value-noise threshold, with an orange rim glow at the
+    // wrist upward via value-noise threshold, with a soft light-red rim glow at the
     // growing boundary and a slight normal-warp while forming. Driven by uReveal
     // on its OWN slow timer, offset from the gesture clock, so the skin appearing
     // and the hand's gesture are asynchronous. uReveal=0 => fully discarded, so
@@ -115,8 +115,8 @@ export default function Hand3D({ onReady }) {
         uTime: { value: 0.0 },
         uYMin: { value: -0.1 },
         uYMax: { value: 0.1 },
-        uColor: { value: new THREE.Color(0xd8663a) }, // muted 6S orange skin body
-        uEdge: { value: new THREE.Color(0xff7a2f) },  // bright rim at the growth line
+        uColor: { value: new THREE.Color(0x14090a) }, // near-black glove body, faint red tint
+        uEdge: { value: new THREE.Color(0xe06b6b) },  // soft light-red rim at the growth line
         uCamPos: { value: new THREE.Vector3() },
       },
       vertexShader: `
@@ -149,7 +149,7 @@ export default function Hand3D({ onReady }) {
           float rim = smoothstep(edge, 0.0, abs(coord - uReveal)); // hot line at boundary
           vec3 col = mix(uColor, uEdge, rim);
           float fres = pow(1.0 - max(dot(normalize(vNormalW), normalize(uCamPos - vWorld)), 0.0), 2.0);
-          col += uEdge * fres * 0.35 * a;          // fresnel gives the skin body some depth
+          col += uEdge * fres * 0.45 * a;          // soft red fresnel keeps the black silhouette readable
           gl_FragColor = vec4(col, a * (0.5 + rim * 0.5));
         }`,
     });
