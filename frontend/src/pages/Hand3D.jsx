@@ -72,6 +72,71 @@ export default function Hand3D() {
       color: 0x9aa2ad, metalness: 0.35, roughness: 0.55,
     });
 
+    // ---- Skin dissolve/warp overlay (Phase 3c) ------------------------------
+    // A second shell mesh over every link (shares the same STL geometry) draped
+    // in the 6thSense tactile "skin". A custom shader dissolves it in from the
+    // wrist upward via value-noise threshold, with an orange rim glow at the
+    // growing boundary and a slight normal-warp while forming. Driven by uReveal
+    // on its OWN slow timer, offset from the gesture clock, so the skin appearing
+    // and the hand's gesture are asynchronous. uReveal=0 => fully discarded, so
+    // the default metal hand is untouched when the skin is absent.
+    const GLSL_NOISE = `
+      float hash(vec3 p){ p=fract(p*0.3183099+0.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+      float vnoise(vec3 x){
+        vec3 i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f);
+        return mix(mix(mix(hash(i+vec3(0,0,0)),hash(i+vec3(1,0,0)),f.x),
+                       mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+                   mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),
+                       mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+      }`;
+    const skinMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.FrontSide,
+      uniforms: {
+        uReveal: { value: 0.0 },
+        uTime: { value: 0.0 },
+        uYMin: { value: -0.1 },
+        uYMax: { value: 0.1 },
+        uColor: { value: new THREE.Color(0xd8663a) }, // muted 6S orange skin body
+        uEdge: { value: new THREE.Color(0xff7a2f) },  // bright rim at the growth line
+        uCamPos: { value: new THREE.Vector3() },
+      },
+      vertexShader: `
+        ${GLSL_NOISE}
+        uniform float uReveal; uniform float uWarpTime;
+        varying vec3 vWorld; varying vec3 vNormalW;
+        void main(){
+          vec3 n = normalize(normal);
+          // constant tiny outset (avoid z-fight w/ the metal shell) + warp while forming
+          float warp = (1.0 - uReveal) * 0.004 * (vnoise(position * 34.0) - 0.5);
+          vec3 p = position + n * (0.0007 + warp);
+          vec4 wp = modelMatrix * vec4(p, 1.0);
+          vWorld = wp.xyz;
+          vNormalW = normalize(mat3(modelMatrix) * n);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }`,
+      fragmentShader: `
+        ${GLSL_NOISE}
+        uniform float uReveal; uniform float uTime;
+        uniform float uYMin; uniform float uYMax;
+        uniform vec3 uColor; uniform vec3 uEdge; uniform vec3 uCamPos;
+        varying vec3 vWorld; varying vec3 vNormalW;
+        void main(){
+          float g = clamp((vWorld.y - uYMin) / max(uYMax - uYMin, 1e-4), 0.0, 1.0);
+          float n = vnoise(vWorld * 55.0 + vec3(0.0, 0.0, uTime * 0.15));
+          float coord = g * 0.62 + n * 0.38;      // sweep from wrist up, broken by noise
+          float edge = 0.07;
+          float a = smoothstep(uReveal + edge, uReveal - edge, coord);
+          if (a < 0.01) discard;
+          float rim = smoothstep(edge, 0.0, abs(coord - uReveal)); // hot line at boundary
+          vec3 col = mix(uColor, uEdge, rim);
+          float fres = pow(1.0 - max(dot(normalize(vNormalW), normalize(uCamPos - vWorld)), 0.0), 2.0);
+          col += uEdge * fres * 0.35 * a;          // fresnel gives the skin body some depth
+          gl_FragColor = vec4(col, a * (0.5 + rim * 0.5));
+        }`,
+    });
+
     // rootGroup holds the raw MuJoCo tree; pivot orients it for presentation.
     const pivot = new THREE.Group();
     const rootGroup = new THREE.Group();
@@ -109,6 +174,10 @@ export default function Hand3D() {
       // Recenter the hand at the pivot origin (idempotent) so the idle yaw
       // spins it in place instead of orbiting it out of frame.
       rootGroup.position.sub(center);
+      // After recenter the world-Y range is symmetric about 0; feed it to the
+      // skin shader so the dissolve sweeps wrist -> fingertips.
+      skinMaterial.uniforms.uYMin.value = -size.y / 2;
+      skinMaterial.uniforms.uYMax.value = size.y / 2;
       const maxDim = Math.max(size.x, size.y, size.z);
       const fov = (camera.fov * Math.PI) / 180;
       const dist = (maxDim / 2 / Math.tan(fov / 2)) * 1.55;
@@ -143,6 +212,10 @@ export default function Hand3D() {
     const FINGERS = ["index", "middle", "ring", "pinky"];
     const MCP = 1.45, PIP = 1.55, TH = 1.2; // curl targets (rad), within 0..1.5708
     const CYCLE = 6.2; // seconds per full power-on loop (open pause baked in)
+    // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so
+    // the tactile skin dissolving in is async from the hand's gesture.
+    const SKIN_CYCLE = 9.3;   // s per skin appear->hold->dissolve-out->pause loop
+    const SKIN_OFFSET = 3.1;  // s phase shift off the gesture clock
 
     const animate = (nowMs) => {
       if (disposed) return;
@@ -170,6 +243,14 @@ export default function Hand3D() {
 
       // Slow calm idle yaw (in-place, since the hand is recentered).
       pivot.rotation.y = Math.sin(((nowMs - startMs) / 1000) * 0.25) * 0.22;
+
+      // Skin dissolve on its own async clock: dissolve IN, hold, dissolve OUT,
+      // then a long pause with no skin (reveal reverses the same threshold).
+      const st = ((nowMs - startMs) / 1000 + SKIN_OFFSET) % SKIN_CYCLE;
+      const reveal = smoother(0.0, 1.9, st) * (1.0 - smoother(5.0, 6.9, st));
+      skinMaterial.uniforms.uReveal.value = reveal;
+      skinMaterial.uniforms.uTime.value = (nowMs - startMs) / 1000;
+      skinMaterial.uniforms.uCamPos.value.copy(camera.position);
 
       renderer.render(scene, camera);
     };
@@ -218,6 +299,11 @@ export default function Hand3D() {
                   const mesh = new THREE.Mesh(bufGeo, material);
                   applyTransform(mesh, geomEl);
                   g.add(mesh);
+                  // Skin shell: same geometry + transform, drawn after the metal.
+                  const skin = new THREE.Mesh(bufGeo, skinMaterial);
+                  applyTransform(skin, geomEl);
+                  skin.renderOrder = 1;
+                  g.add(skin);
                   if (pending === 0) { frameCamera(); }
                   render();
                 },
@@ -263,6 +349,7 @@ export default function Hand3D() {
       if (rafId) cancelAnimationFrame(rafId);
       ro.disconnect();
       material.dispose();
+      skinMaterial.dispose();
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
       renderer.dispose();
       if (renderer.domElement.parentNode) {
