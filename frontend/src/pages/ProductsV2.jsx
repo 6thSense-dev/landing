@@ -20,19 +20,19 @@ const STAGES = [
   {
     idx: "01 · Skin", title: "Skin",
     line: "A data glove that feels. Every touch, recorded as force.",
-    img: "/hero/glove/frame-001.webp", glove: true,
+    img: "/hero/glove/frame-001.webp", glove: true, cta: "Talk to us",
     stats: [["440", "tactile channels"], ["0.01N", "resolution"], ["<1ms", "response"], ["200Hz", "sustained"]],
   },
   {
     idx: "02 · Eye2", title: "Eye2",
     line: "The egocentric camera that sees what the hand feels. First-person video, synced to touch.",
-    img: "/eye2-dark.png",
+    img: "/eye2-dark.png", cta: "Request a demo",
     stats: [["4000×1200", "stereo capture"], ["30fps", "global shutter"], ["Wireless", "onboard compute"], ["Printed", "enclosure"]],
   },
   {
     idx: "03 · Hand", title: "Hand",
     line: "Custom tactile skin, molded 1:1 to a dexterous hand, a gripper, any surface you build.",
-    img: "/hero/glove/robo.webp",
+    img: "/hero/glove/robo.webp", cta: "Build with us",
     stats: [["162", "sensing points"], ["200k", "impacts at 3MPa"], ["Any", "robot, custom-cut"]],
   },
 ];
@@ -203,7 +203,7 @@ export default function ProductsV2() {
                   <div className="stat" key={l}><b>{n}</b><span>{l}</span></div>
                 ))}
               </div>
-              <a className="cta" href="/#contact">Talk to us</a>
+              <a className="cta" href="/#contact">{s.cta}</a>
             </div>
             <img className="pimg" src={s.img} alt={`6thSense ${s.title}`}
               ref={s.glove ? gloveRef : undefined} draggable="false" />
@@ -211,7 +211,7 @@ export default function ProductsV2() {
         ))}
       </div>
 
-      <div className="hint">scroll ↓ &nbsp;·&nbsp; move your mouse through the aurora</div>
+      <div className="hint"><span className="hint-scroll">scroll ↓</span><span className="hint-mouse"> &nbsp;·&nbsp; move your mouse through the aurora</span></div>
     </div>
   );
 }
