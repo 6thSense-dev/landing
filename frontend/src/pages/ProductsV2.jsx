@@ -71,7 +71,10 @@ const STAGES = [
     idx: "02 · Eye2", title: "Eye2",
     line: "The egocentric camera that sees what the hand feels. First-person video, synced to touch.",
     img: "/eye2-dark.png", cta: "Request a demo",
-    stats: [["4000×1200", "stereo capture"], ["30fps", "global shutter"], ["Wireless", "onboard compute"], ["Printed", "enclosure"]],
+    // Specs aligned to the vetted live copy in seo/pages.js (/product/rig):
+    // "Global-shutter stereo at 4000×1200, 60 fps MJPEG — 1/2.6″ sensor, over USB 3.0."
+    // (was 30fps/Wireless — both invented overnight and contradicted the SEO copy.)
+    stats: [["4000×1200", "stereo capture"], ["60fps", "global shutter"], ["RGB + depth", "per frame"], ["USB 3.0", "wired"]],
   },
   {
     idx: "03 · Hand", title: "Hand",
