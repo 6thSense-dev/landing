@@ -26,6 +26,7 @@ import {
   credibilityPrinciples,
 } from "../src/homeNarrative.js";
 import { productPages } from "../src/seo/pages.js";
+import { legalPages } from "../src/seo/legal.js";
 
 const ORIGIN = "https://6thsense.dev";
 
@@ -70,7 +71,12 @@ function buildSeoHtml() {
 function buildPageSeoHtml(page) {
   const sections = page.sections
     .map((s) => {
-      const body = s.body ? `<p>${esc(s.body)}</p>` : "";
+      // `body` may be a string or an array of paragraphs (legal pages).
+      const body = s.body
+        ? (Array.isArray(s.body) ? s.body : [s.body])
+            .map((p) => `<p>${esc(p)}</p>`)
+            .join("")
+        : "";
       const items = s.items
         ? `<ul>${s.items.map((li) => `<li>${esc(li)}</li>`).join("")}</ul>`
         : "";
@@ -151,7 +157,7 @@ export function seoPrerenderPlugin() {
     writeBundle(options) {
       const outDir = options.dir || "dist";
       const baseHtml = readFileSync(join(outDir, "index.html"), "utf8");
-      for (const page of productPages) {
+      for (const page of [...productPages, ...legalPages]) {
         const rel = page.path.replace(/^\/+/, "");
         const dir = join(outDir, rel);
         mkdirSync(dir, { recursive: true });

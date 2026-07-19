@@ -247,6 +247,10 @@ export default function ProductsShowcase() {
 
         <footer className="ev-footer">
           <span>6thSense · tactile hardware for dexterous robotics</span>
+          <span className="ev-footer-legal">
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms</Link>
+          </span>
           <Link className="ev-footer-home" to="/">Skin · Hand · Eye2</Link>
         </footer>
       </div>

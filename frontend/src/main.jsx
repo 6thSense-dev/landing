@@ -31,6 +31,11 @@ const PeoplePage = lazy(() => import("./pages/PeoplePage.jsx"));
 const SkinTune = lazy(() => import("./pages/SkinTune.jsx"));
 const RoboShot = lazy(() => import("./pages/RoboShot.jsx"));
 
+// Legal pages (/privacy, /terms) — required public URLs for App Store + Google
+// Play submission. Data-driven from src/seo/legal.js with build-time crawlable
+// HTML variants (see scripts/seoPrerenderPlugin.js), same as the product pages.
+const LegalPage = lazy(() => import("./pages/LegalPage.jsx"));
+
 // Strip the build-time SEO prerender shell before client render so JS users
 // and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
 document.getElementById("seo-prerender")?.remove();
@@ -57,6 +62,8 @@ function AnimatedRoutes() {
         <Route path="/skin-tune" element={<PageTransition><SkinTune /></PageTransition>} />
         <Route path="/robo-shot" element={<PageTransition><RoboShot /></PageTransition>} />
         <Route path="/people" element={<PageTransition><PeoplePage /></PageTransition>} />
+        <Route path="/privacy" element={<PageTransition><LegalPage slug="/privacy" /></PageTransition>} />
+        <Route path="/terms" element={<PageTransition><LegalPage slug="/terms" /></PageTransition>} />
         <Route path="/*" element={<PageTransition><App /></PageTransition>} />
       </Routes>
     </AnimatePresence>
