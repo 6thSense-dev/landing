@@ -127,7 +127,7 @@ export const productPages = [
     kicker: "Hardware",
     title: "Egocentric Capture Rig for Robot Demonstration Data | 6thSense",
     description:
-      "The 6thSense egocentric rig records first-person RGB, per-frame depth, and IMU dynamics on one clock with touch — capturing what the demonstrator sees and does, aligned frame by frame.",
+      "The 6thSense egocentric rig records first-person RGB, stereo depth, and IMU dynamics on one clock with touch — capturing what the demonstrator sees and does, aligned frame by frame.",
     h1: "The egocentric rig.",
     intro:
       "First-person capture that records what the demonstrator sees and how they move — RGB, depth, and motion — on the same clock as touch.",
@@ -136,9 +136,9 @@ export const productPages = [
         h2: "What it captures",
         items: [
           "First-person RGB aligned to the demonstrator's view, with stable exposure for long runs.",
-          "Per-frame depth (RGB-D) for geometry, reach, and clutter around the hands.",
+          "Stereo depth recovered from disparity for geometry, reach, and clutter around the hands.",
           "IMU dynamics — acceleration, angular rates, and movement cues for inertia, rhythm, and effort.",
-          "Global-shutter stereo at 4000×1200, 60 fps MJPEG — 1/2.6″ sensor, 3.0 µm pixels, over USB 3.0.",
+          "Global-shutter stereo at 4000×1200 @ 30 fps — 1/2.6″ sensor, 3.0 µm pixels, wireless over WiFi with onboard compute and microSD.",
         ],
       },
       {
