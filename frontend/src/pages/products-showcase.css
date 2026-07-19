@@ -125,6 +125,18 @@
   color: var(--on-dark);
 }
 
+/* ---- footer legal links (Privacy / Terms) --------------------------- */
+.ev-footer-legal {
+  display: inline-flex;
+  gap: 1rem;
+}
+.ev-footer-legal a {
+  transition: color var(--ev-dur-short) var(--ev-ease-enter);
+}
+.ev-footer-legal a:hover {
+  color: var(--on-dark);
+}
+
 /* ---- Skin CSS render-slot placeholder (turntable ring) --------------- */
 .ev-skin-slot {
   position: relative;
