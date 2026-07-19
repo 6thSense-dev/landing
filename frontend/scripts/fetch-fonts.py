@@ -41,9 +41,19 @@ FONTSHARE = {
 KEEP_SUBSETS = {"latin", "latin-ext"}
 
 
-def curl(url, binary=False):
+def _curl_raw(url):
     r = subprocess.run(["curl", "-sSL", "-A", UA, url], capture_output=True)
-    return r.stdout if binary else r.stdout.decode("utf-8", "replace")
+    return r.stdout
+
+
+def curl_text(url):
+    """Fetch a URL and return the body as text (str)."""
+    return _curl_raw(url).decode("utf-8", "replace")
+
+
+def curl_bytes(url):
+    """Fetch a URL and return the raw body (bytes) — for binary assets like woff2."""
+    return _curl_raw(url)
 
 
 def slug(name):
@@ -52,7 +62,7 @@ def slug(name):
 
 def fetch_google(blocks_out, downloaded):
     for fam, url in GOOGLE.items():
-        css = curl(url)
+        css = curl_text(url)
         parts = re.split(r"(/\*\s*[\w-]+\s*\*/)", css)
         cur_subset = None
         for p in parts:
@@ -79,7 +89,7 @@ def fetch_google(blocks_out, downloaded):
                     f"{slug(fam)}-{weight_v}-"
                     f"{'ital' if 'italic' in style_v else 'norm'}-{cur_subset}-{h}.woff2"
                 )
-                open(os.path.join(OUT, fn), "wb").write(curl(src_url, binary=True))
+                open(os.path.join(OUT, fn), "wb").write(curl_bytes(src_url))
                 downloaded[src_url] = fn
                 print(f"  DL {fn}")
             unicode_m = re.search(r"unicode-range:\s*([^;]+);", block)
@@ -99,7 +109,7 @@ def fetch_google(blocks_out, downloaded):
 
 def fetch_fontshare(blocks_out):
     for fam, url in FONTSHARE.items():
-        css = curl(url)
+        css = curl_text(url)
         for b in re.split(r"(?=@font-face)", css):
             if "@font-face" not in b:
                 continue
@@ -109,9 +119,7 @@ def fetch_fontshare(blocks_out):
                 continue
             weight = w.group(1)
             fn = f"{slug(fam)}-{weight}-norm.woff2"
-            open(os.path.join(OUT, fn), "wb").write(
-                curl("https:" + u.group(1), binary=True)
-            )
+            open(os.path.join(OUT, fn), "wb").write(curl_bytes("https:" + u.group(1)))
             print(f"  DL {fn}")
             block = (
                 "@font-face {\n"
