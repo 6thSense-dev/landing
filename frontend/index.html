@@ -82,23 +82,13 @@
       }
     </script>
 
+    <!-- Fonts are self-hosted (no external requests). Critical display faces are
+         preloaded here; every other family/weight is declared via @font-face in
+         src/fonts.css (General Sans, Geist Mono, Fraunces, Newsreader, Outfit)
+         and src/scroll-hero.css (Heming, Chillax). Regenerate the vendored
+         woff2 files + src/fonts.css with scripts/fetch-fonts.py. -->
     <link rel="preload" href="/fonts/Heming-Variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/Chillax-Variable.woff2" as="font" type="font/woff2" crossorigin />
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
-    <!-- Evora direction (DESIGN.md): General Sans display+body via Fontshare,
-         Geist Mono for spec numbers via Google Fonts. TODO: self-host both
-         before production launch for performance. -->
-    <link
-      href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Outfit:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body>
     <div id="root"></div>

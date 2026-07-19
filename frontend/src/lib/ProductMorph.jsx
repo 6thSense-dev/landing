@@ -54,7 +54,10 @@ const STAGES = [
     side: "right",
     center: 0.84,
     stats: [],
-    chips: ["Egocentric mount", "RGB + depth", "Synced to touch", "Printed enclosure"],
+    // Eye2 is a GLOBAL-SHUTTER STEREO camera (4000×1200 @ 30fps, depth via stereo
+    // disparity) — not an RGB+depth sensor. Verified vs the 6thSense Eye2 spec sheet
+    // (gbrain: drive/ronak/02-product/02-camera/eye2/2026-07-15-spec-eye2-camera-wireless).
+    chips: ["Egocentric mount", "Global-shutter stereo", "Synced to touch", "Printed enclosure"],
     downloads: [
       { href: "/eye2-main-frame.stl", label: "Main frame .stl" },
       { href: "/eye2-back-case.stl", label: "Back case .stl" },

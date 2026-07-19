@@ -5,6 +5,7 @@ import { AnimatePresence } from "framer-motion";
 
 import App from "./App";
 import PageTransition from "./PageTransition.jsx";
+import "./fonts.css"; // self-hosted @font-face (no external font requests)
 import "./styles.css";
 import "./scroll-hero.css";
 import "./portal/portal.css";

@@ -114,6 +114,12 @@ export default function ProductsShowcase() {
             <div className="ev-idx">01 · The Skin</div>
             <h2 className="ev-ptitle">Skin</h2>
             <p className="ev-oneliner">A data glove that feels. Every touch, recorded as force.</p>
+            {/*
+              Glove specs verified against the 6thSense-authored glove spec sheet
+              (gbrain: drive/ronak/02-product/01-glove/2026-07-06-spec-6thSense-tactile-glove-spec-sheet):
+              440 channels (20×22 grid), 16-bit (~0.01 N), <1 ms response, ~200 Hz
+              over USB-C / BLE 5.x, 6-axis IMU, device-side µs-monotonic timestamp.
+            */}
             <div className="ev-bignums">
               <div className="ev-bignum">
                 <span className="ev-bignum-n">440</span>
@@ -207,9 +213,17 @@ export default function ProductsShowcase() {
               The egocentric camera that sees what the hand feels. First-person
               video, synced to touch frame for frame.
             </p>
+            {/*
+              Eye2 specs verified against the 6thSense-authored Eye2 spec sheet
+              (gbrain: drive/ronak/02-product/02-camera/eye2/2026-07-15-spec-eye2-camera-wireless;
+              cross-checked with the Kosha stereo-camera sales agreement). Eye2 is
+              a GLOBAL-SHUTTER STEREO camera (4000×1200 @ 30fps, depth recovered
+              via stereo disparity) — NOT an RGB+depth sensor. The old "RGB + depth"
+              line implied a RealSense-style depth camera, which is wrong; replaced.
+            */}
             <ul className="ev-specs">
               <li>Egocentric mount</li>
-              <li>RGB + depth</li>
+              <li>Global-shutter stereo</li>
               <li>Synced to touch</li>
               <li>Printed enclosure</li>
             </ul>
