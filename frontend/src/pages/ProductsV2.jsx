@@ -65,18 +65,22 @@ const STAGES = [
     idx: "01 · Skin", title: "Skin",
     line: "A data glove that feels. Every touch, recorded as force.",
     img: "/hero/glove/frame-001.webp", glove: true, cta: "Talk to us",
+    // Verified against the 6thSense-authored glove spec sheet (gbrain:
+    // drive/ronak/02-product/01-glove/2026-07-06-spec-6thSense-tactile-glove-spec-sheet):
+    // 440 channels (20×22 grid), 16-bit (~0.01 N), <1 ms response, ~200 Hz.
     stats: [["440", "tactile channels"], ["0.01N", "resolution"], ["<1ms", "response"], ["200Hz", "sustained"]],
   },
   {
     idx: "02 · Eye2", title: "Eye2",
     line: "The egocentric camera that sees what the hand feels. First-person video, synced to touch.",
     img: "/eye2-dark.png", cta: "Request a demo",
-    // Verified against the 6thSense-authored Eye2 spec sheet (Drive: 01 Product &
-    // Hardware/Eye/Spec Sheets/_6thSense Camera Spec Sheet (Custom Order).pdf).
+    // Verified against the 6thSense-authored Eye2 spec sheet (gbrain:
+    // drive/ronak/02-product/02-camera/eye2/2026-07-15-spec-eye2-camera-wireless;
+    // cross-checked with the Kosha stereo-camera sales agreement).
     // Eye2 is the WIRELESS variant: 4000×1200 global-shutter stereo @30fps, H.264
-    // via onboard encoder, WiFi streaming, onboard compute (no Jetson) + microSD.
-    // NOTE: 60fps / USB 3.0 is the WIRED Eye1 — do NOT use those here (the SEO
-    // /product/rig copy conflates them; that's a separate fix on the live site).
+    // via onboard encoder, WiFi streaming, onboard compute (no Jetson) + microSD,
+    // 6-axis IMU. NOTE: 60fps / USB 3.0 / TDK-ICM42688P IMU is the WIRED Eye1 — do
+    // NOT use those here (gbrain: .../eye1/2026-07-04-spec-eye1-camera-spec-sheet-wired).
     stats: [["4000×1200", "stereo capture"], ["30fps", "global shutter"], ["Wireless", "WiFi streaming"], ["Onboard", "compute + microSD"]],
   },
   {
@@ -85,10 +89,13 @@ const STAGES = [
     img: "/hero/glove/robo.webp", cta: "Build with us",
     // NOTE: the previous "162 sensing points" / "200k impacts at 3MPa" came from a
     // SUPPLIER datasheet (JQ Industries / 矩侨), NOT a 6thSense product — removed.
-    // These are our own vetted skin specs (seo/pages.js /product/skin): the robot
-    // skin is the same tactile-sensing family as the glove, molded per surface.
-    // TODO(ronak): if we have real 6thSense robot-skin figures (point count,
-    // durability), swap them in — pending the Drive audit for an owned spec doc.
+    // [CONFIRM] (ronak): these numbers are DERIVED FROM THE GLOVE spec (16-bit,
+    // <1ms, ~200Hz — gbrain glove spec sheet 2026-07-06), on the premise that the
+    // robot skin is the SAME tactile-sensing family molded per surface. There is
+    // NO dedicated 6thSense ROBOT-SKIN spec sheet in gbrain to verify them against,
+    // so treat as provisional until an owned robot-skin spec doc exists. "16-bit
+    // pressure sensing" and "<1ms" are glove-verified; their applicability to the
+    // molded robot skin as a distinct product is unconfirmed.
     stats: [["16-bit", "pressure sensing"], ["<1ms", "response"], ["~200Hz", "sustained"], ["Any surface", "custom-cut"]],
   },
 ];
