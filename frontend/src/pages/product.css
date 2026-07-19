@@ -103,6 +103,14 @@
   margin: 0 0 1.5rem;
 }
 
+/* "Last updated …" line on legal pages (LegalPage.jsx), between h1 and intro. */
+.product-updated {
+  font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
+  font-size: 0.85rem;
+  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.6);
+  margin: -0.75rem 0 1.75rem;
+}
+
 .product-intro {
   font-size: clamp(1.15rem, 2.4vw, 1.4rem);
   line-height: 1.5;
