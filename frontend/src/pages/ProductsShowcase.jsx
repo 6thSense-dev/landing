@@ -15,7 +15,8 @@ import { TactileField } from "../TactileField.jsx";
 import ProductMorph from "../lib/ProductMorph.jsx";
 // One-shot fade+rise as each row scrolls into view (tasteful, non-hijacking).
 import Reveal from "../lib/Reveal.jsx";
-// v2: the new Apple-style scroll page (aurora + product scenes). /products?v2 only.
+// v2: the new Apple-style scroll page (aurora + product scenes). Now the DEFAULT
+// /products page; the legacy showcase in this file stays reachable via ?v1/?legacy.
 import ProductsV2 from "./ProductsV2.jsx";
 // Reuse the homepage's approved Evora stylesheet verbatim (all .ev-* classes
 // live there, scoped under .ev-home). This file only adds the small
@@ -51,10 +52,16 @@ function DownloadGlyph() {
 }
 
 export default function ProductsShowcase() {
-  // v2 preview: /products?v2 renders the new Apple-style scroll page. The query
+  // v2 is now the DEFAULT /products page (the Apple-style scroll page). The old
+  // showcase below is preserved and still reachable via /products?v1 (or ?legacy)
+  // so nothing is lost. ?v2 also still resolves to v2 for back-compat. The query
   // param is constant for this mount, so the early return is hook-safe.
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("v2")) {
-    return <ProductsV2 />;
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    const showLegacy = params.has("v1") || params.has("legacy");
+    if (!showLegacy) {
+      return <ProductsV2 />;
+    }
   }
   // Same floating flagship nav as the homepage (styles.css .nav-flagship).
   // No #story on this page, so useRevealNav keeps it always visible.
