@@ -66,6 +66,29 @@
 .pv2 .cta { display: inline-block; background: #F0612A; color: #111; font-weight: 600; font-size: 15px;
   padding: 13px 26px; border-radius: 999px; text-decoration: none; }
 
+/* CAD downloads (Eye2 scene) — restored from the old /products page. Sits under
+   the CTA; understated so it reads as a builder utility, not a second CTA. */
+.pv2 .downloads { margin-top: 22px; }
+.pv2 .dl-label { display: block; font: 600 10px/1 ui-monospace, monospace; letter-spacing: .2em;
+  text-transform: uppercase; color: rgba(244,241,234,.45); margin-bottom: 10px; }
+.pv2 .dl-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.pv2 .dl { display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+  color: rgba(244,241,234,.82); font-size: 13px; font-weight: 500;
+  border: 1px solid rgba(244,241,234,.22); border-radius: 999px; padding: 9px 16px;
+  transition: border-color .2s, color .2s, background .2s; }
+.pv2 .dl:hover { color: #f4f1ea; border-color: rgba(240,97,42,.7); background: rgba(240,97,42,.08); }
+.pv2 .dl svg { width: 15px; height: 15px; }
+
+/* Footer — restored from the old /products page: required legal links. */
+.pv2-footer { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 12px 28px; padding: 40px clamp(28px,6vw,96px) 48px;
+  border-top: 1px solid rgba(244,241,234,.1); color: rgba(244,241,234,.5);
+  font-size: 13px; }
+.pv2-footer-legal { display: inline-flex; gap: 20px; }
+.pv2-footer a { color: rgba(244,241,234,.6); text-decoration: none; transition: color .2s; }
+.pv2-footer a:hover { color: #F0612A; }
+.pv2-footer-home { font-weight: 600; }
+
 /* smooth transitions for the subtle light/dark scene tone */
 .pv2, .pv2 .brand, .pv2 .navlinks a, .pv2 .navcta, .pv2 .sidenav a, .pv2 .hint,
 .pv2 .idx, .pv2 h1, .pv2 .oneliner, .pv2 .stat b, .pv2 .stat span { transition: color .55s ease, border-color .55s ease; }

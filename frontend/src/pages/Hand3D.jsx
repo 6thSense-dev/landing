@@ -9,23 +9,30 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
  * MuJoCo MJCF (`/hand/right_hand.xml`) <body> tree into nested THREE.Groups and
  * parenting each link's STL mesh under its body.
  *
- * Phase 3b (this file): a looping "power-on" gesture. Every MJCF <joint> is a
- * hinge at pos 0 0 0, so we rotate that body's Group about the joint's local
- * axis. We record each joint group by name during the tree walk, then drive the
- * angles from a RAF clock with smootherstep easing:
- *   thumb curls first -> all fingers curl to a fist -> fingers open one-by-one
- *   (staggered) -> hold open -> pause -> loop. Plus a slow calm idle yaw.
+ * Phase 3b (this file): a looping GESTURE REPERTOIRE (not a single power-on
+ * sweep). Every MJCF <joint> is a hinge at pos 0 0 0, so we rotate that body's
+ * Group about the joint's local axis. We record each joint group by name during
+ * the tree walk, then drive the angles from a RAF clock with smootherstep easing
+ * through a sequence of distinct gestures:
+ *   fist -> finger wave/ripple (twice) -> point (index out) -> pinch (thumb+index)
+ *   -> open hold -> loop. Plus a calm two-directional yaw + gentle sway.
  * dip is coupled to pip and thumb_ip to thumb_mcp (natural tendon coupling).
  * 0 rad = fully open; positive angle = flexion/curl (MJCF range 0..1.5708).
- * (3c = skin warp — see tasks/products-v2-roadmap.md.)
  *
- * Feature-flagged: only mounted when the page is on `?v2&hand3d`. The default
- * Hand scene keeps the existing robo.webp image.
+ * COVER / branding (licensing): the raw model is a third-party CAD hand, so we do
+ * NOT render its bare metal. The base material is our own dark, matte 6thSense
+ * tactile-skin surface, and the animated fire-glow shell (Phase 3c below) drapes
+ * live "tactile sensing" over it — so the render reads as OUR molded robot-skin
+ * product (the Hand: "custom tactile skin molded 1:1 to a dexterous hand"),
+ * not a generic/third-party hand. If we ever want a fully abstract silhouette
+ * instead, swap the STL meshes for a stylized proxy form here.
  *
- * Attribution: the hand model is the "Tetheria Aero Hand" (right, open) from the
- * Google DeepMind MuJoCo Menagerie (https://github.com/google-deepmind/mujoco_menagerie),
- * licensed under Apache-2.0. The MJCF + STL assets live in /public/hand.
- * A copy of the Apache-2.0 license terms applies to those redistributed assets.
+ * Attribution: the underlying geometry is the "Tetheria Aero Hand" (right, open)
+ * from the Google DeepMind MuJoCo Menagerie
+ * (https://github.com/google-deepmind/mujoco_menagerie), licensed under
+ * Apache-2.0. The MJCF + STL assets live in /public/hand. A copy of the
+ * Apache-2.0 license terms applies to those redistributed assets. We re-skin it
+ * entirely (above) so it presents as the 6thSense product, not the source model.
  */
 
 // MuJoCo stores rotations as quaternion (w, x, y, z). three.js wants (x, y, z, w).
@@ -94,8 +101,16 @@ export default function Hand3D({ onReady }) {
     fill.position.set(-0.8, 0.2, -0.4);
     scene.add(fill);
 
+    // Base material: a dark, matte 6thSense tactile-skin surface (NOT the model's
+    // bare metal) so the rendered hand reads as OUR molded robot skin — the actual
+    // Hand product — rather than a third-party CAD hand. The animated fire-glow
+    // skin shell below layers live "tactile sensing" on top of this.
     const material = new THREE.MeshStandardMaterial({
-      color: 0x9aa2ad, metalness: 0.35, roughness: 0.55,
+      color: 0x0e0d0a,        // 6thSense dark ground
+      metalness: 0.18,
+      roughness: 0.78,
+      emissive: 0x1c0b03,     // faint warm underglow -> reads as active skin, not flat plastic
+      emissiveIntensity: 0.6,
     });
 
     // ---- Skin dissolve/warp overlay (Phase 3c) ------------------------------
@@ -322,51 +337,76 @@ export default function Hand3D({ onReady }) {
       u = u < 0 ? 0 : u > 1 ? 1 : u;
       return u * u * u * (u * (u * 6 - 15) + 10);
     };
-    const FINGERS = ["index", "middle", "ring", "pinky"];
-    // Slightly looser fist so the fingers don't punch toward the camera (palm
-    // faces the viewer, so a tight curl reads as a forward "zoom").
-    const MCP = 1.28, PIP = 1.34, TH = 1.1; // curl targets (rad), within 0..1.5708
-    const CYCLE = 10.0; // seconds per full power-on loop (slower, calmer motion)
-    // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so
-    // the tactile skin dissolving in is async from the hand's gesture.
-    const SKIN_CYCLE = 7.5;   // s per skin appear->hold->dissolve-out->pause loop
-    const SKIN_OFFSET = 3.1;  // s phase shift off the gesture clock
+    const FINGERS = ["index", "middle", "ring", "pinky"]; // i=0 is index
+    // Curl targets (rad), within the MJCF 0..1.5708 range. Slightly looser fist so
+    // the fingers don't punch toward the camera (palm faces the viewer, so a tight
+    // curl reads as a forward "zoom").
+    const MCP = 1.28, PIP = 1.34, TH = 1.1;
+    // One long loop that runs through a REPERTOIRE of distinct gestures instead of
+    // a single power-on sweep, so the hand "does a bunch of different stuff":
+    //   fist -> finger wave/ripple (x2) -> point -> pinch -> open hold -> loop.
+    // Each phase reuses the same joint driver; only transforms + opacity animate.
+    const CYCLE = 26.0;
+    // Skin reveal runs on its OWN clock (coprime-ish period + phase offset) so the
+    // tactile-skin dissolve is async from the gesture, and it holds ON for most of
+    // the loop so the hand reads as OUR molded skin the whole time.
+    const SKIN_CYCLE = 8.5;
+    const SKIN_OFFSET = 2.3;
+
+    const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 
     const animate = (nowMs) => {
       if (disposed) return;
       rafId = requestAnimationFrame(animate);
       if (!started) return;
-      const t = ((nowMs - startMs) / 1000) % CYCLE;
+      const tg = (nowMs - startMs) / 1000;
+      const t = tg % CYCLE;
+      // pulse(a,b,c,d): ease 0->1 over [a,b], hold, ease 1->0 over [c,d].
+      const pulse = (a, b, c, d) => smoother(a, b, t) * (1 - smoother(c, d, t));
 
-      // Thumb leads: curls 0.56->1.68s, opens last 5.28->6.40s (times stretched
-      // ~1.6x from the original so the motion itself is slower, not just paused).
-      const thumb = smoother(0.56, 1.68, t) * (1 - smoother(5.28, 6.4, t));
-      setJoint("right_thumb_cmc_abd", thumb * 0.9);   // opposition (axis 0 1 0)
+      // ---- Gesture repertoire (times in seconds within CYCLE) ------------------
+      // A. Power-on fist (whole hand curls, then releases).
+      const fist = pulse(0.6, 2.2, 4.0, 5.6);
+      // B. Finger wave: a ripple down index->pinky, twice, for a "drum" feel.
+      const wave = (i) =>
+        pulse(6.4 + i * 0.5, 7.0 + i * 0.5, 7.6 + i * 0.5, 8.2 + i * 0.5) +
+        pulse(9.2 + i * 0.5, 9.8 + i * 0.5, 10.4 + i * 0.5, 11.0 + i * 0.5);
+      // C. Point: index stays extended while the other fingers + thumb curl in.
+      const point = pulse(12.6, 13.6, 15.8, 16.8);
+      // D. Pinch: thumb + index come together, the rest stay relaxed.
+      const pinch = pulse(18.0, 19.0, 20.8, 21.8);
+      // (22.0..CYCLE: fully open, calm hold before the loop restarts.)
+
+      // Thumb: opposes for the fist and pinch; tucks under for the point.
+      const thumb = clamp01(fist + pinch * 0.95 + point * 0.7);
+      setJoint("right_thumb_cmc_abd", (fist * 0.9 + pinch * 0.75) * 0.9); // opposition
       setJoint("right_thumb_cmc_flex", thumb * 0.5);
       setJoint("right_thumb_mcp", thumb * TH);
-      setJoint("right_thumb_ip", thumb * TH);          // ip coupled to mcp
+      setJoint("right_thumb_ip", thumb * TH); // ip coupled to mcp
 
-      // Fingers curl together after the thumb, then open one-by-one (staggered).
-      const close = smoother(1.68, 2.96, t);
       for (let i = 0; i < FINGERS.length; i++) {
-        const openStart = 4.32 + i * 0.29;
-        const curl = close * (1 - smoother(openStart, openStart + 0.96, t));
+        let curl = fist + wave(i);
+        if (i === 0) curl += pinch; // index pinches with the thumb
+        else curl += point;         // middle/ring/pinky curl for the point
+        curl = clamp01(curl);
         const f = FINGERS[i];
         setJoint(`right_${f}_mcp_flex`, curl * MCP);
         setJoint(`right_${f}_pip`, curl * PIP);
-        setJoint(`right_${f}_dip`, curl * PIP);        // dip coupled to pip
+        setJoint(`right_${f}_dip`, curl * PIP); // dip coupled to pip
       }
 
-      // Slow calm idle yaw (in-place, since the hand is recentered).
-      pivot.rotation.y = Math.sin(((nowMs - startMs) / 1000) * 0.25) * 0.22;
+      // Camera: a calm two-directional yaw plus a gentle sway, so the view keeps
+      // moving without ever orbiting the hand out of frame (it's recentered).
+      pivot.rotation.y = Math.sin(tg * 0.22) * 0.26 + Math.sin(tg * 0.07) * 0.10;
+      pivot.rotation.z = Math.sin(tg * 0.13) * 0.035;
 
-      // Skin dissolve on its own async clock: dissolve IN, hold, dissolve OUT,
-      // then a long pause with no skin (reveal reverses the same threshold).
-      const st = ((nowMs - startMs) / 1000 + SKIN_OFFSET) % SKIN_CYCLE;
-      // 2.5s sweep-on, brief hold, 2.5s dissolve-off, short pause.
-      const reveal = smoother(0.0, 2.5, st) * (1.0 - smoother(4.0, 6.5, st));
+      // Tactile skin: dissolve IN, hold ON for most of the loop, dissolve OUT, then
+      // a brief pause. The base material is already our dark molded skin, so even
+      // mid-dissolve the hand never reads as the bare third-party model.
+      const st = (tg + SKIN_OFFSET) % SKIN_CYCLE;
+      const reveal = smoother(0.0, 2.0, st) * (1.0 - smoother(6.6, 8.1, st));
       skinMaterial.uniforms.uReveal.value = reveal;
-      skinMaterial.uniforms.uTime.value = (nowMs - startMs) / 1000;
+      skinMaterial.uniforms.uTime.value = tg;
       skinMaterial.uniforms.uCamPos.value.copy(camera.position);
 
       renderer.render(scene, camera);
