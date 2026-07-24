@@ -58,25 +58,12 @@ const STAGES = [
     // disparity) — not an RGB+depth sensor. Verified vs the 6thSense Eye2 spec sheet
     // (gbrain: drive/ronak/02-product/02-camera/eye2/2026-07-15-spec-eye2-camera-wireless).
     chips: ["Egocentric mount", "Global-shutter stereo", "Synced to touch", "Printed enclosure"],
-    downloads: [
-      { href: "/eye2-main-frame.stl", label: "Main frame .stl" },
-      { href: "/eye2-back-case.stl", label: "Back case .stl" },
-    ],
   },
 ];
 
 // Neighbouring stages overlap across a 2*CW window centred on the midpoint
 // between them, so there is never an empty frame.
 const CW = 0.1;
-
-function DownloadGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 20h16" />
-    </svg>
-  );
-}
 
 function Stage({ stage, progress, prevCenter, nextCenter, reduce, isFirst, isLast }) {
   const { center, side } = stage;
@@ -130,19 +117,6 @@ function Stage({ stage, progress, prevCenter, nextCenter, reduce, isFirst, isLas
         <div className="pm-actions">
           <a className="ev-pill ev-solid" href="/#contact">Talk to us</a>
         </div>
-
-        {stage.downloads?.length > 0 && (
-          <div className="pm-dls">
-            <span className="pm-dl-label">Download the enclosure (CAD)</span>
-            <div className="pm-dl-row">
-              {stage.downloads.map((d) => (
-                <a className="pm-dl" href={d.href} download key={d.href}>
-                  <DownloadGlyph /> {d.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
       </motion.div>
     </div>
   );

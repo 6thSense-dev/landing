@@ -39,18 +39,6 @@ import "./products-showcase.css";
  * "a dexterous hand". No AI-generated product photos.
  */
 
-/** Small inline download glyph (no icon-lib import needed) for the CAD links. */
-function DownloadGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12" />
-      <path d="M7 11l5 5 5-5" />
-      <path d="M4 20h16" />
-    </svg>
-  );
-}
-
 export default function ProductsShowcase() {
   // v2 is now the DEFAULT /products page (the Apple-style scroll page). The old
   // showcase below is preserved and still reachable via /products?v1 (or ?legacy)
@@ -236,18 +224,6 @@ export default function ProductsShowcase() {
             </ul>
             <div className="ev-actions">
               <a className="ev-pill ev-solid" href="/#contact">Talk to us</a>
-            </div>
-            {/* Raw CAD download: the two printed enclosure halves as .stl. */}
-            <div className="ev-downloads">
-              <span className="ev-dl-label">Download the enclosure (CAD)</span>
-              <div className="ev-dl-row">
-                <a className="ev-dl" href="/eye2-main-frame.stl" download>
-                  <DownloadGlyph /> Main frame .stl
-                </a>
-                <a className="ev-dl" href="/eye2-back-case.stl" download>
-                  <DownloadGlyph /> Back case .stl
-                </a>
-              </div>
             </div>
           </div>
         </Reveal>
