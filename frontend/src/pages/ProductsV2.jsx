@@ -83,12 +83,6 @@ const STAGES = [
     // 6-axis IMU. NOTE: 60fps / USB 3.0 / TDK-ICM42688P IMU is the WIRED Eye1 — do
     // NOT use those here (gbrain: .../eye1/2026-07-04-spec-eye1-camera-spec-sheet-wired).
     stats: [["4000×1200", "stereo capture"], ["30fps", "global shutter"], ["Wireless", "WiFi streaming"], ["Onboard", "compute + microSD"]],
-    // Raw CAD download: the two printed enclosure halves as .stl (assets live in
-    // public/). Restored from the old /products page so builders can print a rig.
-    downloads: [
-      { href: "/eye2-main-frame.stl", label: "Main frame .stl" },
-      { href: "/eye2-back-case.stl", label: "Back case .stl" },
-    ],
   },
   {
     idx: "03 · Hand", title: "Hand",
@@ -108,16 +102,6 @@ const STAGES = [
 ];
 
 const GLOVE_FRAMES = ["000", "001", "002", "003", "004", "005"].map((n) => `/hero/glove/frame-${n}.webp`);
-
-/** Small inline download glyph (no icon-lib import) for the CAD links. */
-function DownloadGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 20h16" />
-    </svg>
-  );
-}
 
 export default function ProductsV2() {
   const rootRef = useRef(null);
@@ -261,18 +245,6 @@ export default function ProductsV2() {
                 ))}
               </div>
               <a className="cta" href="/#contact">{s.cta}</a>
-              {s.downloads?.length > 0 && (
-                <div className="downloads">
-                  <span className="dl-label">Download the enclosure (CAD)</span>
-                  <div className="dl-row">
-                    {s.downloads.map((d) => (
-                      <a className="dl" href={d.href} download key={d.href}>
-                        <DownloadGlyph /> {d.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
             {USE_HAND3D && s.title === "Hand"
               ? <div className="pimg hand3d">
