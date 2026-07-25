@@ -31,6 +31,11 @@ const PeoplePage = lazy(() => import("./pages/PeoplePage.jsx"));
 const SkinTune = lazy(() => import("./pages/SkinTune.jsx"));
 const RoboShot = lazy(() => import("./pages/RoboShot.jsx"));
 
+// UNLISTED hardware guide (/gloves/setup) — reached via the QR code shipped
+// with the glove. Intentionally not in the nav, sitemap, or SEO prerender;
+// the page injects a robots noindex tag itself.
+const GloveSetupPage = lazy(() => import("./pages/GloveSetupPage.jsx"));
+
 // Legal pages (/privacy, /terms) — required public URLs for App Store + Google
 // Play submission. Data-driven from src/seo/legal.js with build-time crawlable
 // HTML variants (see scripts/seoPrerenderPlugin.js), same as the product pages.
@@ -62,6 +67,7 @@ function AnimatedRoutes() {
         <Route path="/skin-tune" element={<PageTransition><SkinTune /></PageTransition>} />
         <Route path="/robo-shot" element={<PageTransition><RoboShot /></PageTransition>} />
         <Route path="/people" element={<PageTransition><PeoplePage /></PageTransition>} />
+        <Route path="/gloves/setup" element={<PageTransition><GloveSetupPage /></PageTransition>} />
         <Route path="/privacy" element={<PageTransition><LegalPage slug="/privacy" /></PageTransition>} />
         <Route path="/terms" element={<PageTransition><LegalPage slug="/terms" /></PageTransition>} />
         <Route path="/*" element={<PageTransition><App /></PageTransition>} />
