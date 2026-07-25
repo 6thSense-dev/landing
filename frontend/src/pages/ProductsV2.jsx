@@ -4,6 +4,7 @@ import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
 import { useRevealNav } from "../useRevealNav.js";
+import { GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform } from "../lib/gloveAlign.js";
 import "./products-v2.css";
 
 // Hand3D pulls in three's STLLoader, the big skin-dissolve shaders, and (at
@@ -126,10 +127,12 @@ const STAGES = [
   },
 ];
 
-const GLOVE_FRAME_IDS = ["000", "001", "002", "003", "004", "005"];
+// Frame ids, URLs and per-frame corrective transforms all come from
+// lib/gloveAlign.js, so the live page and /glove-tune can never drift apart.
 // Fallback src for browsers without srcSet, and the identity of the frame the
 // crossfade is currently on. The ladder below is what actually gets fetched.
-const GLOVE_FRAMES = GLOVE_FRAME_IDS.map((n) => `/hero/glove/frame-${n}.webp`);
+const GLOVE_FRAMES = GLOVE_FRAME_IDS.map(gloveFrameSrc);
+const GLOVE_TRANSFORMS = GLOVE_FRAME_IDS.map(gloveFrameTransform);
 
 // Responsive ladder for the crossfade frames. Unlike the homepage, /products
 // paints the glove CONTAINED in a small box, so the 2752px source is heavily
@@ -290,11 +293,26 @@ export default function ProductsV2() {
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);
         const blend = fpos - base;
-        // srcset before src: both assignments re-run the browser's candidate
+        // Per-frame size/position correction rides along with the src swap, and
+        // only on change, so the compositor isn't handed a fresh matrix each tick.
+        // srcset BEFORE src: both assignments re-run the browser's candidate
         // selection, and setting src first would briefly select against the
         // PREVIOUS frame's ladder.
-        if (base !== gBase) { gBase = base; gloveARef.current.srcset = GLOVE_SRCSET[base]; gloveARef.current.src = GLOVE_FRAMES[base]; }
-        if (next !== gNext) { gNext = next; gloveBRef.current.srcset = GLOVE_SRCSET[next]; gloveBRef.current.src = GLOVE_FRAMES[next]; }
+        // Each layer carries its OWN correction, so a crossfade between two
+        // differently-scaled frames dissolves corrected->corrected. That is what
+        // removes the pulse; interpolating one shared transform would not.
+        if (base !== gBase) {
+          gBase = base;
+          gloveARef.current.srcset = GLOVE_SRCSET[base];
+          gloveARef.current.src = GLOVE_FRAMES[base];
+          gloveARef.current.style.transform = GLOVE_TRANSFORMS[base];
+        }
+        if (next !== gNext) {
+          gNext = next;
+          gloveBRef.current.srcset = GLOVE_SRCSET[next];
+          gloveBRef.current.src = GLOVE_FRAMES[next];
+          gloveBRef.current.style.transform = GLOVE_TRANSFORMS[next];
+        }
         gloveBRef.current.style.opacity = blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
@@ -363,11 +381,12 @@ export default function ProductsV2() {
                       lands, so the page fetches BOTH tiers and gets heavier. */}
                   <img className="glove-layer" ref={gloveARef}
                     srcSet={GLOVE_SRCSET[0]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[0]}
-                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async" />
+                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async"
+                    style={{ transform: GLOVE_TRANSFORMS[0] }} />
                   <img className="glove-layer" ref={gloveBRef}
                     srcSet={GLOVE_SRCSET[1]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[1]}
                     alt="" aria-hidden="true" draggable="false" loading="eager"
-                    decoding="async" style={{ opacity: 0 }} />
+                    decoding="async" style={{ opacity: 0, transform: GLOVE_TRANSFORMS[1] }} />
                 </div>
               : s.title === "Eye2"
               ? <div className="pimg eye2-cell">
