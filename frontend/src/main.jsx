@@ -31,6 +31,11 @@ const PeoplePage = lazy(() => import("./pages/PeoplePage.jsx"));
 const SkinTune = lazy(() => import("./pages/SkinTune.jsx"));
 const RoboShot = lazy(() => import("./pages/RoboShot.jsx"));
 
+// TEMPORARY: per-frame aligner for the glove flip-book (/glove-tune). Onion-skins
+// the other frames so a mis-framed one (the fist reads bigger) can be size-matched.
+// Remove this + the route below once the frames are locked in.
+const GloveTune = lazy(() => import("./pages/GloveTune.jsx"));
+
 // Legal pages (/privacy, /terms) — required public URLs for App Store + Google
 // Play submission. Data-driven from src/seo/legal.js with build-time crawlable
 // HTML variants (see scripts/seoPrerenderPlugin.js), same as the product pages.
@@ -60,6 +65,7 @@ function AnimatedRoutes() {
         <Route path="/product/rig" element={<PageTransition><ProductPage slug="/product/rig" /></PageTransition>} />
         <Route path="/products" element={<PageTransition><ProductsShowcase /></PageTransition>} />
         <Route path="/skin-tune" element={<PageTransition><SkinTune /></PageTransition>} />
+        <Route path="/glove-tune" element={<PageTransition><GloveTune /></PageTransition>} />
         <Route path="/robo-shot" element={<PageTransition><RoboShot /></PageTransition>} />
         <Route path="/people" element={<PageTransition><PeoplePage /></PageTransition>} />
         <Route path="/privacy" element={<PageTransition><LegalPage slug="/privacy" /></PageTransition>} />

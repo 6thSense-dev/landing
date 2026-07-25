@@ -5,6 +5,7 @@ import SiteNav from "../SiteNav.jsx";
 import AuroraGL from "./AuroraGL.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
 import { useRevealNav } from "../useRevealNav.js";
+import { GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform } from "../lib/gloveAlign.js";
 import "./products-v2.css";
 
 // Hand3D pulls in three's STLLoader, the big skin-dissolve shaders, and (at
@@ -101,7 +102,10 @@ const STAGES = [
   },
 ];
 
-const GLOVE_FRAMES = ["000", "001", "002", "003", "004", "005"].map((n) => `/hero/glove/frame-${n}.webp`);
+// Frame URLs + their per-frame corrective transforms both come from
+// lib/gloveAlign.js, so the live page and /glove-tune can never drift apart.
+const GLOVE_FRAMES = GLOVE_FRAME_IDS.map(gloveFrameSrc);
+const GLOVE_TRANSFORMS = GLOVE_FRAME_IDS.map(gloveFrameTransform);
 
 export default function ProductsV2() {
   const rootRef = useRef(null);
@@ -202,8 +206,18 @@ export default function ProductsV2() {
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);
         const blend = fpos - base;
-        if (base !== gBase) { gBase = base; gloveARef.current.src = GLOVE_FRAMES[base]; }
-        if (next !== gNext) { gNext = next; gloveBRef.current.src = GLOVE_FRAMES[next]; }
+        // Frame-specific size/position correction rides along with the src swap
+        // (only on change, so the compositor isn't handed a new matrix each tick).
+        if (base !== gBase) {
+          gBase = base;
+          gloveARef.current.src = GLOVE_FRAMES[base];
+          gloveARef.current.style.transform = GLOVE_TRANSFORMS[base];
+        }
+        if (next !== gNext) {
+          gNext = next;
+          gloveBRef.current.src = GLOVE_FRAMES[next];
+          gloveBRef.current.style.transform = GLOVE_TRANSFORMS[next];
+        }
         gloveBRef.current.style.opacity = blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
@@ -264,10 +278,11 @@ export default function ProductsV2() {
               ? <div className="pimg glove-stack">
                   {/* bottom = current frame (opaque); top = next frame crossfading in */}
                   <img className="glove-layer" ref={gloveARef} src={GLOVE_FRAMES[0]}
-                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async" />
+                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async"
+                    style={{ transform: GLOVE_TRANSFORMS[0] }} />
                   <img className="glove-layer" ref={gloveBRef} src={GLOVE_FRAMES[1]}
                     alt="" aria-hidden="true" draggable="false" loading="eager"
-                    decoding="async" style={{ opacity: 0 }} />
+                    decoding="async" style={{ opacity: 0, transform: GLOVE_TRANSFORMS[1] }} />
                 </div>
               : s.title === "Eye2"
               ? <div className="pimg eye2-cell">
