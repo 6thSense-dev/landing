@@ -184,14 +184,28 @@ export default function GloveSetupPage() {
     document.title = "Glove Setup & Connection | 6thSense";
 
     // Unlisted page: keep it out of search indexes even if the URL leaks.
-    const meta = document.createElement("meta");
-    meta.name = "robots";
+    //
+    // index.html ships a static `robots: index, follow`, so appending a second
+    // tag would leave two conflicting directives on this page. Crawlers do
+    // resolve that by taking the most restrictive, but this is the one page
+    // whose entire purpose depends on staying unlisted, so we don't lean on
+    // that rule: overwrite the existing tag and restore it on unmount, leaving
+    // exactly one robots tag at all times.
+    const existing = document.head.querySelector('meta[name="robots"]');
+    const prevRobots = existing ? existing.content : null;
+    const meta = existing || document.createElement("meta");
+    if (!existing) {
+      meta.name = "robots";
+      document.head.appendChild(meta);
+    }
     meta.content = "noindex, nofollow";
-    document.head.appendChild(meta);
 
     return () => {
       document.title = prevTitle;
-      meta.remove();
+      // Put the document back exactly as we found it: restore the original
+      // directive if there was one, otherwise remove the tag we added.
+      if (prevRobots === null) meta.remove();
+      else meta.content = prevRobots;
     };
   }, []);
 
