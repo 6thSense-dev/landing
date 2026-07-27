@@ -37,10 +37,10 @@ const steps = [
   {
     h2: "4. Verify the stream",
     body: [
-      "Open the device and read a frame. Every sample carries the raw tactile grid plus both clocks (host receive time and, on V1 gloves, the device's own microsecond clock).",
+      "Open the device and read a frame. Every sample carries the raw tactile grid, a sequence number, and the host receive time. Units whose firmware reports their own microsecond clock also populate device_ts_us; it reads None on units that don't, which is expected and not an error.",
     ],
     code:
-      "import sixthsense as ss\n\ndev = ss.open()\ntry:\n    frame = dev.read()\n    print(frame.host_recv_ts, frame.device_ts_us, frame.seq)\nfinally:\n    dev.close()",
+      "import sixthsense as ss\n\ndev = ss.open()\ntry:\n    frame = dev.read()\n    print(\"seq        \", frame.seq)\n    print(\"host_recv  \", frame.host_recv_ts)\n    print(\"device_ts  \", frame.device_ts_us)  # None if this unit has no device clock\nfinally:\n    dev.close()",
   },
   {
     h2: "5. Troubleshooting",
