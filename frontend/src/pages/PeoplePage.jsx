@@ -228,6 +228,7 @@ function Roster({ people, active, pinned, onSelect, onHover }) {
 
 export default function PeoplePage() {
   const bioRef = useRef(null);
+  const headingRef = useRef(null);
   const reduceMotion = useReducedMotion();
   const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
   const compact = useIsCompact();
@@ -282,12 +283,49 @@ export default function PeoplePage() {
   // Note also that extra top padding could never have fixed this: padding grows
   // the document and the max scroll offset by the same amount, so where the top
   // of the page lands after scrolling to the bottom is invariant.
+  // The heading has two clean resting states against the (opaque) nav pill: fully
+  // below it, or fully tucked behind it. In between, its ascenders get sliced by
+  // the pill's lower edge — the amputated look originally reported. A manual
+  // scroll can always stop mid-window and that is just normal scroll-under, but
+  // where the AUTOMATIC scroll lands is ours to choose, so land on a clean state:
+  // if the minimum scroll would stop mid-slice, and going all the way to the
+  // bottom tucks the heading cleanly, go there instead. Scrolling to the bottom
+  // always leaves the bio fully visible, so this costs nothing.
+  // Everything below is in ABSOLUTE document coordinates, never relative to the
+  // current scroll offset, so the effect is idempotent. Measuring relatively made
+  // it order-dependent: a second invocation (StrictMode double-invokes in dev, and
+  // any re-run with the page already scrolled does the same in production) would
+  // recompute from the moved page and undo its own snap.
   useEffect(() => {
     if (!compact || pinned == null || !bioRef.current) return;
-    bioRef.current.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "nearest",
-    });
+    const sy = window.scrollY;
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const bioBottomAbs = bioRef.current.getBoundingClientRect().bottom + sy;
+    let target = Math.max(0, Math.min(Math.ceil(bioBottomAbs - window.innerHeight + 8), max));
+
+    const head = headingRef.current;
+    const nav = document.querySelector('header[role="banner"]')?.getBoundingClientRect();
+    if (head && nav && max - target <= 140) {
+      const box = head.getBoundingClientRect();
+      const topAbs = box.top + sy;
+      const bottomAbs = box.bottom + sy;
+      // Clean means fully below the pill, or fully tucked behind it. Anything
+      // between slices the heading's ascenders on the pill's lower edge.
+      //
+      // EPS matters more than it looks: at max scroll the heading lands flush
+      // with the pill's lower edge to within 0.016px, and a strict comparison
+      // called that a slice and refused to snap. Sub-pixel slivers are not
+      // visible, so tolerate a couple of pixels either way.
+      const EPS = 2;
+      const clean = (at) => {
+        const top = topAbs - at;
+        const bottom = bottomAbs - at;
+        return top >= nav.bottom - EPS || (bottom <= nav.bottom + EPS && top >= nav.top - EPS);
+      };
+      if (!clean(target) && clean(max)) target = max;
+    }
+    if (Math.abs(target - sy) < 1) return;
+    window.scrollTo({ top: target, behavior: reduceMotion ? "auto" : "smooth" });
   }, [compact, pinned, reduceMotion]);
   const onHover = useCallback((i) => setHovered(i), []);
   const onLayout = useCallback((g) => setGeo(g), []);
@@ -314,7 +352,7 @@ export default function PeoplePage() {
         <SiteNav className={navClassName} />
 
         <header>
-          <h1 className="pv-title">The team</h1>
+          <h1 className="pv-title" ref={headingRef}>The team</h1>
           <p className="pv-hint pv-head-hint">
             <b>Tap a name</b> to reveal them
           </p>
