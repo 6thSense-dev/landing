@@ -55,8 +55,10 @@ const PER_FRAME_ZOOM = [0.75, 1.0, 1.0, 1.0, 1.0, 1.0];
 
 // Narrative beat → asset index. The hand transition plays asset frames in
 // this order: pointy, +middle, +ring, +pinky, +thumb / open palm. The fist
-// asset (index 0) is never painted but stays loaded as the wrist-cuff
-// alignment reference for tipYForFrame() on mobile.
+// asset (index 0) is never painted here, and is no longer even fetched — see
+// paintedIndices in scrollStages.js and the note on tipYForFrame().
+// Keep this in sync with paintedIndices: a beat pointing at an asset the
+// preloader was not told to fetch paints nothing.
 const BEAT_TO_ASSET = [1, 2, 3, 4, 5];
 
 // ── Mobile micro-tune knobs ────────────────────────────────────────────────
@@ -107,21 +109,28 @@ function computePaintRect(iw, ih, cw, ch, zoom, tipV, tipY) {
 // consistently across poses on phones (where the fist's cuff sits in view but
 // the taller extended-finger poses otherwise spill past the viewport bottom).
 // Returns the default tipY on desktop or for the fist itself.
-function tipYForFrame(idx, cw, ch, img, fistImg) {
+//
+// This needs the fist's PAINTED HEIGHT, not the fist's pixels. Every frame in a
+// tier is rendered on the same canvas (2752x1536 full, 1100x614 w1100), so the
+// fist's intrinsic size — and therefore its min(cw/iw, ch/ih) scale factor — is
+// the current frame's. The only thing that differs between the two is
+// PER_FRAME_ZOOM. So dhFist is derived from `img` and the fist frame itself
+// never has to be downloaded. If the frames ever stop sharing a canvas size,
+// this collapses and dhFist must go back to measuring frame 0 directly.
+function tipYForFrame(idx, cw, ch, img) {
   const defaultTipY = PER_FRAME_TIP_Y[idx] ?? 0.5;
   if (!isMobileViewport(cw)) return defaultTipY;
   // Honor explicit mobile overrides first. Only fall through to the
   // auto-alignment below when the override is null.
   if (idx === 0 && MOBILE_FIST_TIP_Y !== null) return MOBILE_FIST_TIP_Y;
   if (idx !== 0 && MOBILE_EXTENDED_TIP_Y !== null) return MOBILE_EXTENDED_TIP_Y;
-  if (idx === 0 || !img?.naturalWidth || !fistImg?.naturalWidth) {
+  if (idx === 0 || !img?.naturalWidth) {
     return defaultTipY;
   }
   const { zoomBase } = pivotsFor(cw);
-  const scaleFist = Math.min(cw / fistImg.naturalWidth, ch / fistImg.naturalHeight);
-  const scaleCur = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-  const dhFist = fistImg.naturalHeight * scaleFist * zoomBase * (PER_FRAME_ZOOM[0] ?? 1);
-  const dhCur = img.naturalHeight * scaleCur * zoomBase * (PER_FRAME_ZOOM[idx] ?? 1);
+  const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+  const dhFist = img.naturalHeight * scale * zoomBase * (PER_FRAME_ZOOM[0] ?? 1);
+  const dhCur = img.naturalHeight * scale * zoomBase * (PER_FRAME_ZOOM[idx] ?? 1);
   const tipVFist = PER_FRAME_TIP_V[0] ?? 0.1;
   const tipVCur = PER_FRAME_TIP_V[idx] ?? 0.042;
   const tipYFist = PER_FRAME_TIP_Y[0] ?? 0.58;
@@ -166,14 +175,14 @@ export function ScrollStage({ progressRef, heroRef }) {
       if (!frames) return;
       // Dots are measured in the open-hand frame (index 5) — publish its rect.
       const refIdx = 5;
-      const ref = frames[refIdx] ?? frames[0];
+      const ref = frames[refIdx];
       if (!ref || !ref.naturalWidth) return;
       const { zoomBase } = pivotsFor(w);
       const refZoom = zoomBase * (PER_FRAME_ZOOM[refIdx] ?? 1);
       const refTipV = PER_FRAME_TIP_V[refIdx] ?? 0.042;
       // Use the same mobile-adjusted tipY as the paint loop so the dots-at-
       // fingertips CSS vars track the shifted glove position.
-      const refTipY = tipYForFrame(refIdx, w, h, ref, frames[0]);
+      const refTipY = tipYForFrame(refIdx, w, h, ref);
       const { dx, dy, dw, dh } = computePaintRect(
         ref.naturalWidth, ref.naturalHeight, w, h, refZoom, refTipV, refTipY
       );
@@ -232,7 +241,7 @@ export function ScrollStage({ progressRef, heroRef }) {
           ctx, frames[assetIdx], cw, ch, 1,
           zoomFor(assetIdx),
           PER_FRAME_TIP_V[assetIdx] ?? 0.042,
-          tipYForFrame(assetIdx, cw, ch, frames[assetIdx], frames[0])
+          tipYForFrame(assetIdx, cw, ch, frames[assetIdx])
         );
       }
 
