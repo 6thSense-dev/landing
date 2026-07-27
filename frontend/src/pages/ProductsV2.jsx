@@ -42,10 +42,15 @@ const USE_GL_AURORA = (() => {
 // Graceful fallback: if WebGL is unavailable we keep the robo.webp image, and
 // `?v2&nohand3d` forces the image explicitly. (`?hand3d` still works as a no-op
 // opt-in for back-compat.)
+// Phones take the image path too: the 3D hand costs ~3MB of STL mesh (base_link
+// alone is 1.3MB) for a decorative render, which is most of the page weight on a
+// phone. Same graceful fallback, just triggered by viewport as well as by WebGL.
+const HAND3D_MIN_W = 720;
 const USE_HAND3D = (() => {
   if (typeof window === "undefined") return false;
   const q = new URLSearchParams(window.location.search);
   if (q.has("nohand3d")) return false;
+  if (window.innerWidth < HAND3D_MIN_W) return false;
   return hasWebGL();
 })();
 
