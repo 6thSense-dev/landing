@@ -22,7 +22,11 @@
 .pv2 .idx { font: 600 13px/1 ui-monospace, monospace; letter-spacing: .18em; color: #F0612A; text-transform: uppercase; }
 .pv2 h1 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: clamp(64px,9vw,150px); font-weight: 600; letter-spacing: -.035em; line-height: .92; margin: 12px 0 8px; }
-.pv2 .oneliner { font-size: clamp(16px,1.45vw,21px); color: rgba(244,241,234,.74); margin: 0 0 26px; line-height: 1.5; }
+/* Copy alpha is raised from .74: the aurora is a randomly-seeded animated
+   gradient, so at its brightest (measured mid purple/blue, ~rgb(90,80,140)) the
+   old value dropped body copy under WCAG AA. See the mobile `.copy` scrim below
+   for the other half of the fix. */
+.pv2 .oneliner { font-size: clamp(16px,1.45vw,21px); color: rgba(244,241,234,.92); margin: 0 0 26px; line-height: 1.5; }
 .pv2 .pimg { width: 100%; height: min(88vh,860px); object-fit: contain; filter: drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
 .pv2 .pimg.hand3d { filter: none; position: relative; }
 /* Skin glove: two stacked frame layers that crossfade (bottom = current frame at
@@ -47,13 +51,19 @@
   drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
 .pv2 .eye2-finish { display: inline-flex; align-items: center; gap: 12px; }
 .pv2 .eye2-finish-label { font: 600 10px/1 ui-monospace, monospace; letter-spacing: .2em;
-  text-transform: uppercase; color: rgba(244,241,234,.45); }
-.pv2 .eye2-finish .sw { appearance: none; padding: 0; cursor: pointer; width: 15px; height: 15px;
-  border-radius: 50%; border: 1px solid rgba(244,241,234,.35); transition: transform .2s, box-shadow .2s; }
-.pv2 .eye2-finish .sw-dark { background: #17171b; }
-.pv2 .eye2-finish .sw-light { background: #f4f1ea; }
-.pv2 .eye2-finish .sw:hover:not(.on) { transform: scale(1.15); }
-.pv2 .eye2-finish .sw.on { box-shadow: 0 0 0 3px rgba(240,97,42,.9); }
+  text-transform: uppercase; color: rgba(244,241,234,.78); }
+/* The visible dot lives on ::before, not on the button box, so the touch target
+   can grow to 44x44 on mobile (see the 880px query) while the dot stays ~15px. */
+.pv2 .eye2-finish .sw { appearance: none; padding: 0; cursor: pointer; background: none; border: 0;
+  width: 15px; height: 15px; flex: 0 0 auto; display: inline-flex; align-items: center;
+  justify-content: center; -webkit-tap-highlight-color: transparent; }
+.pv2 .eye2-finish .sw::before { content: ""; display: block; box-sizing: border-box;
+  width: 15px; height: 15px; border-radius: 50%; border: 1px solid rgba(244,241,234,.35);
+  transition: transform .2s, box-shadow .2s; }
+.pv2 .eye2-finish .sw-dark::before { background: #17171b; }
+.pv2 .eye2-finish .sw-light::before { background: #f4f1ea; }
+.pv2 .eye2-finish .sw:hover:not(.on)::before { transform: scale(1.15); }
+.pv2 .eye2-finish .sw.on::before { box-shadow: 0 0 0 3px rgba(240,97,42,.9); }
 /* robo.webp placeholder overlays the (transparent) 3D canvas until the model is
    loaded + rendered, so there's no empty gap while the ~4MB STL streams in. */
 .pv2 .hand3d-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 40px 90px rgba(0,0,0,.6)); }
@@ -62,7 +72,7 @@
 .pv2 .stats { display: grid; grid-template-columns: max-content max-content; gap: 20px 44px; margin: 0 0 28px; }
 .pv2 .stat { display: flex; flex-direction: column; gap: 6px; }
 .pv2 .stat b { font-size: clamp(26px,2.6vw,40px); font-weight: 600; color: #f4f1ea; line-height: 1; }
-.pv2 .stat span { font: 600 11px/1 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: rgba(244,241,234,.5); }
+.pv2 .stat span { font: 600 11px/1 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: rgba(244,241,234,.8); }
 .pv2 .cta { display: inline-block; background: #F0612A; color: #111; font-weight: 600; font-size: 15px;
   padding: 13px 26px; border-radius: 999px; text-decoration: none; }
 
@@ -70,7 +80,7 @@
    the CTA; understated so it reads as a builder utility, not a second CTA. */
 .pv2 .downloads { margin-top: 22px; }
 .pv2 .dl-label { display: block; font: 600 10px/1 ui-monospace, monospace; letter-spacing: .2em;
-  text-transform: uppercase; color: rgba(244,241,234,.45); margin-bottom: 10px; }
+  text-transform: uppercase; color: rgba(244,241,234,.78); margin-bottom: 10px; }
 .pv2 .dl-row { display: flex; flex-wrap: wrap; gap: 10px; }
 .pv2 .dl { display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
   color: rgba(244,241,234,.82); font-size: 13px; font-weight: 500;
@@ -126,15 +136,62 @@
   white-space: nowrap; }
 
 @media (max-width: 880px) {
-  .pv2 .scene { grid-template-columns: 1fr; gap: 8px; padding: 9vh 24px; justify-items: start; }
+  /* gap 8px -> 20px: the copy scrim needs room to fade out before it reaches the
+     product render above it (and, on the Eye2 scene, the finish swatches). */
+  .pv2 .scene { grid-template-columns: 1fr; gap: 20px; padding: 9vh 24px; justify-items: start; }
   .pv2 .pimg { order: -1; height: 46vh; }
-  .pv2 .eye2-cell { gap: 14px; }
-  .pv2 .eye2-img { height: 40vh; }
   .pv2 h1 { font-size: clamp(52px,15vw,88px); }
   .pv2 .copy { max-width: 100%; }
   .pv2 .sidenav { display: none; }
   .pv2 .navlinks a:not(.navcta) { display: none; }
   /* no mouse on touch devices — drop that instruction so the hint stays one clean line */
   .pv2 .hint-mouse { display: none; }
+
+  /* Legibility scrim. The aurora is randomly seeded per load and animates through
+     mid purple/blue, and on a ~390px viewport one blob can cover the whole copy
+     block — so text alpha alone can't guarantee AA. This bounds the background
+     behind the copy to a near-black regardless of the aurora state. It paints
+     under the copy's own content (`.copy` already makes a z-index:2 stacking
+     context) and above the aurora.
+     Two crossed linear fades, not a radial: the copy block is a tall rectangle,
+     and any radial big enough to cover its corners still had a visible hard cut
+     at the top and bottom edges. Crossed fades reach ~.90 combined in the middle
+     and taper to 0 on all four sides, so it reads as a soft vignette. */
+  .pv2 .copy::before {
+    content: ""; position: absolute; z-index: -1; pointer-events: none;
+    inset: -14px -26px -28px -26px;
+    background:
+      linear-gradient(to bottom, rgba(5,5,8,0) 0%, rgba(5,5,8,.82) 13%,
+        rgba(5,5,8,.82) 85%, rgba(5,5,8,0) 100%),
+      linear-gradient(to right, rgba(5,5,8,0) 0%, rgba(5,5,8,.46) 11%,
+        rgba(5,5,8,.46) 89%, rgba(5,5,8,0) 100%);
+  }
+
+  /* Eye2 cell: the finish row used to overflow the grid row and land underneath
+     `.copy` (z-index 2), which made the swatches literally untappable — the
+     `.idx` line swallowed the click. Shorter render + a smaller gap makes the
+     cell fit; z-index keeps the control above the copy either way. */
+  .pv2 .eye2-cell { gap: 8px; }
+  .pv2 .eye2-img { height: 34vh; }
+  .pv2 .eye2-finish { gap: 16px; position: relative; z-index: 3; }
+  /* ≥44x44 touch target; the dot itself (::before) stays 15px. */
+  .pv2 .eye2-finish .sw { width: 44px; height: 44px; }
+  .pv2 .eye2-finish-label { font-size: 12px; }
+  .pv2 .stat span { font-size: 12.5px; }
+  .pv2 .dl-label { font-size: 12px; }
+
+  /* The hint is `fixed` on desktop, so on a 390px-wide viewport it kept crossing
+     body copy (measured: it sat on the Eye2 one-liner at scrollY 600, the CTA at
+     750, the h1 at 1350). Anchoring it to the bottom of the FIRST viewport
+     instead makes it scroll away after the first swipe — which is all a
+     "scroll ↓" hint is for — so it can no longer collide with anything. The
+     scrim pill + higher alpha keep it legible over the product render behind it. */
+  .pv2 .hint { position: absolute; top: calc(100vh - 46px); bottom: auto; z-index: 4;
+    /* right-aligned: on a short viewport (360x740) the centred pill still landed
+       on the left-aligned CTA of the first scene. */
+    left: auto; right: 24px; transform: none;
+    padding: 7px 16px; border-radius: 999px; background: rgba(5,5,8,.72);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    color: rgba(244,241,234,.72); }
 }
 @media (max-width: 480px) { .pv2 .pimg { height: 38vh; } .pv2 .stats { gap: 16px 26px; } }
