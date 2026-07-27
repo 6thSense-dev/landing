@@ -11,7 +11,27 @@
  * uppercase labels, one warm orange accent, 8px spacing base.
  */
 
-.ev-people {
+/* ---- root element: specificity, not stylesheet order ----------------
+ * The root is class="ev-home ev-people pv-flow|pv-desk", so a BARE `.ev-home`
+ * rule in evora-home.css matches the same element at the same specificity
+ * (0,1,0) as a bare `.ev-people` / `.pv-flow` rule here. At equal specificity
+ * the later stylesheet wins — and that order differs between builds: Vite dev
+ * injects per import order (this file last, so it won) while a production build
+ * emits separate CSS chunks with evora-home last (so it won instead).
+ *
+ * The result was a production-only bug: `@media (max-width: 780px) .ev-home
+ * { padding: 12px }` is a SHORTHAND, so it reset padding-top from 92px to 12px
+ * and the heading rendered behind the nav pill at idle, before any interaction.
+ * Everything verified in dev had been verified against a layout that only
+ * existed in dev.
+ *
+ * So every rule targeting the root element is qualified with `.ev-home` to reach
+ * (0,2,0) and win regardless of order. The colliding properties are padding (all
+ * four longhands, via two shorthands), background, min-height and color. If you
+ * add another root-element property here, qualify it the same way and check
+ * evora-home.css for a bare `.ev-home` rule that also sets it.
+ */
+.ev-home.ev-people {
   background: #050506;
   color: #f4f1ea;
 }
@@ -123,7 +143,7 @@
 }
 
 /* ==== desktop: fixed stage + left rail ============================== */
-.pv-desk {
+.ev-home.pv-desk {
   --pv-rail-w: clamp(190px, 15vw, 226px);
   --pv-rail-x: clamp(22px, 3vw, 44px);
   height: 100vh;
@@ -191,7 +211,7 @@
 }
 
 /* ==== compact (phone / tablet): a real scrolling document =========== */
-.pv-flow {
+.ev-home.pv-flow {
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -241,7 +261,7 @@
    exactly where it was — the same invariance that made extra padding useless
    for the heading. Tap targets stay at 44px, the platform minimum. */
 @media (max-width: 560px) and (max-height: 780px) {
-  .pv-flow {
+  .ev-home.pv-flow {
     padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   }
   .pv-flow .pv-stage {
