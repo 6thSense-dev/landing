@@ -2452,6 +2452,15 @@ main .section[id] {
     font-size: 0.8125rem;
   }
 
+  /* The wordmark was the last 11.52px text in the pill. Brand typography, so
+     tracking/weight/case are untouched and this is mobile-scoped — desktop keeps
+     0.72rem. The pill's height is set by .nav-logo (1.7rem) and the burger's
+     34px footprint, both taller than this line box, so the pill does not grow;
+     verified still 359x50 at 390 and 331x50 at 360. */
+  .nav-flagship--pill .wordmark-on-dark {
+    font-size: 0.8125rem;
+  }
+
   .nav-flagship .nav-links {
     position: absolute;
     top: calc(100% + 12px);
