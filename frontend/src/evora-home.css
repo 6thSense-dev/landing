@@ -645,7 +645,21 @@
 
 /* ---- responsive ----------------------------------------------------- */
 @media (max-width: 780px) {
-  .ev-home { padding: 12px; }
+  /* Longhands, not `padding: 12px`. All four sides really are intended here
+     (the only element this reaches is the /products?v1 root, measured at
+     12px on every side), so this is not a narrower override — it is a
+     GREPPABLE one. The production-only /people bug documented at the top of
+     pages/people-reveal.css was hard to find precisely because nothing
+     matched a search for `padding-top` on `.ev-home`; the shorthand reset it
+     invisibly. Spelling the sides out puts this rule in that search.
+     It still overrides all four longhands, so the `.ev-home` qualifier on the
+     root rules in people-reveal.css is still load-bearing — do not remove it. */
+  .ev-home {
+    padding-top: 12px;
+    padding-right: 12px;
+    padding-bottom: 12px;
+    padding-left: 12px;
+  }
   .ev-nav-c { display: none; }
   .ev-hero { padding: 18px 22px 40px; }
   .ev-hero-grid,
