@@ -187,7 +187,7 @@ const PEOPLE = [
     name: "Ronak Agarwal",
     lines: [
       "Engineer at DoorDash & Amazon",
-      "Delivered chickens faster with robots at Chick-fil-a.",
+      "Delivered chickens faster with robots at Chick-fil-A",
       "CS & Economics, Georgia Tech",
     ],
   },
@@ -374,9 +374,9 @@ export default function PeoplePage() {
         <SiteNav className={navClassName} />
 
         <header>
-          <h1 className="pv-title" ref={headingRef}>The team</h1>
+          <h1 className="pv-title" ref={headingRef}>Founders</h1>
           <p className="pv-hint pv-head-hint">
-            <b>Tap a name</b> to reveal them
+            <b>Select a name</b>
           </p>
         </header>
 
@@ -402,9 +402,7 @@ export default function PeoplePage() {
                 ))}
               </ul>
             </div>
-          ) : (
-            <p className="pv-bio-empty">Nobody selected yet. Tap a name above and their photo resolves out of the dots.</p>
-          )}
+          ) : null}
         </div>
       </div>
     );
@@ -456,13 +454,11 @@ export default function PeoplePage() {
 
       <div className="pv-rail">
         <div className="pv-rail-head">
-          <h1 className="pv-title">The team</h1>
+          <h1 className="pv-title">Founders</h1>
         {/* Hint sits ABOVE the list: below it, it was read after the control it
             describes, which is too late to act as an affordance. */}
           <p className="pv-hint">
-            <b>Hover or click a name</b>
-            <br />
-            to reveal them
+            <b>Select a name</b>
           </p>
         </div>
         <nav aria-label="Team members">

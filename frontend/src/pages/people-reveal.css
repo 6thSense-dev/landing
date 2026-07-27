@@ -296,14 +296,9 @@
   min-height: 210px;
   padding: 26px 0 0;
 }
-.pv-flow .pv-bio-empty {
-  /* was 0.38 ≈ 3.19:1, below AA */
-  color: rgba(244, 241, 234, 0.62);
-  font-size: 14px;
-  line-height: 1.6;
-  margin: 0;
-  max-width: 34ch;
-}
+/* The idle "nobody selected yet" paragraph was cut (D1, 2026-07-27): it narrated
+   the control instead of labelling it. `.pv-bio` keeps its min-height above, so
+   the empty state still reserves space and selecting a person shifts nothing. */
 .pv-flow .pv-bio-name {
   margin: 0;
   font-family: var(--fs, "General Sans", system-ui, sans-serif);
