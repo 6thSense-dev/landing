@@ -179,6 +179,26 @@
   font: 12px/1 ui-monospace, monospace; letter-spacing: .18em; color: rgba(244,241,234,.65);
   white-space: nowrap; }
 
+/* 2026-07-27: the note above says .65 "clears AA (4.77:1 worst case) with a little
+   headroom for aurora states not sampled". An 8-seed sweep found those unsampled
+   states: worst 4.17:1, 3/72 samples under AA at 1440. Same failure mode as D6 --
+   a value validated against too few auroras reads as compliant and isn't.
+   `.hint` is position:fixed, so the `.copy` scrim cannot help it; it floats over
+   whatever the aurora is doing. Giving it its own bounded background fixes it
+   WITHOUT raising the alpha, which keeps the hint visually recessive exactly as
+   the note above intended. Radial rather than crossed fades because this is a
+   short pill of text, not a tall rectangle. */
+.pv2 .hint::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  inset: -11px -20px;
+  background: radial-gradient(ellipse at center,
+    rgba(5,5,8,.88) 0%, rgba(5,5,8,.82) 45%, rgba(5,5,8,.45) 78%, rgba(5,5,8,0) 100%);
+}
+.pv2.light .hint::before {
+  background: radial-gradient(ellipse at center,
+    rgba(250,248,245,.88) 0%, rgba(250,248,245,.82) 45%, rgba(250,248,245,.45) 78%, rgba(250,248,245,0) 100%);
+}
+
 @media (max-width: 880px) {
   /* gap 8px -> 20px: the copy scrim needs room to fade out before it reaches the
      product render above it (and, on the Eye2 scene, the finish swatches). */
