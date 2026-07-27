@@ -39,7 +39,13 @@ export default function SiteNav({ className, homeAnchor = false }) {
 
   const wordmark = (
     <>
-      <img className="nav-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
+      {/* The PNG is 1024x1024 / 118KB and this renders at 27x27 CSS — the worst
+          size mismatch on the site. This is our own mark, so it is safe to scale:
+          128x128 is an exact 1/8 of the source, so the aspect ratio is preserved
+          exactly (1.000000). PNG stays as the fallback src. */}
+      <img className="nav-logo" src="/logos/Logo_Alpha.png"
+        srcSet="/logos/Logo_Alpha-128.webp"
+        alt="" aria-hidden="true" />
       <span className="nav-logo-text">6THSENSE</span>
     </>
   );

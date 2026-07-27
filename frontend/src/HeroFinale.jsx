@@ -31,11 +31,18 @@ const dots = [
 // Three partner logos, rendered as a footer row directly under the form
 // title. Sourced from /public/logos/. Same files previously used by the
 // (now-removed) standalone BackedBySection beat.
+// `webp` is a LOSSLESS, native-resolution conversion of the same mark, served via
+// srcSet with the PNG kept as the fallback src. These are partner and investor
+// marks, so they are not cropped, recoloured, rescaled or reproportioned at all:
+// every visible pixel and the entire alpha channel are bit-identical to the PNG,
+// verified per file. Down-scaled variants were built and then rejected — an
+// integer-height variant introduced a ~0.23% anisotropic squash, which is not a
+// thing to do to someone else's logo for 14KB.
 const BACKERS = [
-  { src: "/logos/YC_LOGO_Keyed.png", alt: "Y Combinator", needsLightBg: true },
-  { src: "/logos/nvidia-inception.png", alt: "NVIDIA Inception Program", needsLightBg: true },
-  { src: "/logos/University Logo_2Color_DarkGreystone_WhiteFill_RGB.png", alt: "The University of Chicago", needsLightBg: true },
-  { src: "/logos/Gtech.png", alt: "Georgia Tech", needsLightBg: true }
+  { src: "/logos/YC_LOGO_Keyed.png", webp: "/logos/YC_LOGO_Keyed.webp", alt: "Y Combinator", needsLightBg: true },
+  { src: "/logos/nvidia-inception.png", webp: "/logos/nvidia-inception.webp", alt: "NVIDIA Inception Program", needsLightBg: true },
+  { src: "/logos/University Logo_2Color_DarkGreystone_WhiteFill_RGB.png", webp: "/logos/University Logo_2Color_DarkGreystone_WhiteFill_RGB.webp", alt: "The University of Chicago", needsLightBg: true },
+  { src: "/logos/Gtech.png", webp: "/logos/Gtech.webp", alt: "Georgia Tech", needsLightBg: true }
 ];
 
 export function HeroFinale() {
@@ -99,6 +106,7 @@ export function HeroFinale() {
               <img
                 className="hero-finale-backed-logo"
                 src={b.src}
+                srcSet={encodeURI(b.webp)}
                 alt={b.alt}
                 loading="lazy"
               />
