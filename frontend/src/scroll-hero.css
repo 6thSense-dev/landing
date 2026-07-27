@@ -217,9 +217,10 @@
   margin: -0.15rem 0 0;
   font-family: var(--font-body);
   font-style: italic;
-  font-size: 0.78rem;
+  font-size: 0.84rem;
   letter-spacing: 0.02em;
-  color: rgba(241, 241, 236, 0.5);
+  /* Sits over a moving particle field, where 0.5 alpha at 12px read as noise. */
+  color: rgba(241, 241, 236, 0.75);
 }
 
 .hero-pipeline {
@@ -1003,8 +1004,11 @@
 }
 .hero-finale-consent-box {
   margin-top: 0.15rem;
-  width: 15px;
-  height: 15px;
+  /* 15px was a hard target on touch; the label is already wired to the input,
+     so this only enlarges the box itself. */
+  width: 20px;
+  height: 20px;
+  flex: none;
   accent-color: var(--accent, #f0612a);
   cursor: pointer;
 }
