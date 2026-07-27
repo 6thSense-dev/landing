@@ -131,8 +131,12 @@
 .pv2 .sidenav a.on { color: #F0612A; }
 .pv2 .sidenav a.on i { width: 32px; }
 
+/* .4 alpha measured 2.81:1 against the aurora at its brightest — an unreadable
+   hint has no reason to exist. .65 is the lowest value that clears AA (4.77:1
+   worst case) with a little headroom for aurora states not sampled, so it stays
+   visually recessive rather than maximally contrasty. */
 .pv2 .hint { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 2;
-  font: 12px/1 ui-monospace, monospace; letter-spacing: .18em; color: rgba(244,241,234,.4);
+  font: 12px/1 ui-monospace, monospace; letter-spacing: .18em; color: rgba(244,241,234,.65);
   white-space: nowrap; }
 
 @media (max-width: 880px) {
@@ -191,7 +195,6 @@
        on the left-aligned CTA of the first scene. */
     left: auto; right: 24px; transform: none;
     padding: 7px 16px; border-radius: 999px; background: rgba(5,5,8,.72);
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    color: rgba(244,241,234,.72); }
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 }
 @media (max-width: 480px) { .pv2 .pimg { height: 38vh; } .pv2 .stats { gap: 16px 26px; } }
