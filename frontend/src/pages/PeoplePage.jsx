@@ -185,6 +185,7 @@ function Roster({ people, active, pinned, onSelect, onHover }) {
 
 export default function PeoplePage() {
   const bioRef = useRef(null);
+  const headRef = useRef(null);
   const reduceMotion = useReducedMotion();
   const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
   const compact = useIsCompact();
@@ -225,13 +226,29 @@ export default function PeoplePage() {
   }, []);
 
   // Compact layout: the bio sits below the list, so a selection near the bottom
-  // of the screen would land off-frame. Bring it into view on selection.
+  // of the screen would land off-frame. Nudge it into view — but never far
+  // enough to slide the page heading under the fixed nav pill.
+  //
+  // A plain scrollIntoView is wrong here and extra top padding cannot save it:
+  // padding grows the document and the max scroll offset by the same amount, so
+  // where the heading ends up after scrolling to the bottom is invariant. The
+  // only real fix is to bound the scroll, which is what this does. On short
+  // viewports that means the bio is revealed partially and the reader finishes
+  // the scroll themselves, which at least leaves the page legible.
   useEffect(() => {
-    if (!compact || pinned == null || !bioRef.current) return;
-    bioRef.current.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "end",
-    });
+    if (!compact || pinned == null || !bioRef.current || !headRef.current) return;
+    const bio = bioRef.current.getBoundingClientRect();
+    const needed = Math.max(0, bio.bottom - window.innerHeight + 16);
+    if (needed <= 0) return;
+    // Measured, not hardcoded: the nav is a fixed pill owned by SiteNav, and it
+    // translates out of the way on scroll, in which case there is nothing to
+    // collide with and the cap opens up on its own.
+    const nav = document.querySelector('header[role="banner"]')?.getBoundingClientRect();
+    const headTop = headRef.current.getBoundingClientRect().top;
+    const cap = Math.max(0, headTop - (nav ? Math.max(0, nav.bottom) : 68) - 8);
+    const dy = Math.min(needed, cap);
+    if (dy <= 0) return;
+    window.scrollBy({ top: dy, behavior: reduceMotion ? "auto" : "smooth" });
   }, [compact, pinned, reduceMotion]);
   const onHover = useCallback((i) => setHovered(i), []);
   const onLayout = useCallback((g) => setGeo(g), []);
@@ -257,7 +274,7 @@ export default function PeoplePage() {
       <div className="ev-home ev-people pv-flow">
         <SiteNav className={navClassName} />
 
-        <header>
+        <header ref={headRef}>
           <h1 className="pv-title">The team</h1>
           <p className="pv-hint pv-head-hint">
             <b>Tap a name</b> to reveal them

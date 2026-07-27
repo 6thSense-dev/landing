@@ -85,42 +85,72 @@ export default function ParticleImage({
     // resolution (so it stays sharp when the camera pushes in on a phone).
     // Drawing this under the person's dots is what makes the dots read as
     // "resolving into a photo" instead of just getting denser.
+    //
+    // The people overlap in the source photo — arms across shoulders — so a band
+    // boundary always cuts through a neighbour. Interior seams are therefore
+    // pulled back off the shared boundary and feathered hard, so the neighbour
+    // fragment dissolves into dots instead of ending in a wedge. Outer edges
+    // border empty background and need almost none.
+    const INTERIOR_INSET = 0.016; // normalised image units, off a shared seam
     const buildSlices = () => {
       const out = [];
       const iw = img.naturalWidth || img.width;
       const ih = img.naturalHeight || img.height;
       for (let i = 0; i < NP; i++) {
-        const x0 = Math.floor(bands[i] * iw);
-        const x1 = Math.ceil(bands[i + 1] * iw);
+        const x0n = bands[i] + (i > 0 ? INTERIOR_INSET : 0);
+        const x1n = bands[i + 1] - (i < NP - 1 ? INTERIOR_INSET : 0);
+        const x0 = Math.floor(x0n * iw);
+        const x1 = Math.ceil(x1n * iw);
         const w = Math.max(1, x1 - x0);
         const h = Math.max(1, Math.round(PHOTO_BOTTOM * ih));
         const c = document.createElement("canvas");
         c.width = w; c.height = h;
         const cx = c.getContext("2d");
         cx.drawImage(img, -x0, 0, iw, ih);
-        // Feather the vertical band seams and the bottom edge, so a revealed
-        // person doesn't sit in a hard rectangle. Kept narrow: too much feather
-        // ate into the shoulders on the outer two bands.
-        const feather = Math.max(4, Math.min(26, Math.round(w * 0.11)));
+
+        // Soften the cutout's own silhouette. The source matte is jagged at this
+        // resolution, and the jaggedness is what read as torn paper. Blurring a
+        // COPY and using only its alpha as a mask feathers the edge while
+        // leaving the photo's pixels sharp — blurring the tile itself would
+        // smear the face. (No-op on engines without canvas `filter`, which
+        // degrades to the previous hard edge rather than breaking.)
+        const m = document.createElement("canvas");
+        m.width = w; m.height = h;
+        const mx = m.getContext("2d");
+        mx.filter = "blur(1.1px)";
+        mx.drawImage(img, -x0, 0, iw, ih);
+        mx.filter = "none";
         cx.globalCompositeOperation = "destination-in";
+        cx.drawImage(m, 0, 0);
+
+        // Vertical seams: heavy on the interior sides, light on the outer ones.
+        const fL = i > 0 ? Math.max(6, Math.min(44, Math.round(w * 0.2))) : Math.max(2, Math.round(w * 0.03));
+        const fR = i < NP - 1 ? Math.max(6, Math.min(44, Math.round(w * 0.2))) : Math.max(2, Math.round(w * 0.03));
         const gx = cx.createLinearGradient(0, 0, w, 0);
         gx.addColorStop(0, "rgba(0,0,0,0)");
-        gx.addColorStop(feather / w, "rgba(0,0,0,1)");
-        gx.addColorStop(1 - feather / w, "rgba(0,0,0,1)");
+        gx.addColorStop(Math.min(0.49, fL / w), "rgba(0,0,0,1)");
+        gx.addColorStop(Math.max(0.51, 1 - fR / w), "rgba(0,0,0,1)");
         gx.addColorStop(1, "rgba(0,0,0,0)");
         cx.fillStyle = gx;
         cx.fillRect(0, 0, w, h);
-        // Bottom fade must be `destination-out` over just the strip: a partial
-        // `destination-in` fill would erase the whole rest of the tile.
-        const fadeTop = Math.floor(h * 0.74);
+
+        // Bottom falloff: a long eased ramp over the lower 45% rather than a
+        // hard cut at the board line. Must be `destination-out` over just the
+        // strip — a partial `destination-in` fill erases the rest of the tile
+        // (that bug is why only a bright sliver of each person drew at first).
+        const fadeTop = Math.floor(h * 0.55);
         cx.globalCompositeOperation = "destination-out";
         const gy = cx.createLinearGradient(0, fadeTop, 0, h);
         gy.addColorStop(0, "rgba(0,0,0,0)");
+        gy.addColorStop(0.35, "rgba(0,0,0,0.10)");
+        gy.addColorStop(0.62, "rgba(0,0,0,0.34)");
+        gy.addColorStop(0.83, "rgba(0,0,0,0.68)");
         gy.addColorStop(1, "rgba(0,0,0,1)");
         cx.fillStyle = gy;
         cx.fillRect(0, fadeTop, w, h - fadeTop);
+
         // Normalised placement, so the tile can be drawn at any display scale.
-        out.push({ canvas: c, x0n: bands[i], x1n: bands[i + 1], y1n: PHOTO_BOTTOM });
+        out.push({ canvas: c, x0n, x1n, y1n: PHOTO_BOTTOM });
       }
       return out;
     };
@@ -229,11 +259,14 @@ export default function ParticleImage({
       if (zoomRef.current && focused >= 0) {
         const bandW = (bands[focused + 1] - bands[focused]) * dw;
         const s = Math.max(1, Math.min(2.6, (W * 0.78) / Math.max(1, bandW)));
-        // Frame the head and shoulders (upper part of the person), not the middle.
+        // Frame from the TOP of the figure down, so the crown of the head always
+        // fits. A fixed fraction of the image height was cutting hair off at
+        // higher zoom levels, because how much vertical world space is visible
+        // depends on the scale.
         camT = {
           s,
           x: ox + ((bands[focused] + bands[focused + 1]) / 2) * dw,
-          y: oy + 0.3 * dh,
+          y: oy + 0.02 * dh + H / 2 / s,
         };
       }
       const cEase = reduce ? 0.5 : 0.085;

@@ -184,9 +184,14 @@
   height: clamp(230px, 42vh, 400px);
   margin: 18px 0 4px;
 }
+/* Phones: keep the whole column short enough that selecting someone needs
+   little or no scrolling, which is what keeps the heading clear of the nav. */
 @media (max-width: 560px) {
   .pv-flow .pv-stage {
-    height: clamp(210px, 36vh, 340px);
+    height: clamp(200px, 30vh, 300px);
+  }
+  .pv-flow .pv-bio {
+    min-height: 180px;
   }
 }
 .pv-flow .pv-roster {
