@@ -18,6 +18,7 @@ const QUOTES = [
     side: "left",
     top: "0%",
     logoSrc: "/logos/amazon-robotics-logo.png",
+    logoWebp: "/logos/amazon-robotics-logo.webp",
     logoAlt: "Amazon Robotics",
     attribution: "Vulcan · manipulation tasks",
     body: (
@@ -31,6 +32,7 @@ const QUOTES = [
     side: "right",
     top: "36%",
     logoSrc: "/logos/Columbia.png",
+    logoWebp: "/logos/Columbia.webp",
     logoAlt: "Columbia Engineering · Robotic Manipulation and Mobility Lab",
     attribution: "Matei Ciocarlie",
     body: (
@@ -58,6 +60,7 @@ const QUOTES = [
     side: "right",
     top: "88%",
     logoSrc: "/logos/Meta.png",
+    logoWebp: "/logos/Meta.webp",
     logoAlt: "Meta AI",
     attribution: "DIGIT · PyTouch",
     body: (
@@ -72,7 +75,7 @@ const QUOTES = [
   }
 ];
 
-function QuoteNode({ side, top, logoSrc, logoAlt, attribution, body }) {
+function QuoteNode({ side, top, logoSrc, logoWebp, logoAlt, attribution, body }) {
   const ref = useRef(null);
   const [active, setActive] = useState(false);
 
@@ -106,9 +109,16 @@ function QuoteNode({ side, top, logoSrc, logoAlt, attribution, body }) {
       <span className="quote-timeline-branch" aria-hidden="true" />
       <div className="quote-timeline-card">
         <p className="hero-quote-text">{body}</p>
+        {/* WebP copy at native size via srcSet, PNG kept as the fallback src.
+            The src attribute must stay the PNG regardless: scroll-hero.css keys
+            per-logo scale off [src*="amazon"] / [src*="meta"]. Verified that
+            every visible pixel and the whole alpha channel are bit-identical to
+            the PNG — the marks are not altered. Stanford is already a 3KB AVIF
+            and has no logoWebp, so it just renders from src. */}
         <img
           className="hero-quote-logo"
           src={logoSrc}
+          srcSet={logoWebp}
           alt={logoAlt}
           loading="lazy"
         />
