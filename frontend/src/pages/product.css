@@ -45,7 +45,14 @@
   border-radius: 999px;
   white-space: nowrap;
 }
-.product-cta:hover { background: #ff6f38; }
+/* NOTE: `.product-cta` is currently DEAD CSS — no component renders it (the nav
+   above ships Products / People / Partner login only, despite the comment at the
+   top of .product-navlinks). Left in place and corrected rather than tuned live:
+   hover was #ff6f38, a bright orange that reads like a leftover from when
+   --accent was #F0612A, and white-on-that computes to 2.77:1 versus 12.69:1 for
+   the resting state on --accent #592202. A lighter brown in the same family
+   keeps the "brightens on hover" intent at 9.18:1 if this ever gets rendered. */
+.product-cta:hover { background: #7a3208; }
 
 .product-login {
   text-decoration: none;
@@ -88,7 +95,10 @@
   font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  font-size: 0.72rem;
+  /* 0.72rem = 11.52px, below a readable floor at arm's length — and this eyebrow
+     is the first thing on every product, legal and setup page. 13px keeps it an
+     eyebrow (uppercase, 0.2em tracking, weight 600) while clearing the floor. */
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--accent, #592202);
   margin: 0 0 1.25rem;
@@ -103,11 +113,14 @@
   margin: 0 0 1.5rem;
 }
 
-/* "Last updated …" line on legal pages (LegalPage.jsx), between h1 and intro. */
+/* "Last updated …" line on legal pages (LegalPage.jsx), between h1 and intro.
+   0.6 alpha measured 3.93:1 against the rendered paper — an AA failure at
+   13.6px. 0.65 only reaches 4.54, too close to the line, so 0.7 (5.26:1). Still
+   lighter than .product-body at 0.8, so the hierarchy is unchanged. */
 .product-updated {
   font-family: var(--font-ui, "Outfit", system-ui, sans-serif);
   font-size: 0.85rem;
-  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.6);
+  color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.7);
   margin: -0.75rem 0 1.75rem;
 }
 
