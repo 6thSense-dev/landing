@@ -30,6 +30,26 @@ const BANDS = [0, 0.28, 0.44, 0.63, 1]; // 4 people; index 4 = board
 const BOARD_TOP = 0.6;
 const COMPACT_QUERY = "(max-width: 1023px)";
 
+// The desktop blurb's live region is always mounted; when nobody is revealed it
+// collapses to nothing rather than unmounting (see m12 note at the render site).
+const BLURB_SHELL_IDLE = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  width: 0,
+  height: 0,
+  overflow: "hidden",
+  pointerEvents: "none",
+};
+const BLURB_INNER = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "100%",
+  height: "100%",
+};
+
 const BLURB_FONT = "'General Sans', system-ui, sans-serif";
 const LINE_SCALE = 0.6; // info-line size relative to the name size
 const GAP_SCALE = 1.0; // name→info gap relative to the name size
@@ -165,7 +185,9 @@ function Roster({ people, active, pinned, onSelect, onHover }) {
         <li key={p.name}>
           <button
             type="button"
-            className={`pv-item${active === i ? " is-active" : ""}`}
+            className={`pv-item${active === i ? " is-active" : ""}${
+              active == null && i === 0 ? " is-resting-hint" : ""
+            }`}
             data-person-btn={i}
             aria-pressed={pinned === i}
             aria-controls="pv-bio"
@@ -345,10 +367,6 @@ export default function PeoplePage() {
       width: boxWidth,
       zIndex: 5,
       pointerEvents: "none",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
       fontFamily: `var(--ev-fs, ${BLURB_FONT})`,
       color: "#fff",
       textAlign: "center",
@@ -360,54 +378,63 @@ export default function PeoplePage() {
       <SiteNav className={navClassName} />
 
       <div className="pv-rail">
-        <h1 className="pv-title">The team</h1>
+        <div className="pv-rail-head">
+          <h1 className="pv-title">The team</h1>
+        {/* Hint sits ABOVE the list: below it, it was read after the control it
+            describes, which is too late to act as an affordance. */}
+          <p className="pv-hint">
+            <b>Hover or click a name</b>
+            <br />
+            to reveal them
+          </p>
+        </div>
         <nav aria-label="Team members">
           <Roster people={PEOPLE} active={active} pinned={pinned} onSelect={onSelect} onHover={onHover} />
         </nav>
-        <p className="pv-hint">
-          <b>Hover or click a name</b>
-          <br />
-          to reveal them
-        </p>
       </div>
 
       <main className="pv-stage" aria-label="6thSense team — select a person to reveal them">
         {stage}
       </main>
 
-      {person && fit && (
-        <aside style={blurbStyle} id="pv-bio" aria-live="polite" data-person-bio>
-          <div
-            className="pv-blurb-name"
-            data-bio-name
-            style={{
-              fontSize: fit.nameSize,
-              marginBottom: fit.gap,
-              whiteSpace: wrapText ? "normal" : "nowrap",
-              overflow: wrapText ? "visible" : "hidden",
-              textOverflow: wrapText ? "clip" : "ellipsis",
-            }}
-          >
-            {person.name}
-          </div>
-          {person.lines.map((l) => (
+      {/* The live region must exist at page load, otherwise most screen readers
+          never register it and announce nothing when it later appears. Only its
+          CONTENT is conditional. */}
+      <aside id="pv-bio" aria-live="polite" style={blurbStyle || BLURB_SHELL_IDLE}>
+        {person && fit && (
+          <div data-person-bio style={BLURB_INNER}>
             <div
-              key={l}
-              className="pv-blurb-line"
-              data-bio-line
+              className="pv-blurb-name"
+              data-bio-name
               style={{
-                fontSize: fit.lineSize,
-                lineHeight: LINE_LINE_HEIGHT,
+                fontSize: fit.nameSize,
+                marginBottom: fit.gap,
                 whiteSpace: wrapText ? "normal" : "nowrap",
                 overflow: wrapText ? "visible" : "hidden",
                 textOverflow: wrapText ? "clip" : "ellipsis",
               }}
             >
-              {l}
+              {person.name}
             </div>
-          ))}
-        </aside>
-      )}
+            {person.lines.map((l) => (
+              <div
+                key={l}
+                className="pv-blurb-line"
+                data-bio-line
+                style={{
+                  fontSize: fit.lineSize,
+                  lineHeight: LINE_LINE_HEIGHT,
+                  whiteSpace: wrapText ? "normal" : "nowrap",
+                  overflow: wrapText ? "visible" : "hidden",
+                  textOverflow: wrapText ? "clip" : "ellipsis",
+                }}
+              >
+                {l}
+              </div>
+            ))}
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

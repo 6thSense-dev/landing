@@ -33,7 +33,10 @@
   border: 0;
   font-family: var(--fs, "General Sans", system-ui, sans-serif);
   font-weight: 500;
-  color: rgba(244, 241, 234, 0.46);
+  /* 0.74 alpha ≈ 9.8:1 on #050506. At the previous 0.46 (4.24:1) the list read
+     as a static credits roll rather than a set of controls, which was the
+     original complaint about this page. */
+  color: rgba(244, 241, 234, 0.74);
   text-align: left;
   cursor: pointer;
   transition: color var(--ev-dur-med, 260ms) var(--ev-ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
@@ -53,18 +56,29 @@
 /* Hover is a pointer-device enhancement only — never the way to reach content. */
 @media (hover: hover) and (pointer: fine) {
   .pv-item:not(.is-active):hover {
-    color: rgba(244, 241, 234, 0.88);
+    color: #f4f1ea;
     transform: translateX(3px);
   }
   .pv-item:not(.is-active):hover i {
     width: 24px;
+    background: var(--accent, #f0612a);
   }
 }
+/* Selected state carries on three channels — colour, weight and rule length —
+   so it still outranks the (now brighter) inactive items. */
 .pv-item.is-active {
   color: var(--accent, #f0612a);
+  font-weight: 600;
 }
 .pv-item.is-active i {
   width: 32px;
+}
+/* Before any interaction, the first item's rule sits in accent orange so there
+   is a visible affordance at rest. Deliberately only the rule, never the label:
+   an orange label would read as "already selected". */
+.pv-item.is-resting-hint i {
+  width: 22px;
+  background: var(--accent, #f0612a);
 }
 .pv-item:focus-visible {
   outline: 2px solid var(--accent, #f0612a);
@@ -89,11 +103,12 @@
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(244, 241, 234, 0.44);
+  /* 0.62 ≈ 7:1. The operative half of this sentence was 3.94:1 before. */
+  color: rgba(244, 241, 234, 0.62);
 }
 .pv-hint b {
   font-weight: 500;
-  color: rgba(244, 241, 234, 0.82);
+  color: rgba(244, 241, 234, 0.94);
 }
 .pv-title {
   margin: 8px 0 0;
@@ -127,10 +142,20 @@
   z-index: 6;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 26px;
 }
+.pv-rail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Inside DESIGN.md's h2 band (30–46px); 21px was off the scale entirely. The
+   middle term is 3.4vw rather than the h2 default 4vw so the heading fits the
+   rail on ONE line at every desktop width — at 4vw it wrapped to two lines
+   between 1180 and 1280 and snapped back to one at 1440. */
 .pv-desk .pv-title {
-  font-size: 21px;
+  font-size: clamp(30px, 3.4vw, 42px);
+  line-height: 1.04;
 }
 .pv-desk .pv-roster {
   display: flex;
@@ -174,7 +199,7 @@
   padding-right: max(clamp(20px, 5vw, 34px), env(safe-area-inset-right, 0px));
 }
 .pv-flow .pv-title {
-  font-size: clamp(30px, 8vw, 40px);
+  font-size: clamp(30px, 4vw, 46px);
   line-height: 1.06;
 }
 .pv-flow .pv-head-hint {
@@ -219,7 +244,8 @@
   padding: 26px 0 0;
 }
 .pv-flow .pv-bio-empty {
-  color: rgba(244, 241, 234, 0.38);
+  /* was 0.38 ≈ 3.19:1, below AA */
+  color: rgba(244, 241, 234, 0.62);
   font-size: 14px;
   line-height: 1.6;
   margin: 0;

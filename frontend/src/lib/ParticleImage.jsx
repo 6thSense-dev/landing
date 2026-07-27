@@ -68,6 +68,9 @@ export default function ParticleImage({
     let hx, hy, px, py, oa, orad, sp, ba, ca, comp, col;
     let slices = [];               // per-person feathered photo tiles (native res)
     let cam = { s: 1, x: 0, y: 0 }; // animated camera, canvas-space
+    let occ = null, gw = 0, gh = 0; // person-pixel occupancy grid, for hit-testing
+    const GCELL = 6;               // occupancy cell, display px
+    const HIT_SLOP = 1;            // cells of tolerance around the pointer
     const img = new Image();
     img.crossOrigin = "anonymous";
 
@@ -204,6 +207,20 @@ export default function ParticleImage({
         }
       }
 
+      // Occupancy grid over the people region, used for hit-testing. A band is a
+      // full-height rectangular slab but a person only fills part of it, so
+      // testing band bounds alone made the empty void beside someone select them.
+      gw = Math.ceil(off.width / GCELL);
+      gh = Math.ceil((off.height * boardTop) / GCELL);
+      occ = new Uint8Array(gw * gh);
+      const yMax = Math.min(off.height, Math.ceil(off.height * boardTop));
+      for (let y = 0; y < yMax; y += 2) {
+        const gy = (y / GCELL) | 0;
+        for (let x = 0; x < off.width; x += 2) {
+          if (data[(y * off.width + x) * 4 + 3] > 24) occ[gy * gw + ((x / GCELL) | 0)] = 1;
+        }
+      }
+
       slices = buildSlices();
       cam = { s: 1, x: W / 2, y: H / 2 };
       reportLayout();
@@ -229,6 +246,22 @@ export default function ParticleImage({
       });
     };
 
+    // True when the pointer is actually over a person's pixels (not the empty
+    // void inside their band), with a cell or two of slop so edges stay grabbable.
+    const occupied = (ix, iy) => {
+      if (!occ) return true;
+      const cx0 = (ix / GCELL) | 0;
+      const cy0 = (iy / GCELL) | 0;
+      for (let cy = cy0 - HIT_SLOP; cy <= cy0 + HIT_SLOP; cy++) {
+        if (cy < 0 || cy >= gh) continue;
+        for (let cx = cx0 - HIT_SLOP; cx <= cx0 + HIT_SLOP; cx++) {
+          if (cx < 0 || cx >= gw) continue;
+          if (occ[cy * gw + cx]) return true;
+        }
+      }
+      return false;
+    };
+
     // Screen -> image space, undoing the camera so hits still land on the right
     // person while the view is pushed in.
     const hitTest = (clientX, clientY) => {
@@ -238,8 +271,12 @@ export default function ParticleImage({
       const wy = (clientY - r.top - H / 2) / cam.s + cam.y;
       const xn = (wx - ox) / dw;
       const yn = (wy - oy) / dh;
-      if (xn >= 0 && xn <= 1 && yn >= 0 && yn < boardTop) return bandOf(xn);
-      return null;
+      if (xn < 0 || xn > 1 || yn < 0 || yn >= boardTop) return null;
+      // A band is a rectangular slab; the person inside it is not. Without this
+      // the black void beside someone selected them, and sweeping the mouse
+      // through empty space flipped between people.
+      if (!occupied(wx - ox, wy - oy)) return null;
+      return bandOf(xn);
     };
 
     const tick = () => {
