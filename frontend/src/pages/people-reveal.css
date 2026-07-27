@@ -1,0 +1,264 @@
+/*
+ * /people — the particle team reveal.
+ *
+ * The reveal itself (dots resolving into a person's photo) is the same effect it
+ * always was; everything here exists to make it DISCOVERABLE. A visible person
+ * list borrows the /products side-nav language from products-v2.css (thin rule +
+ * label, orange #F0612A active state) so the two pages read as one site, and the
+ * mobile layout is a normal scrolling document instead of a fixed 100vh trap.
+ *
+ * Tokens per DESIGN.md: General Sans for names/UI, Geist Mono for the small
+ * uppercase labels, one warm orange accent, 8px spacing base.
+ */
+
+.ev-people {
+  background: #050506;
+  color: #f4f1ea;
+}
+
+/* ---- person list (shared by both layouts) --------------------------- */
+.pv-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-family: var(--fs, "General Sans", system-ui, sans-serif);
+  font-weight: 500;
+  color: rgba(244, 241, 234, 0.46);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--ev-dur-med, 260ms) var(--ev-ease-enter, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--ev-dur-med, 260ms) var(--ev-ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.pv-item i {
+  flex: none;
+  display: block;
+  width: 14px;
+  height: 1.5px;
+  background: currentColor;
+  transition: width var(--ev-dur-med, 260ms) var(--ev-ease-enter, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.pv-item-name {
+  min-width: 0;
+}
+/* Hover is a pointer-device enhancement only — never the way to reach content. */
+@media (hover: hover) and (pointer: fine) {
+  .pv-item:not(.is-active):hover {
+    color: rgba(244, 241, 234, 0.88);
+    transform: translateX(3px);
+  }
+  .pv-item:not(.is-active):hover i {
+    width: 24px;
+  }
+}
+.pv-item.is-active {
+  color: var(--accent, #f0612a);
+}
+.pv-item.is-active i {
+  width: 32px;
+}
+.pv-item:focus-visible {
+  outline: 2px solid var(--accent, #f0612a);
+  outline-offset: 6px;
+  border-radius: 3px;
+}
+
+/* Small uppercase mono labels (section label, hint) — Geist Mono per DESIGN.md. */
+.pv-label {
+  margin: 0;
+  font-family: var(--fm, "Geist Mono", ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent, #f0612a);
+}
+.pv-hint {
+  margin: 0;
+  font-family: var(--fm, "Geist Mono", ui-monospace, monospace);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(244, 241, 234, 0.44);
+}
+.pv-hint b {
+  font-weight: 500;
+  color: rgba(244, 241, 234, 0.82);
+}
+.pv-title {
+  margin: 8px 0 0;
+  font-family: var(--fs, "General Sans", system-ui, sans-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f4f1ea;
+}
+
+/* ==== desktop: fixed stage + left rail ============================== */
+.pv-desk {
+  --pv-rail-w: clamp(190px, 15vw, 226px);
+  --pv-rail-x: clamp(22px, 3vw, 44px);
+  height: 100vh;
+  overflow: hidden;
+}
+.pv-desk .pv-stage {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: calc(var(--pv-rail-x) + var(--pv-rail-w) + 24px);
+  z-index: 0;
+}
+.pv-desk .pv-rail {
+  position: fixed;
+  left: var(--pv-rail-x);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--pv-rail-w);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.pv-desk .pv-title {
+  font-size: 21px;
+}
+.pv-desk .pv-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.pv-desk .pv-roster {
+  gap: 10px; /* the padding below carries the rest of the rhythm */
+}
+.pv-desk .pv-item {
+  padding: 6px 0;
+  font-size: 14.5px;
+  line-height: 1.3;
+}
+.pv-desk .pv-hint {
+  line-height: 1.7;
+}
+
+/* The blurb is positioned by JS into the empty space beside the revealed
+   person; only type treatment lives here. */
+.pv-blurb-name {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  max-width: 100%;
+}
+.pv-blurb-line {
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 100%;
+}
+
+/* ==== compact (phone / tablet): a real scrolling document =========== */
+.pv-flow {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 92px;
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(clamp(20px, 5vw, 34px), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(20px, 5vw, 34px), env(safe-area-inset-right, 0px));
+}
+.pv-flow .pv-title {
+  font-size: clamp(30px, 8vw, 40px);
+  line-height: 1.06;
+}
+.pv-flow .pv-head-hint {
+  margin-top: 12px;
+}
+.pv-flow .pv-stage {
+  height: clamp(230px, 42vh, 400px);
+  margin: 18px 0 4px;
+}
+@media (max-width: 560px) {
+  .pv-flow .pv-stage {
+    height: clamp(210px, 36vh, 340px);
+  }
+}
+.pv-flow .pv-roster {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.pv-flow .pv-roster li {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.pv-flow .pv-item {
+  min-height: 52px;
+  padding: 14px 2px;
+  font-size: 16.5px;
+  line-height: 1.25;
+}
+.pv-flow .pv-item.is-active {
+  transform: none;
+}
+
+/* Bio sits directly under the list in normal flow — nothing fixed, nothing
+   clipped. Space is reserved so selecting a person never shifts the list. */
+.pv-flow .pv-bio {
+  min-height: 210px;
+  padding: 26px 0 0;
+}
+.pv-flow .pv-bio-empty {
+  color: rgba(244, 241, 234, 0.38);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 34ch;
+}
+.pv-flow .pv-bio-name {
+  margin: 0;
+  font-family: var(--fs, "General Sans", system-ui, sans-serif);
+  font-weight: 600;
+  font-size: clamp(24px, 6.6vw, 32px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #f4f1ea;
+  overflow-wrap: break-word;
+}
+.pv-flow .pv-bio-lines {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.pv-flow .pv-bio-lines li {
+  position: relative;
+  margin: 0 0 10px;
+  padding-left: 16px;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: rgba(244, 241, 234, 0.82);
+  overflow-wrap: break-word;
+}
+.pv-flow .pv-bio-lines li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 6px;
+  height: 1.5px;
+  background: var(--accent, #f0612a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pv-item,
+  .pv-item i,
+  .pv-item:hover {
+    transition: none;
+    transform: none;
+  }
+}
