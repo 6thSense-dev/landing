@@ -135,6 +135,28 @@ function fitBlurbSizeWrapped(person, availWidth, availHeight) {
   return { nameSize, lineSize: nameSize * LINE_SCALE, gap: nameSize * GAP_SCALE };
 }
 
+/**
+ * Approved copy. Editing it is a LAYOUT change, not just a copy change.
+ *
+ * Every bio line adds ~34px to the compact document, which raises the maximum
+ * scroll offset, which eats the clearance that keeps page furniture out from
+ * under the fixed nav pill. Measured against a production build, clearance at
+ * max scroll (positive = clear of the pill):
+ *
+ *              lines   360x740 hint   390x844 h1   768x1024 h1
+ *   3 lines      3      +12.0          +6.2         +11.4
+ *   4 lines      4      +12.0          +5.2          +3.4   <- James today
+ *   5 lines      5      -22.0          -29.8        -31.6   <- all three break
+ *
+ * So a FIFTH line on anyone pushes the affordance line ("TAP A NAME TO REVEAL
+ * THEM") under the pill at 360x740, and that line is the whole reason this page
+ * was reworked — see the scroll effect below. The heading is deliberately
+ * sacrificial and may go under; the hint may not.
+ *
+ * If a fifth line is ever needed, buy back ~34px BELOW the hint at that
+ * breakpoint (stage height, roster row height, bio spacing — not padding-top,
+ * which cancels out) and re-measure, rather than assuming it still fits.
+ */
 const PEOPLE = [
   {
     name: "Alex Hyungwoo Noh",
