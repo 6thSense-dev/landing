@@ -78,11 +78,18 @@ export function useFramePreloader(stage, enabled) {
 
     let cancelled = false;
     (async () => {
-      const count = stage.frameCount;
-      const arr = await Promise.all(
-        Array.from({ length: count }, (_, i) => loadImage(framePath(stage, i, variant)))
+      // Only fetch the frames the stage actually paints. The returned array is
+      // still frameCount long and still indexed by ASSET index — unpainted
+      // slots stay null — because ScrollStage's per-frame constant arrays are
+      // keyed that way. Callers already null-guard each frame before drawing.
+      const indices = stage.paintedIndices
+        ?? Array.from({ length: stage.frameCount }, (_, i) => i);
+      const loaded = await Promise.all(
+        indices.map((i) => loadImage(framePath(stage, i, variant)))
       );
       if (cancelled || !aliveRef.current) return;
+      const arr = new Array(stage.frameCount).fill(null);
+      indices.forEach((assetIdx, k) => { arr[assetIdx] = loaded[k]; });
       cache.set(cacheKey, { ready: true, frames: arr });
       setFrames(arr);
       setReady(true);
