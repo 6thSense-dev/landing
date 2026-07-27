@@ -16,6 +16,16 @@ they are intentionally NOT touched here.
 
 Usage:  python3 scripts/fetch-fonts.py
 Requires network access + curl.
+
+IMPORTANT - run scripts/instance-fonts.py afterwards.
+Google serves Newsreader for the opsz/wght request below as a VARIABLE font;
+the latin subset alone is 129KB, of which only ~7% is glyph outlines. This
+script re-downloads those variable files and rewrites fonts.css to point at
+them, undoing the instancing. The full pipeline is:
+
+    python3 scripts/fetch-fonts.py       # this script
+    python3 scripts/instance-fonts.py    # 320KB -> 115KB, no glyphs dropped
+    python3 scripts/verify-font-coverage.py   # proves nothing was lost
 """
 
 import subprocess, re, os, hashlib

@@ -15,6 +15,21 @@
     <style>
       /* SEO prerender block: crawlable in raw HTML, off-screen for sighted
          users (no flash), removed once JS boots. See scripts/seoPrerenderPlugin.js */
+      /* This block is clipped to 1x1 and deleted the moment JS boots, but it IS
+         rendered, so it used to pull webfonts purely to lay out text nobody can
+         see: --font-body gave every route the 129KB Newsreader latin subset,
+         and the h1/h2/h3 inside it matched `h1,h2,h3{font-family:var(--font-display)}`
+         in styles.css for another 66KB of Fraunces. On /people and /products,
+         which use neither family, that was ~195KB of pure waste. Whether the
+         fetch actually fired was a race against JS removing the block, so the
+         cost came and went between loads.
+         The descendant selector is what kills the Fraunces half - (0,1,0) beats
+         the bare `h1,h2,h3` element rule, so no !important is needed. */
+      .seo-prerender,
+      .seo-prerender * {
+        font-family: system-ui, sans-serif;
+      }
+
       .seo-prerender {
         position: absolute;
         width: 1px;
