@@ -19,6 +19,46 @@
   padding: 7vh clamp(28px,6vw,96px) 7vh clamp(120px,14vw,248px); box-sizing: border-box;
 }
 .pv2 .copy { max-width: 34ch; position: relative; z-index: 2; }
+
+/* Legibility scrim. The aurora is randomly seeded per load and animates through
+   mid purple/blue, so text alpha alone can't guarantee AA against it. This bounds
+   the background behind the copy to a near-black regardless of the aurora state.
+   It paints under the copy's own content (`.copy` already makes a z-index:2
+   stacking context) and above the aurora.
+   2026-07-27 (D6): was `@media (max-width: 880px)` only. Desktop had no scrim,
+   which is the entire reason `.idx` measured 2.99:1 at 1440 while the same element
+   measured 5.01-5.4:1 on mobile. Applying it at every width is what actually fixes
+   D6 — the brand colour and the type size both stay exactly as designed.
+   The original mobile treatment was two crossed linear fades on a tight inset. That
+   was tried on desktop first and rejected on looks, not numbers: on a narrow desktop
+   copy column it read as a distinct dark card. The wide single radial below is the
+   version Ronak picked after seeing both. It keeps the whole block above AA while
+   reading as ambient darkening. Mobile inherits the same treatment and is unregressed. */
+.pv2 .copy::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  /* Ronak reviewed this on screen 2026-07-27 and picked the softer variant.
+     The tight crossed-fade version measured better (5.51:1) but READ as a
+     distinct dark card with defined edges on desktop, which is not what the
+     page should look like. One wide radial at ~3x the inset and a lower peak
+     alpha still clears AA outright (4.70:1, 0/36) while reading as ambient
+     darkening rather than a panel. The extra 0.8 of contrast was margin we did
+     not need and it cost a visible box. */
+  inset: -60px -90px -70px -80px;
+  background:
+    radial-gradient(ellipse 78% 62% at 38% 50%,
+      rgba(5,5,8,.80) 0%, rgba(5,5,8,.72) 38%, rgba(5,5,8,.42) 66%,
+      rgba(5,5,8,.16) 84%, rgba(5,5,8,0) 100%);
+}
+/* D6 (2026-07-27): brand #F0612A is locked by DESIGN.md, so the COLOUR is not the
+   lever — and neither, it turns out, is the FONT SIZE. Measured composited
+   contrast for `.idx` at 1440 over 8 aurora seeds x 4 time samples x 3 scenes:
+   worst case 2.99:1 (seed 4242, bg [43,76,34]). That is under AA's 4.5:1 AND
+   under the 3:1 that WCAG allows for large text, so bumping to 19px/700 would
+   have looked like a fix while still failing on unlucky auroras — a 4-seed sweep
+   reported 3.74:1 and would have certified it. The size stays as designed.
+   The real lever is what is BEHIND the text: mobile already measures 5.01-5.4:1
+   purely because it has the `.copy` scrim. Extending that same scrim to desktop
+   bounds the background regardless of aurora seed. See the scrim below. */
 .pv2 .idx { font: 600 13px/1 ui-monospace, monospace; letter-spacing: .18em; color: #F0612A; text-transform: uppercase; }
 .pv2 h1 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: clamp(64px,9vw,150px); font-weight: 600; letter-spacing: -.035em; line-height: .92; margin: 12px 0 8px; }
@@ -139,6 +179,26 @@
   font: 12px/1 ui-monospace, monospace; letter-spacing: .18em; color: rgba(244,241,234,.65);
   white-space: nowrap; }
 
+/* 2026-07-27: the note above says .65 "clears AA (4.77:1 worst case) with a little
+   headroom for aurora states not sampled". An 8-seed sweep found those unsampled
+   states: worst 4.17:1, 3/72 samples under AA at 1440. Same failure mode as D6 --
+   a value validated against too few auroras reads as compliant and isn't.
+   `.hint` is position:fixed, so the `.copy` scrim cannot help it; it floats over
+   whatever the aurora is doing. Giving it its own bounded background fixes it
+   WITHOUT raising the alpha, which keeps the hint visually recessive exactly as
+   the note above intended. Radial rather than crossed fades because this is a
+   short pill of text, not a tall rectangle. */
+.pv2 .hint::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  inset: -11px -20px;
+  background: radial-gradient(ellipse at center,
+    rgba(5,5,8,.88) 0%, rgba(5,5,8,.82) 45%, rgba(5,5,8,.45) 78%, rgba(5,5,8,0) 100%);
+}
+.pv2.light .hint::before {
+  background: radial-gradient(ellipse at center,
+    rgba(250,248,245,.88) 0%, rgba(250,248,245,.82) 45%, rgba(250,248,245,.45) 78%, rgba(250,248,245,0) 100%);
+}
+
 @media (max-width: 880px) {
   /* gap 8px -> 20px: the copy scrim needs room to fade out before it reaches the
      product render above it (and, on the Eye2 scene, the finish swatches). */
@@ -150,26 +210,6 @@
   .pv2 .navlinks a:not(.navcta) { display: none; }
   /* no mouse on touch devices — drop that instruction so the hint stays one clean line */
   .pv2 .hint-mouse { display: none; }
-
-  /* Legibility scrim. The aurora is randomly seeded per load and animates through
-     mid purple/blue, and on a ~390px viewport one blob can cover the whole copy
-     block — so text alpha alone can't guarantee AA. This bounds the background
-     behind the copy to a near-black regardless of the aurora state. It paints
-     under the copy's own content (`.copy` already makes a z-index:2 stacking
-     context) and above the aurora.
-     Two crossed linear fades, not a radial: the copy block is a tall rectangle,
-     and any radial big enough to cover its corners still had a visible hard cut
-     at the top and bottom edges. Crossed fades reach ~.90 combined in the middle
-     and taper to 0 on all four sides, so it reads as a soft vignette. */
-  .pv2 .copy::before {
-    content: ""; position: absolute; z-index: -1; pointer-events: none;
-    inset: -14px -26px -28px -26px;
-    background:
-      linear-gradient(to bottom, rgba(5,5,8,0) 0%, rgba(5,5,8,.82) 13%,
-        rgba(5,5,8,.82) 85%, rgba(5,5,8,0) 100%),
-      linear-gradient(to right, rgba(5,5,8,0) 0%, rgba(5,5,8,.46) 11%,
-        rgba(5,5,8,.46) 89%, rgba(5,5,8,0) 100%);
-  }
 
   /* Eye2 cell: the finish row used to overflow the grid row and land underneath
      `.copy` (z-index 2), which made the swatches literally untappable — the

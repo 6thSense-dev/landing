@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { Link } from "react-router-dom";
 import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
-import AuroraGL from "./AuroraGL.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
 import { useRevealNav } from "../useRevealNav.js";
 import "./products-v2.css";
@@ -13,6 +12,13 @@ import "./products-v2.css";
 // we also defer MOUNTING it until the Hand scene is near the viewport (see the
 // IntersectionObserver below), so that heavy work never competes with first paint.
 const Hand3D = lazy(() => import("./Hand3D.jsx"));
+
+// AuroraGL is lazy for the same reason, and it matters more than it looks: it was
+// a STATIC import, so `three` shipped to every /products visitor whether or not
+// the GL aurora ever rendered. Gating only the render would have saved 0 bytes --
+// measured 138.5KB of three.module on a 390px production build with the 3D hand
+// already gated off. Lazy is what actually makes the D5 gate below pay.
+const AuroraGL = lazy(() => import("./AuroraGL.jsx"));
 
 // Small shared WebGL-availability probe (cheap, synchronous). Used to pick the GL
 // aurora vs the Canvas2D fallback, and to gate the 3D hand.
@@ -30,10 +36,24 @@ const hasWebGL = () => {
 // fall back to the Canvas2D AuroraBg, and `?v2&nogl` is an escape hatch that
 // forces Canvas2D explicitly. (The preserveDrawingBuffer:true fix lives in
 // AuroraGL and is untouched.)
+// D5 (2026-07-27): phones get the Canvas2D aurora. Phones have WebGL, so the old
+// probe said yes and pulled 138.5KB of `three` onto every mobile /products view
+// for a background -- plus the battery cost of a GPU loop on a scrolling page.
+// The Canvas2D fallback already existed and already looked right. 880px matches
+// the breakpoint products-v2.css already treats as "mobile layout", so the two
+// cannot disagree about what a phone is.
+// Desktop is unchanged: still GL by default, as approved.
+// Escape hatches both ways: `?nogl` forces Canvas2D anywhere, `?gl` forces GL on
+// a phone so this is checkable on a real device without a rebuild.
+const IS_PHONE = typeof window !== "undefined" &&
+  window.matchMedia && window.matchMedia("(max-width: 880px)").matches;
+
 const USE_GL_AURORA = (() => {
   if (typeof window === "undefined") return false;
   const q = new URLSearchParams(window.location.search);
   if (q.has("nogl")) return false; // escape hatch -> Canvas2D
+  if (q.has("gl")) return hasWebGL(); // escape hatch -> force GL even on a phone
+  if (IS_PHONE) return false;      // D5: no GL aurora on phones
   return hasWebGL();               // otherwise GL by default, Canvas2D if no WebGL
 })();
 
@@ -291,8 +311,10 @@ export default function ProductsV2() {
 
   return (
     <div className="pv2" ref={rootRef}>
+      {/* Suspense fallback is the Canvas2D aurora, not null: AuroraGL is lazy now,
+          and the page background must never flash empty while its chunk loads. */}
       {USE_GL_AURORA
-        ? <AuroraGL />
+        ? <Suspense fallback={<AuroraBg lightRef={lightRef} />}><AuroraGL /></Suspense>
         : <AuroraBg lightRef={lightRef} />}
       {/* the site's real flagship navbar (same as the rest of 6thsense.dev) */}
       <SiteNav className={navClassName} />
