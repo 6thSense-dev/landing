@@ -16,6 +16,17 @@
   color: #f4f1ea;
 }
 
+/* The shared nav pill is rgba(38,35,18,0.92) — not opaque — so anything
+   scrolling behind it GHOSTS THROUGH, which reads as a rendering glitch rather
+   than as content passing under a fixed header. Content passing under a fixed
+   header on manual scroll is normal and unavoidable; the ghosting is what made
+   it look broken. Opaque on this page only, from this file: styles.css and
+   SiteNav.jsx belong to other owners. Selector carries an element to outrank
+   `.nav-flagship.nav-flagship--pill` regardless of stylesheet order. */
+.ev-people header.nav-flagship--pill {
+  background: rgb(38, 35, 18);
+}
+
 /* ---- person list (shared by both layouts) --------------------------- */
 .pv-roster {
   list-style: none;
@@ -86,22 +97,15 @@
   border-radius: 3px;
 }
 
-/* Small uppercase mono labels (section label, hint) — Geist Mono per DESIGN.md. */
-.pv-label {
-  margin: 0;
-  font-family: var(--fm, "Geist Mono", ui-monospace, monospace);
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent, #f0612a);
-}
+/* The affordance line. This is the most important text on the page, so it sits
+   at the TOP of DESIGN.md's label range (11.5–14) rather than the bottom: at
+   11.5px it was too small to read, which defeats the point of having it. */
 .pv-hint {
   margin: 0;
   font-family: var(--fm, "Geist Mono", ui-monospace, monospace);
-  font-size: 11.5px;
+  font-size: 13.5px;
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   /* 0.62 ≈ 7:1. The operative half of this sentence was 3.94:1 before. */
   color: rgba(244, 241, 234, 0.62);
@@ -194,7 +198,7 @@
   flex-direction: column;
   gap: 4px;
   padding-top: 92px;
-  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
   padding-left: max(clamp(20px, 5vw, 34px), env(safe-area-inset-left, 0px));
   padding-right: max(clamp(20px, 5vw, 34px), env(safe-area-inset-right, 0px));
 }
@@ -209,14 +213,43 @@
   height: clamp(230px, 42vh, 400px);
   margin: 18px 0 4px;
 }
-/* Phones: keep the whole column short enough that selecting someone needs
-   little or no scrolling, which is what keeps the heading clear of the nav. */
+/* Phones: the column is deliberately kept short enough that the document's
+   MAXIMUM scroll offset stays under (hint top − nav bottom). That bound is what
+   protects the affordance line, and it has to be a layout property: a scroll cap
+   only limits programmatic scrolling, and a reader can always drag to the bottom
+   themselves. See the note on the scroll effect in PeoplePage.jsx. */
 @media (max-width: 560px) {
   .pv-flow .pv-stage {
-    height: clamp(200px, 30vh, 300px);
+    height: clamp(190px, 27vh, 280px);
   }
   .pv-flow .pv-bio {
-    min-height: 180px;
+    min-height: 172px;
+    padding-top: 18px;
+  }
+  .pv-flow .pv-bio-lines li {
+    margin-bottom: 7px;
+  }
+  .pv-flow .pv-item {
+    min-height: 48px;
+    padding: 12px 2px;
+  }
+}
+
+/* Short phones (~740px and under) need a further trim to stay inside that
+   scroll budget. Only space BELOW the hint counts: reducing padding-top would
+   lower the hint and shrink max scroll by the same amount, leaving the margin
+   exactly where it was — the same invariance that made extra padding useless
+   for the heading. Tap targets stay at 44px, the platform minimum. */
+@media (max-width: 560px) and (max-height: 780px) {
+  .pv-flow {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .pv-flow .pv-stage {
+    height: 23vh;
+  }
+  .pv-flow .pv-item {
+    min-height: 44px;
+    padding: 10px 2px;
   }
 }
 .pv-flow .pv-roster {

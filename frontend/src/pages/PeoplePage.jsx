@@ -23,8 +23,16 @@ import "./people-reveal.css";
  * bio in flow — instead of a fixed 100vh stage with position:fixed children,
  * which was unusable on a phone.
  *
- * PEOPLE is left → right as they stand. Position 0 = Alex (confirmed); the other
- * three (1,2,3) are a best guess — reorder if wrong.
+ * PEOPLE is left → right as they stand. All four positions were verified against
+ * the source photo and confirmed by Ronak on 2026-07-26 — this is not a guess.
+ * The figures occupy, as a fraction of image width:
+ *
+ *   Alex 0.057–0.264 | Matt 0.296–0.443 | James 0.45–0.643 | Ronak 0.668–0.95
+ *
+ * against BANDS 0 / 0.28 / 0.44 / 0.63 / 1, so every band's dominant figure is
+ * unambiguous with no off-by-one. Changing BANDS or reordering PEOPLE breaks the
+ * mapping; if team.webp is ever replaced, re-derive those spans and re-verify
+ * rather than assuming the old ones still hold.
  */
 const BANDS = [0, 0.28, 0.44, 0.63, 1]; // 4 people; index 4 = board
 const BOARD_TOP = 0.6;
@@ -180,7 +188,17 @@ function useIsCompact() {
 /** The visible list of people — the affordance the page was missing. */
 function Roster({ people, active, pinned, onSelect, onHover }) {
   return (
-    <ul className="pv-roster" onMouseLeave={() => onHover(null)}>
+    // pointerenter/leave rather than mouseenter/leave: iOS Safari can fire a
+    // synthetic mouseenter after touchend, which would leave a stale hover
+    // preview pinned on a touch device. pointerType lets us reject that at the JS
+    // level, where the CSS `(hover: hover)` guard cannot reach.
+    <ul
+      className="pv-roster"
+      onPointerLeave={(e) => {
+        if (e.pointerType === "touch") return;
+        onHover(null);
+      }}
+    >
       {people.map((p, i) => (
         <li key={p.name}>
           <button
@@ -192,7 +210,10 @@ function Roster({ people, active, pinned, onSelect, onHover }) {
             aria-pressed={pinned === i}
             aria-controls="pv-bio"
             onClick={() => onSelect(pinned === i ? null : i)}
-            onMouseEnter={() => onHover(i)}
+            onPointerEnter={(e) => {
+              if (e.pointerType === "touch") return;
+              onHover(i);
+            }}
             onFocus={() => onHover(i)}
             onBlur={() => onHover(null)}
           >
@@ -207,7 +228,6 @@ function Roster({ people, active, pinned, onSelect, onHover }) {
 
 export default function PeoplePage() {
   const bioRef = useRef(null);
-  const headRef = useRef(null);
   const reduceMotion = useReducedMotion();
   const { className: navClassName } = useRevealNav({ reduceMotion: !!reduceMotion });
   const compact = useIsCompact();
@@ -248,29 +268,26 @@ export default function PeoplePage() {
   }, []);
 
   // Compact layout: the bio sits below the list, so a selection near the bottom
-  // of the screen would land off-frame. Nudge it into view — but never far
-  // enough to slide the page heading under the fixed nav pill.
+  // of the screen can land off-frame. Scroll the minimum needed to fix that.
   //
-  // A plain scrollIntoView is wrong here and extra top padding cannot save it:
-  // padding grows the document and the max scroll offset by the same amount, so
-  // where the heading ends up after scrolling to the bottom is invariant. The
-  // only real fix is to bound the scroll, which is what this does. On short
-  // viewports that means the bio is revealed partially and the reader finishes
-  // the scroll themselves, which at least leaves the page legible.
+  // This used to carry a cap that bounded the scroll so the heading stayed clear
+  // of the fixed nav pill. The cap is gone because it solved the wrong half of
+  // the problem: it only limits PROGRAMMATIC scrolling, and a reader can always
+  // drag to the bottom themselves, at which point the cap is irrelevant. What
+  // actually protects the affordance line is a LAYOUT bound — the compact column
+  // is short enough that the document's maximum scroll offset stays under
+  // (hint top − nav bottom), so no scroll of any origin can hide it. See the
+  // phone block in people-reveal.css.
+  //
+  // Note also that extra top padding could never have fixed this: padding grows
+  // the document and the max scroll offset by the same amount, so where the top
+  // of the page lands after scrolling to the bottom is invariant.
   useEffect(() => {
-    if (!compact || pinned == null || !bioRef.current || !headRef.current) return;
-    const bio = bioRef.current.getBoundingClientRect();
-    const needed = Math.max(0, bio.bottom - window.innerHeight + 16);
-    if (needed <= 0) return;
-    // Measured, not hardcoded: the nav is a fixed pill owned by SiteNav, and it
-    // translates out of the way on scroll, in which case there is nothing to
-    // collide with and the cap opens up on its own.
-    const nav = document.querySelector('header[role="banner"]')?.getBoundingClientRect();
-    const headTop = headRef.current.getBoundingClientRect().top;
-    const cap = Math.max(0, headTop - (nav ? Math.max(0, nav.bottom) : 68) - 8);
-    const dy = Math.min(needed, cap);
-    if (dy <= 0) return;
-    window.scrollBy({ top: dy, behavior: reduceMotion ? "auto" : "smooth" });
+    if (!compact || pinned == null || !bioRef.current) return;
+    bioRef.current.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "nearest",
+    });
   }, [compact, pinned, reduceMotion]);
   const onHover = useCallback((i) => setHovered(i), []);
   const onLayout = useCallback((g) => setGeo(g), []);
@@ -296,7 +313,7 @@ export default function PeoplePage() {
       <div className="ev-home ev-people pv-flow">
         <SiteNav className={navClassName} />
 
-        <header ref={headRef}>
+        <header>
           <h1 className="pv-title">The team</h1>
           <p className="pv-hint pv-head-hint">
             <b>Tap a name</b> to reveal them

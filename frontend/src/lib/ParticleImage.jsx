@@ -45,6 +45,9 @@ export default function ParticleImage({
   const focusRef = useRef(-1);
   const zoomRef = useRef(zoomOnFocus);
   zoomRef.current = zoomOnFocus;
+  // Only the non-zoomed (desktop) layout consumes onLayout anchors.
+  const trackScrollRef = useRef(!zoomOnFocus);
+  trackScrollRef.current = !zoomOnFocus;
   const cbRef = useRef({ onHover, onSelect, onLayout });
   cbRef.current = { onHover, onSelect, onLayout };
 
@@ -373,6 +376,25 @@ export default function ParticleImage({
       }
       ctx.globalAlpha = 1;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // The photo tile's own bottom falloff lives in TILE space, ending at
+      // PHOTO_BOTTOM. Once the camera pushes in, that faded region sits below the
+      // canvas rect, so the visible bottom edge became the canvas boundary with
+      // alpha still at full — a dead-straight chop across the torso. Fade in
+      // CANVAS space too, phased in with the zoom so the un-zoomed desktop view
+      // (where the board legitimately reaches the bottom edge) is untouched.
+      const zoomAmt = Math.min(1, Math.max(0, (cam.s - 1) / 0.6));
+      if (zoomAmt > 0.02) {
+        const fadeH = Math.max(24, Math.round(H * 0.22));
+        const g = ctx.createLinearGradient(0, H - fadeH, 0, H);
+        g.addColorStop(0, "rgba(0,0,0,0)");
+        g.addColorStop(0.55, `rgba(0,0,0,${0.45 * zoomAmt})`);
+        g.addColorStop(1, `rgba(0,0,0,${0.98 * zoomAmt})`);
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = g;
+        ctx.fillRect(0, H - fadeH, W, fadeH);
+        ctx.globalCompositeOperation = "source-over";
+      }
     };
 
     img.onload = () => { build(); cancelAnimationFrame(raf); tick(); };
@@ -404,7 +426,19 @@ export default function ParticleImage({
       rt = setTimeout(() => { if (img.complete && img.naturalWidth) build(); }, 160);
     };
     window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", reportLayout, { passive: true });
+    // Anchors are only consumed by the desktop layout, which does not scroll. The
+    // compact layout is the one that DOES scroll and never reads them, so an
+    // unthrottled listener there re-rendered the parent every scroll tick for a
+    // value nobody used. Skip it when unwanted, rAF-coalesce it when wanted.
+    let scrollRaf = 0;
+    const onScroll = () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = 0;
+        reportLayout();
+      });
+    };
+    if (trackScrollRef.current) window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
       cancelAnimationFrame(raf);
@@ -413,7 +447,8 @@ export default function ParticleImage({
       canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", reportLayout);
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(scrollRaf);
     };
   }, [src, boardTop, target, disperse, bands]);
 
