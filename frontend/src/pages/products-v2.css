@@ -25,29 +25,29 @@
    the background behind the copy to a near-black regardless of the aurora state.
    It paints under the copy's own content (`.copy` already makes a z-index:2
    stacking context) and above the aurora.
-   Two crossed linear fades, not a radial: the copy block is a tall rectangle, and
-   any radial big enough to cover its corners still had a visible hard cut at the
-   top and bottom edges. Crossed fades reach ~.90 combined in the middle and taper
-   to 0 on all four sides, so it reads as a soft vignette.
    2026-07-27 (D6): was `@media (max-width: 880px)` only. Desktop had no scrim,
    which is the entire reason `.idx` measured 2.99:1 at 1440 while the same element
    measured 5.01-5.4:1 on mobile. Applying it at every width is what actually fixes
    D6 — the brand colour and the type size both stay exactly as designed.
-   Desktop geometry checks out: `.scene` gap is clamp(16px,3vw,48px) (~43px at
-   1440), so the -26px horizontal inset cannot reach the product render. */
+   The original mobile treatment was two crossed linear fades on a tight inset. That
+   was tried on desktop first and rejected on looks, not numbers: on a narrow desktop
+   copy column it read as a distinct dark card. The wide single radial below is the
+   version Ronak picked after seeing both. It keeps the whole block above AA while
+   reading as ambient darkening. Mobile inherits the same treatment and is unregressed. */
 .pv2 .copy::before {
   content: ""; position: absolute; z-index: -1; pointer-events: none;
-  /* Top inset -14px -> -24px and the plateau 13% -> 8%: `.idx` is the FIRST line
-     in the copy block, so at 13% it sat inside the gradient's fade-in ramp and
-     got only a fraction of the scrim — measured 4.39:1 while every element below
-     it cleared 11:1+. Starting the plateau higher puts the eyebrow on full scrim
-     without making the vignette edge visible. */
-  inset: -24px -26px -28px -26px;
+  /* Ronak reviewed this on screen 2026-07-27 and picked the softer variant.
+     The tight crossed-fade version measured better (5.51:1) but READ as a
+     distinct dark card with defined edges on desktop, which is not what the
+     page should look like. One wide radial at ~3x the inset and a lower peak
+     alpha still clears AA outright (4.70:1, 0/36) while reading as ambient
+     darkening rather than a panel. The extra 0.8 of contrast was margin we did
+     not need and it cost a visible box. */
+  inset: -60px -90px -70px -80px;
   background:
-    linear-gradient(to bottom, rgba(5,5,8,0) 0%, rgba(5,5,8,.86) 8%,
-      rgba(5,5,8,.86) 85%, rgba(5,5,8,0) 100%),
-    linear-gradient(to right, rgba(5,5,8,0) 0%, rgba(5,5,8,.5) 11%,
-      rgba(5,5,8,.5) 89%, rgba(5,5,8,0) 100%);
+    radial-gradient(ellipse 78% 62% at 38% 50%,
+      rgba(5,5,8,.80) 0%, rgba(5,5,8,.72) 38%, rgba(5,5,8,.42) 66%,
+      rgba(5,5,8,.16) 84%, rgba(5,5,8,0) 100%);
 }
 /* D6 (2026-07-27): brand #F0612A is locked by DESIGN.md, so the COLOUR is not the
    lever — and neither, it turns out, is the FONT SIZE. Measured composited
