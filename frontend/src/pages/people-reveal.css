@@ -27,9 +27,23 @@
  *
  * So every rule targeting the root element is qualified with `.ev-home` to reach
  * (0,2,0) and win regardless of order. The colliding properties are padding (all
- * four longhands, via two shorthands), background, min-height and color. If you
- * add another root-element property here, qualify it the same way and check
- * evora-home.css for a bare `.ev-home` rule that also sets it.
+ * four longhands), background, min-height and color. If you add another
+ * root-element property here, qualify it the same way and check evora-home.css
+ * for a bare `.ev-home` rule that also sets it.
+ *
+ * DO NOT "simplify" these back to bare `.ev-people` / `.pv-flow` / `.pv-desk`.
+ * That was tried and MEASURED on a production build (390x844 dpr3 isMobile):
+ *   padding      92/20/28/20  ->  12/12/12/12   (the original bug, back)
+ *   heading top  100px        ->  20px          (behind the fixed nav pill)
+ *   background   #050506      ->  #000          (bare `.ev-home` at the end
+ *                                                of evora-home.css)
+ *   color        #f4f1ea      ->  #0e0d0a       (near-black text on black —
+ *                                                and this one breaks DESKTOP
+ *                                                too, not just mobile)
+ * The colour break comes from the BASE `.ev-home` rule, so the qualifier is
+ * load-bearing independently of any one media query. Converting evora-home.css's
+ * `padding: 12px` shorthand to longhands (2026-07-27) does not change this:
+ * all four sides are intended there, so it still overrides all four here.
  */
 .ev-home.ev-people {
   background: #050506;
