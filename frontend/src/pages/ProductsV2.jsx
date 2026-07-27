@@ -126,7 +126,58 @@ const STAGES = [
   },
 ];
 
-const GLOVE_FRAMES = ["000", "001", "002", "003", "004", "005"].map((n) => `/hero/glove/frame-${n}.webp`);
+const GLOVE_FRAME_IDS = ["000", "001", "002", "003", "004", "005"];
+// Fallback src for browsers without srcSet, and the identity of the frame the
+// crossfade is currently on. The ladder below is what actually gets fetched.
+const GLOVE_FRAMES = GLOVE_FRAME_IDS.map((n) => `/hero/glove/frame-${n}.webp`);
+
+// Responsive ladder for the crossfade frames. Unlike the homepage, /products
+// paints the glove CONTAINED in a small box, so the 2752px source is heavily
+// oversupplied. Measured painted widths (object-fit: contain, always
+// width-limited here because the box is never wider than 1.79:1):
+//
+//     390x844  dpr3 -> 342 CSS -> 1026 device px
+//     360x740  dpr3 -> 312 CSS ->  936
+//     430x932  dpr3 -> 382 CSS -> 1146
+//    1440x900  dpr2 -> 625 CSS -> 1250
+//   1920x1080  dpr1 -> 866 CSS ->  866
+//
+// The homepage's existing w1100 tier was tried here first and REJECTED on
+// measurement: a source only ~1.07x the painted size still has to be resampled
+// to land on it, and that second resample costs real detail. Edge energy
+// retained at the 1026px phone size, vs the lossless master through the same
+// browser downscale:
+//
+//     full 2752   100.0%      <- what ships today
+//     w1100         77.4%     <- shipped homepage file (also a sub-q92 encode)
+//     1100 fresh    80.4% Lanczos / 88.0% area-average
+//     1400        101.2% Lanczos / 105.4% area-average
+//     1600        114.7% / 120.4%   <- overshoots, aliasing
+//
+// 1100 loses 12-23% of edge detail depending on resampler; the sign and the
+// ordering hold either way. That is the same "softens the fabric weave" failure
+// the earlier GLOVE_FRAMES tier decision rejected, so w1100 is not usable here.
+// 1400 is detail-neutral and still 60% lighter, so /products gets its own tier.
+// Encoded q92 from the LOSSLESS masters (git a53cd6a) — never re-encoded from
+// the shipped lossy files, so this is one generation of loss, same as full.
+//
+// Rungs are deliberately 1400 and 2752 with NO 1100 in between: adding a 1100
+// rung would pull the main 390px phone case (1026 needed) back onto the blurry
+// tier. 1400 covers every phone (936-1176) and 1440-class desktop (1250);
+// dpr2 tablets at 768 (1440) and 2560 dpr2 (2458) correctly stay on full.
+//
+// Selection is left to srcSet/sizes rather than a width breakpoint because the
+// requirement is painted px = box x dpr, so a width-only rule mis-serves a dpr2
+// tablet just under the breakpoint and needlessly denies the small tier to a
+// dpr1 desktop (which lands on 1400 correctly this way).
+const GLOVE_SRCSET = GLOVE_FRAME_IDS.map(
+  (n) => `/hero/glove/w1400/frame-${n}.webp 1400w, /hero/glove/frame-${n}.webp 2752w`
+);
+// Box width, slightly over-declared so rounding always errs toward the LARGER
+// rung. Mobile (<=880px) is single-column with 24px side padding — exact.
+// Desktop is the 58% grid track; 48vw measured within 1% at 2560 and over-
+// declares at 1440/1920, which is the safe direction.
+const GLOVE_SIZES = "(max-width: 880px) calc(100vw - 48px), 48vw";
 
 export default function ProductsV2() {
   const rootRef = useRef(null);
@@ -180,8 +231,20 @@ export default function ProductsV2() {
     const onNav = (e) => { e.preventDefault(); const i = +e.currentTarget.dataset.i; sceneEls[i]?.el.scrollIntoView({ behavior: "smooth", block: "center" }); };
     navEls.forEach((a) => a.addEventListener("click", onNav));
 
-    // preload glove frames
-    GLOVE_FRAMES.forEach((src) => { const im = new Image(); im.src = src; });
+    // Preload glove frames so the crossfade never waits on a fetch.
+    //
+    // This MUST go through srcset/sizes rather than assigning .src, or it
+    // defeats the whole ladder: a bare `im.src = <full-res URL>` fetches the
+    // 2752px file unconditionally, AND warms the cache with it, after which the
+    // browser prefers that already-available larger candidate for the visible
+    // layers too. The page then pays for both tiers and gets heavier, not
+    // lighter. Setting srcset (with no src) starts the fetch for whichever
+    // candidate the layers themselves will select.
+    GLOVE_SRCSET.forEach((set) => {
+      const im = new Image();
+      im.sizes = GLOVE_SIZES;
+      im.srcset = set;
+    });
 
     let scrollY = window.scrollY, t = 0, curActive = -1, gBase = -1, gNext = -1, raf = 0;
     const onScroll = () => { scrollY = window.scrollY; };
@@ -227,8 +290,11 @@ export default function ProductsV2() {
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);
         const blend = fpos - base;
-        if (base !== gBase) { gBase = base; gloveARef.current.src = GLOVE_FRAMES[base]; }
-        if (next !== gNext) { gNext = next; gloveBRef.current.src = GLOVE_FRAMES[next]; }
+        // srcset before src: both assignments re-run the browser's candidate
+        // selection, and setting src first would briefly select against the
+        // PREVIOUS frame's ladder.
+        if (base !== gBase) { gBase = base; gloveARef.current.srcset = GLOVE_SRCSET[base]; gloveARef.current.src = GLOVE_FRAMES[base]; }
+        if (next !== gNext) { gNext = next; gloveBRef.current.srcset = GLOVE_SRCSET[next]; gloveBRef.current.src = GLOVE_FRAMES[next]; }
         gloveBRef.current.style.opacity = blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
@@ -290,9 +356,16 @@ export default function ProductsV2() {
               : s.glove
               ? <div className="pimg glove-stack">
                   {/* bottom = current frame (opaque); top = next frame crossfading in */}
-                  <img className="glove-layer" ref={gloveARef} src={GLOVE_FRAMES[0]}
+                  {/* srcSet/sizes MUST precede src. React writes DOM attributes in
+                      props order, and a src set before the ladder exists makes the
+                      browser start fetching the 2752px file immediately; it then
+                      keeps that already-cached larger candidate even once srcSet
+                      lands, so the page fetches BOTH tiers and gets heavier. */}
+                  <img className="glove-layer" ref={gloveARef}
+                    srcSet={GLOVE_SRCSET[0]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[0]}
                     alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async" />
-                  <img className="glove-layer" ref={gloveBRef} src={GLOVE_FRAMES[1]}
+                  <img className="glove-layer" ref={gloveBRef}
+                    srcSet={GLOVE_SRCSET[1]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[1]}
                     alt="" aria-hidden="true" draggable="false" loading="eager"
                     decoding="async" style={{ opacity: 0 }} />
                 </div>
