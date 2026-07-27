@@ -37,7 +37,11 @@ export default function ProductPage({ slug }) {
     <div className="product-page">
       <header className="product-nav">
         <Link className="product-wordmark" to="/" aria-label="6thSense home">
-          <img className="product-logo" src="/logos/Logo_Alpha.png" alt="" aria-hidden="true" />
+          {/* 118KB PNG for a 26x26 render; same mark at 128x128 (exact 1/8 of the
+              source, aspect preserved), PNG kept as the fallback src. */}
+          <img className="product-logo" src="/logos/Logo_Alpha.png"
+            srcSet="/logos/Logo_Alpha-128.webp"
+            alt="" aria-hidden="true" />
           <span>6THSENSE</span>
         </Link>
         {/* Shared site nav (matches SiteNav): Products / People / Partner login.
