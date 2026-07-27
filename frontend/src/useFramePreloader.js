@@ -1,8 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 
-function framePath(stage, index) {
+// The checked-in frame-XXX.webp files are LOSSY q92 at full 2752x1536 (~330KB
+// each). The lossless masters they were encoded from live only in git history:
+//
+//   git show a53cd6a:frontend/public/hero/glove/frame-000.webp
+//
+// Anything that needs to re-derive a variant should start from those, not from
+// the checked-in files, to avoid stacking generations of lossy encoding.
+//
+// Tiering: full resolution is the default everywhere, including phones. A phone
+// paints the glove ~2028 device px wide (ScrollStage zooms it ~2.6x, so the
+// viewport width is not the painted width), and a down-scaled tier measurably
+// softens the fabric weave and grip diamonds — 9.74/255 mean error over visible
+// pixels vs 1.50/255 for full-res lossy. Only low-DPR phones, which paint about
+// half that, and explicit saveData get the small tier.
+//
+// Down-scaling is geometry-safe when it is used: computePaintRect scales by
+// min(cw/iw, ch/ih) and then multiplies back by iw/ih, so a proportional resize
+// cancels out and every anchor constant in ScrollStage keeps its meaning.
+const MOBILE_MAX_W = 720;   // keep in sync with ScrollStage's MOBILE_MAX_W
+
+function variantDir() {
+  if (typeof window === "undefined") return "";
+  if (window.innerWidth >= MOBILE_MAX_W) return "";       // desktop + tablet
+  const saveData = navigator.connection?.saveData === true;
+  const dpr = window.devicePixelRatio || 1;
+  return saveData || dpr < 1.5 ? "/w1100" : "";
+}
+
+function framePath(stage, index, variant) {
   const padded = String(index).padStart(3, "0");
-  return `${stage.frameDir}/frame-${padded}.webp`;
+  return `${stage.frameDir}${variant}/frame-${padded}.webp`;
 }
 
 const cache = new Map();
@@ -34,7 +62,11 @@ export function useFramePreloader(stage, enabled) {
       };
     }
 
-    const cacheKey = stage.id;
+    // The variant is part of the identity of a cached sequence — keying on the
+    // stage alone would hand a phone the desktop frames (or vice versa) after a
+    // remount at a different width.
+    const variant = variantDir();
+    const cacheKey = `${stage.id}${variant}`;
     const cached = cache.get(cacheKey);
     if (cached?.ready) {
       setFrames(cached.frames);
@@ -48,7 +80,7 @@ export function useFramePreloader(stage, enabled) {
     (async () => {
       const count = stage.frameCount;
       const arr = await Promise.all(
-        Array.from({ length: count }, (_, i) => loadImage(framePath(stage, i)))
+        Array.from({ length: count }, (_, i) => loadImage(framePath(stage, i, variant)))
       );
       if (cancelled || !aliveRef.current) return;
       cache.set(cacheKey, { ready: true, frames: arr });

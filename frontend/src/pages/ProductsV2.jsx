@@ -42,10 +42,15 @@ const USE_GL_AURORA = (() => {
 // Graceful fallback: if WebGL is unavailable we keep the robo.webp image, and
 // `?v2&nohand3d` forces the image explicitly. (`?hand3d` still works as a no-op
 // opt-in for back-compat.)
+// Phones take the image path too: the 3D hand costs ~3MB of STL mesh (base_link
+// alone is 1.3MB) for a decorative render, which is most of the page weight on a
+// phone. Same graceful fallback, just triggered by viewport as well as by WebGL.
+const HAND3D_MIN_W = 720;
 const USE_HAND3D = (() => {
   if (typeof window === "undefined") return false;
   const q = new URLSearchParams(window.location.search);
   if (q.has("nohand3d")) return false;
+  if (window.innerWidth < HAND3D_MIN_W) return false;
   return hasWebGL();
 })();
 
@@ -271,8 +276,18 @@ export default function ProductsV2() {
                 </div>
               : s.title === "Eye2"
               ? <div className="pimg eye2-cell">
+                  {/* The 2400x2400 PNG stays as the fallback src; every current
+                      browser takes a WebP from srcSet instead. Rendered box was
+                      measured at 330 CSS px on a 390px phone (989 device px) and
+                      625 CSS px at 1440 (1250 device px), so the ladder and the
+                      sizes hints below are cut to those numbers -- a phone takes
+                      the 1000w (30KB vs 701KB), desktop the 1400w. */}
                   <img className={`eye2-img${eye2Light ? " light" : ""}`}
                     src={eye2Light ? "/eye2-hero.png" : "/eye2-dark.png"}
+                    srcSet={eye2Light
+                      ? "/eye2-hero-1000.webp 1000w, /eye2-hero-1400.webp 1400w, /eye2-hero.webp 2400w"
+                      : "/eye2-dark-1000.webp 1000w, /eye2-dark-1400.webp 1400w, /eye2-dark.webp 2400w"}
+                    sizes="(max-width: 720px) 85vw, 45vw"
                     alt={`6thSense ${s.title}`} draggable="false"
                     loading="lazy" decoding="async" />
                   {/* finish preview (NOT a catalog/buy selector): the swatches
