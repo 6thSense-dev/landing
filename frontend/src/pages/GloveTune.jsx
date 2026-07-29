@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GLOVE_ALIGN, GLOVE_FRAME_IDS, gloveFrameSrc } from "../lib/gloveAlign.js";
+import { GLOVE_ALIGN, GLOVE_CYCLE_MS, GLOVE_FRAME_IDS, gloveFrameSrc } from "../lib/gloveAlign.js";
 
 // TEMPORARY alignment tool for the glove flip-book on /products.
 // Route: /glove-tune.
@@ -15,6 +15,7 @@ import { GLOVE_ALIGN, GLOVE_FRAME_IDS, gloveFrameSrc } from "../lib/gloveAlign.j
 const STAGE_W = 640;
 const STAGE_H = 560;
 const IDENTITY = { scale: 1, x: 0, y: 0 };
+const TAU = Math.PI * 2;
 
 function Slider({ label, value, min, max, step, onChange }) {
   return (
@@ -50,6 +51,9 @@ export default function GloveTune() {
   const dragRef = useRef(null);
   // Live crossfade preview (mirrors the products-page sine flip-book).
   const [playPos, setPlayPos] = useState(0);
+  // Full closed->open->closed period, ms. Seeded from the shipped constant so the
+  // tuner opens showing exactly what the live page does.
+  const [cycleMs, setCycleMs] = useState(GLOVE_CYCLE_MS);
 
   const cur = align[sel];
   const setCur = (patch) => setAlign((p) => ({ ...p, [sel]: { ...p[sel], ...patch } }));
@@ -101,19 +105,24 @@ export default function GloveTune() {
     return () => window.removeEventListener("keydown", onKey);
   }, [cur, sel, playing]);
 
-  // ---- crossfade preview: same sin() pacing as ProductsV2 ----
+  // ---- crossfade preview ----
+  // Uses the SAME formula and period as ProductsV2, driven by the cycleMs slider.
+  // It previously hardcoded `t * 0.012 * 0.06`, its own constant unrelated to the
+  // page's, so the "play the crossfade" preview did not actually show the shipped
+  // pace -- the one thing it exists to show. Now both read GLOVE_CYCLE_MS.
   useEffect(() => {
     if (!playing) return;
-    let raf, t0 = performance.now();
+    let raf, t0 = 0;
     const tick = (now) => {
+      if (!t0) t0 = now;
       const t = now - t0;
       const last = GLOVE_FRAME_IDS.length - 1;
-      setPlayPos((Math.sin(t * 0.012 * 0.06) * 0.5 + 0.5) * last);
+      setPlayPos((Math.sin(t * TAU / cycleMs) * 0.5 + 0.5) * last);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing]);
+  }, [playing, cycleMs]);
 
   const tf = (a) => `translate(${a.x}%, ${a.y}%) scale(${a.scale})`;
 
@@ -122,8 +131,8 @@ export default function GloveTune() {
       const a = align[id];
       return `  "${id}": { scale: ${a.scale}, x: ${a.x}, y: ${a.y} },`;
     }).join("\n");
-    return `export const GLOVE_ALIGN = {\n${rows}\n};`;
-  }, [align]);
+    return `export const GLOVE_ALIGN = {\n${rows}\n};\n\nexport const GLOVE_CYCLE_MS = ${Math.round(cycleMs)};`;
+  }, [align, cycleMs]);
 
   const copy = async () => {
     try {
@@ -247,6 +256,13 @@ export default function GloveTune() {
               <input type="checkbox" checked={playing} onChange={(e) => setPlaying(e.target.checked)} />
               play the crossfade (check the pulse is gone)
             </label>
+            <Slider label={`cycle (${(cycleMs / 1000).toFixed(1)}s closed→open→closed)`}
+              value={cycleMs} min={4000} max={30000} step={250} onChange={setCycleMs} />
+            <div style={{ fontSize: 12, color: "#8a8378", lineHeight: 1.45 }}>
+              Higher = slower. Shipped default is {(GLOVE_CYCLE_MS / 1000).toFixed(1)}s.
+              This is wall-clock, so it looks the same on 60Hz and 120Hz — the old
+              tick-counted version ran twice as fast on ProMotion.
+            </div>
           </div>
         </div>
 

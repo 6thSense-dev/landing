@@ -26,6 +26,23 @@ export const GLOVE_ALIGN = {
 /** Frame ids in flip-book order — the one list both the page and tuner iterate. */
 export const GLOVE_FRAME_IDS = ["000", "001", "002", "003", "004", "005"];
 
+/**
+ * Duration of ONE full flip-book cycle in milliseconds — closed -> open -> closed.
+ * A sine drives the frame position, so this is the sine's period, not a per-frame
+ * hold time.
+ *
+ * This used to be a bare `Math.sin(t * 0.012)` where `t` counted requestAnimationFrame
+ * TICKS, not time. That made the animation frame-rate dependent: 523.6 ticks per cycle
+ * is ~8.7s on a 60Hz display but only ~4.4s on a 120Hz ProMotion Mac or iPhone, so the
+ * glove visibly raced on exactly the hardware most likely to be looking at it. Now it is
+ * wall-clock driven and identical everywhere.
+ *
+ * 13000 is deliberately slower than the old 60Hz behaviour (Ronak asked for slower);
+ * it is also ~3x slower than what a 120Hz display was actually getting.
+ * Tune live at /glove-tune, then paste the value back here.
+ */
+export const GLOVE_CYCLE_MS = 13000;
+
 /** Public URL for a frame id. */
 export const gloveFrameSrc = (id) => `/hero/glove/frame-${id}.webp`;
 

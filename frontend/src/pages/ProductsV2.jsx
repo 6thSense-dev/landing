@@ -4,7 +4,7 @@ import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
 import { useRevealNav } from "../useRevealNav.js";
-import { GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform } from "../lib/gloveAlign.js";
+import { GLOVE_CYCLE_MS, GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform } from "../lib/gloveAlign.js";
 import "./products-v2.css";
 
 // Hand3D pulls in three's STLLoader, the big skin-dissolve shaders, and (at
@@ -180,6 +180,7 @@ const GLOVE_SRCSET = GLOVE_FRAME_IDS.map(
 // rung. Mobile (<=880px) is single-column with 24px side padding — exact.
 // Desktop is the 58% grid track; 48vw measured within 1% at 2560 and over-
 // declares at 1440/1920, which is the safe direction.
+const TAU = Math.PI * 2;
 const GLOVE_SIZES = "(max-width: 880px) calc(100vw - 48px), 48vw";
 
 export default function ProductsV2() {
@@ -250,13 +251,18 @@ export default function ProductsV2() {
     });
 
     let scrollY = window.scrollY, t = 0, curActive = -1, gBase = -1, gNext = -1, raf = 0;
+    // t is elapsed MILLISECONDS since the loop started, not a frame counter, so the
+    // flip-book runs at the same speed on 60Hz and 120Hz. t0 is set on first tick
+    // rather than here so a slow first paint doesn't jump the animation forward.
+    let t0 = 0;
     const onScroll = () => { scrollY = window.scrollY; };
     const onResize = () => { H = window.innerHeight; measure(); };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
 
-    const frame = () => {
-      t += 1;
+    const frame = (now) => {
+      if (!t0) t0 = now;
+      t = now - t0;
       const c1 = sceneEls[1] ? (sceneEls[1].top + sceneEls[1].h / 2 - scrollY) : 9e9;
       // Feed the Canvas2D aurora the Eye2 tone lift (no-op when the GL aurora is active).
       lightRef.current = Math.max(0, Math.min(1, 1 - Math.abs(c1 - H / 2) / (H * .62)));
@@ -289,7 +295,9 @@ export default function ProductsV2() {
       // the next frame in (opacity = fractional part), so it's a buttery dissolve.
       if (gloveARef.current && gloveBRef.current) {
         const last = GLOVE_FRAMES.length - 1;
-        const fpos = (Math.sin(t * 0.012) * .5 + .5) * last; // continuous 0..last
+        // Wall-clock driven, NOT rAF-tick driven: see GLOVE_CYCLE_MS. A tick count
+        // made this run 2x fast on 120Hz displays.
+        const fpos = (Math.sin(t * TAU / GLOVE_CYCLE_MS) * .5 + .5) * last; // continuous 0..last
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);
         const blend = fpos - base;
