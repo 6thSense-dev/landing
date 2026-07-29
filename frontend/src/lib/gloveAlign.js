@@ -17,7 +17,9 @@
 const IDENTITY = { scale: 1, x: 0, y: 0 };
 
 export const GLOVE_ALIGN = {
-  "000": { scale: 1, x: 0, y: 0 },
+  // Tuned by Ronak 2026-07-28 via ?tune compare mode against frame 001.
+  // Only the fist needed correcting; it was shot noticeably closer than the rest.
+  "000": { scale: 0.790, x: 0.25, y: 4.50 },
   "001": { scale: 1, x: 0, y: 0 },
   "002": { scale: 1, x: 0, y: 0 },
   "003": { scale: 1, x: 0, y: 0 },
@@ -48,7 +50,7 @@ export const GLOVE_FRAME_IDS = ["000", "001", "002", "003", "004", "005"];
  * Tune live with `?tune` on /products (sliders over the real scene), or at
  * /glove-tune, then paste the value back here.
  */
-export const GLOVE_CYCLE_MS = 6000;
+export const GLOVE_CYCLE_MS = 4500;
 
 /**
  * Live-tuning overrides, only ever written by the `?tune` panel on /products.
