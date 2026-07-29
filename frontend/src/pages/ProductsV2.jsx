@@ -191,9 +191,8 @@ const TAU = Math.PI * 2;
 // Transform for a frame using the LIVE tuner scale, keeping whatever x/y offset
 // is already committed in GLOVE_ALIGN (the panel only drives size).
 function liveTransform(id) {
-  const a = GLOVE_ALIGN[id] || { x: 0, y: 0 };
-  const sc = liveTune.scale[id] ?? 1;
-  return `translate(${a.x}%, ${a.y}%) scale(${sc})`;
+  const a = liveTune.align[id] || GLOVE_ALIGN[id] || { scale: 1, x: 0, y: 0 };
+  return `translate(${a.x}%, ${a.y}%) scale(${a.scale})`;
 }
 const GLOVE_SIZES = "(max-width: 880px) calc(100vw - 48px), 48vw";
 
@@ -315,7 +314,11 @@ export default function ProductsV2() {
         // shipped constants so a slider drag is felt on the next frame.
         const cycle = liveTune.active ? liveTune.cycleMs : GLOVE_CYCLE_MS;
         // Frozen on one frame while tuning it, otherwise the continuous sine sweep.
-        const fpos = (liveTune.active && liveTune.hold != null)
+        // compare mode pins the 000/001 pair; hold freezes a single frame;
+        // otherwise the continuous sine sweep.
+        const fpos = (liveTune.active && liveTune.compare)
+          ? 0
+          : (liveTune.active && liveTune.hold != null)
           ? Math.min(liveTune.hold, last)
           : (Math.sin(t * TAU / cycle) * .5 + .5) * last; // continuous 0..last
         const base = Math.floor(fpos);
@@ -348,7 +351,11 @@ export default function ProductsV2() {
           gloveARef.current.style.transform = liveTransform(GLOVE_FRAME_IDS[base]);
           gloveBRef.current.style.transform = liveTransform(GLOVE_FRAME_IDS[next]);
         }
-        gloveBRef.current.style.opacity = blend.toFixed(3);
+        // In compare mode the top layer is held at a fixed alpha so 001 ghosts over
+        // 000 instead of fading out (blend would be 0 with fpos pinned to 0).
+        gloveBRef.current.style.opacity = (liveTune.active && liveTune.compare)
+          ? String(liveTune.compareAlpha)
+          : blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
     };

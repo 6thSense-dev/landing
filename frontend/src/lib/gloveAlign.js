@@ -14,6 +14,8 @@
 //
 // Tune visually at /glove-tune (onion-skins the other frames underneath so you
 // can size-match by eye), then paste the printed block back in here.
+const IDENTITY = { scale: 1, x: 0, y: 0 };
+
 export const GLOVE_ALIGN = {
   "000": { scale: 1, x: 0, y: 0 },
   "001": { scale: 1, x: 0, y: 0 },
@@ -58,21 +60,23 @@ function makeLiveTune() {
   return {
     active: false,
     cycleMs: GLOVE_CYCLE_MS,
-    scale: Object.fromEntries(["000", "001", "002", "003", "004", "005"].map((id) => [id, 1])),
+    // Per-frame { scale, x, y } — same shape as GLOVE_ALIGN so the paste block is
+    // a straight copy of this, and x/y stay in PERCENT of the stage box.
+    align: Object.fromEntries(GLOVE_FRAME_IDS.map((id) => [id, { ...(GLOVE_ALIGN[id] || IDENTITY) }])),
     // Frame INDEX to freeze on, or null to keep cycling. Without this you cannot
     // actually size a specific frame: the crossfade is only showing frames `base`
     // and `base+1` at any instant, so dragging the fist's slider while the animation
     // sits on frame 3 changes nothing you can see.
     hold: null,
+    // COMPARE mode: pin frame 000 opaque with frame 001 held translucent on top of
+    // it, so the fist can be matched against its neighbour directly. This is the
+    // actual working setup — 000 is the frame that needs correcting and 001 is what
+    // it has to line up with, so freezing exactly that pair beats cycling.
+    compare: false,
+    compareAlpha: 0.45,
   };
 }
 
-// A plain module-level singleton is enough. Rollup does emit a shared
-// `gloveAlign-*.js` chunk AND appears to inline a copy elsewhere, so it is fair to
-// worry the panel and the animation loop would end up mutating two different
-// objects — but that was tested directly and they do not: dragging a size slider
-// with this exported as a module-level object correctly reaches the rAF loop and
-// changes the rendered transform. So no `window` global is warranted here.
 export const liveTune = makeLiveTune();
 
 /** Public URL for a frame id. */
