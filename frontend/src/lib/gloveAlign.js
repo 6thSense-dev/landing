@@ -37,11 +37,43 @@ export const GLOVE_FRAME_IDS = ["000", "001", "002", "003", "004", "005"];
  * glove visibly raced on exactly the hardware most likely to be looking at it. Now it is
  * wall-clock driven and identical everywhere.
  *
- * 13000 is deliberately slower than the old 60Hz behaviour (Ronak asked for slower);
- * it is also ~3x slower than what a 120Hz display was actually getting.
- * Tune live at /glove-tune, then paste the value back here.
+ * Picking this number needs care, because "the old speed" was two different speeds.
+ * At 60Hz the old code ran ~8.7s; at 120Hz (ProMotion Mac / iPhone) ~4.4s. Ronak
+ * reviews on a 120Hz machine, so his felt baseline was ~4.4s and a 13000 default
+ * read as "insanely slow" — 3x his reference, not a little slower than it.
+ * 6000 is a modest slowdown from that real baseline.
+ *
+ * Tune live with `?tune` on /products (sliders over the real scene), or at
+ * /glove-tune, then paste the value back here.
  */
-export const GLOVE_CYCLE_MS = 13000;
+export const GLOVE_CYCLE_MS = 6000;
+
+/**
+ * Live-tuning overrides, only ever written by the `?tune` panel on /products.
+ * The rAF loop reads these each tick so a slider drag is felt immediately without
+ * a rebuild. `active` stays false in normal page loads, and when it is false the
+ * loop takes the shipped constants above, so this costs production nothing.
+ */
+function makeLiveTune() {
+  return {
+    active: false,
+    cycleMs: GLOVE_CYCLE_MS,
+    scale: Object.fromEntries(["000", "001", "002", "003", "004", "005"].map((id) => [id, 1])),
+    // Frame INDEX to freeze on, or null to keep cycling. Without this you cannot
+    // actually size a specific frame: the crossfade is only showing frames `base`
+    // and `base+1` at any instant, so dragging the fist's slider while the animation
+    // sits on frame 3 changes nothing you can see.
+    hold: null,
+  };
+}
+
+// A plain module-level singleton is enough. Rollup does emit a shared
+// `gloveAlign-*.js` chunk AND appears to inline a copy elsewhere, so it is fair to
+// worry the panel and the animation loop would end up mutating two different
+// objects — but that was tested directly and they do not: dragging a size slider
+// with this exported as a module-level object correctly reaches the rAF loop and
+// changes the rendered transform. So no `window` global is warranted here.
+export const liveTune = makeLiveTune();
 
 /** Public URL for a frame id. */
 export const gloveFrameSrc = (id) => `/hero/glove/frame-${id}.webp`;

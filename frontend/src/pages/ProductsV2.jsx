@@ -4,7 +4,7 @@ import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
 import { useRevealNav } from "../useRevealNav.js";
-import { GLOVE_CYCLE_MS, GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform } from "../lib/gloveAlign.js";
+import { GLOVE_ALIGN, GLOVE_CYCLE_MS, GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform, liveTune } from "../lib/gloveAlign.js";
 import "./products-v2.css";
 
 // Hand3D pulls in three's STLLoader, the big skin-dissolve shaders, and (at
@@ -20,6 +20,12 @@ const Hand3D = lazy(() => import("./Hand3D.jsx"));
 // measured 138.5KB of three.module on a 390px production build with the 3D hand
 // already gated off. Lazy is what actually makes the D5 gate below pay.
 const AuroraGL = lazy(() => import("./AuroraGL.jsx"));
+
+// `?tune` overlay: sliders for cycle speed and per-frame size, over the REAL scene.
+// Lazy + query-gated so a normal visitor never downloads or mounts it.
+const GloveTunePanel = lazy(() => import("./GloveTunePanel.jsx"));
+const TUNING = typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).has("tune");
 
 // Small shared WebGL-availability probe (cheap, synchronous). Used to pick the GL
 // aurora vs the Canvas2D fallback, and to gate the 3D hand.
@@ -181,6 +187,14 @@ const GLOVE_SRCSET = GLOVE_FRAME_IDS.map(
 // Desktop is the 58% grid track; 48vw measured within 1% at 2560 and over-
 // declares at 1440/1920, which is the safe direction.
 const TAU = Math.PI * 2;
+
+// Transform for a frame using the LIVE tuner scale, keeping whatever x/y offset
+// is already committed in GLOVE_ALIGN (the panel only drives size).
+function liveTransform(id) {
+  const a = GLOVE_ALIGN[id] || { x: 0, y: 0 };
+  const sc = liveTune.scale[id] ?? 1;
+  return `translate(${a.x}%, ${a.y}%) scale(${sc})`;
+}
 const GLOVE_SIZES = "(max-width: 880px) calc(100vw - 48px), 48vw";
 
 export default function ProductsV2() {
@@ -297,7 +311,13 @@ export default function ProductsV2() {
         const last = GLOVE_FRAMES.length - 1;
         // Wall-clock driven, NOT rAF-tick driven: see GLOVE_CYCLE_MS. A tick count
         // made this run 2x fast on 120Hz displays.
-        const fpos = (Math.sin(t * TAU / GLOVE_CYCLE_MS) * .5 + .5) * last; // continuous 0..last
+        // While the ?tune panel is mounted, read its live values instead of the
+        // shipped constants so a slider drag is felt on the next frame.
+        const cycle = liveTune.active ? liveTune.cycleMs : GLOVE_CYCLE_MS;
+        // Frozen on one frame while tuning it, otherwise the continuous sine sweep.
+        const fpos = (liveTune.active && liveTune.hold != null)
+          ? Math.min(liveTune.hold, last)
+          : (Math.sin(t * TAU / cycle) * .5 + .5) * last; // continuous 0..last
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);
         const blend = fpos - base;
@@ -321,6 +341,13 @@ export default function ProductsV2() {
           gloveBRef.current.src = GLOVE_FRAMES[next];
           gloveBRef.current.style.transform = GLOVE_TRANSFORMS[next];
         }
+        // Tuning only: re-apply every tick so dragging a size slider shows up
+        // immediately instead of waiting for the next frame change. Production
+        // keeps the change-only path above, so no per-tick matrix churn ships.
+        if (liveTune.active) {
+          gloveARef.current.style.transform = liveTransform(GLOVE_FRAME_IDS[base]);
+          gloveBRef.current.style.transform = liveTransform(GLOVE_FRAME_IDS[next]);
+        }
         gloveBRef.current.style.opacity = blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
@@ -337,6 +364,7 @@ export default function ProductsV2() {
 
   return (
     <div className="pv2" ref={rootRef}>
+      {TUNING && <Suspense fallback={null}><GloveTunePanel /></Suspense>}
       {/* Suspense fallback is the Canvas2D aurora, not null: AuroraGL is lazy now,
           and the page background must never flash empty while its chunk loads. */}
       {USE_GL_AURORA
