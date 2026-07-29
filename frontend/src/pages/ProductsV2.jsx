@@ -4,6 +4,7 @@ import { useReducedMotion } from "framer-motion";
 import SiteNav from "../SiteNav.jsx";
 import AuroraBg from "../lib/AuroraBg.jsx";
 import { useRevealNav } from "../useRevealNav.js";
+import { GLOVE_ALIGN, GLOVE_CYCLE_MS, GLOVE_FRAME_IDS, gloveFrameSrc, gloveFrameTransform, liveTune } from "../lib/gloveAlign.js";
 import "./products-v2.css";
 
 // Hand3D pulls in three's STLLoader, the big skin-dissolve shaders, and (at
@@ -19,6 +20,12 @@ const Hand3D = lazy(() => import("./Hand3D.jsx"));
 // measured 138.5KB of three.module on a 390px production build with the 3D hand
 // already gated off. Lazy is what actually makes the D5 gate below pay.
 const AuroraGL = lazy(() => import("./AuroraGL.jsx"));
+
+// `?tune` overlay: sliders for cycle speed and per-frame size, over the REAL scene.
+// Lazy + query-gated so a normal visitor never downloads or mounts it.
+const GloveTunePanel = lazy(() => import("./GloveTunePanel.jsx"));
+const TUNING = typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).has("tune");
 
 // Small shared WebGL-availability probe (cheap, synchronous). Used to pick the GL
 // aurora vs the Canvas2D fallback, and to gate the 3D hand.
@@ -126,10 +133,12 @@ const STAGES = [
   },
 ];
 
-const GLOVE_FRAME_IDS = ["000", "001", "002", "003", "004", "005"];
+// Frame ids, URLs and per-frame corrective transforms all come from
+// lib/gloveAlign.js, so the live page and /glove-tune can never drift apart.
 // Fallback src for browsers without srcSet, and the identity of the frame the
 // crossfade is currently on. The ladder below is what actually gets fetched.
-const GLOVE_FRAMES = GLOVE_FRAME_IDS.map((n) => `/hero/glove/frame-${n}.webp`);
+const GLOVE_FRAMES = GLOVE_FRAME_IDS.map(gloveFrameSrc);
+const GLOVE_TRANSFORMS = GLOVE_FRAME_IDS.map(gloveFrameTransform);
 
 // Responsive ladder for the crossfade frames. Unlike the homepage, /products
 // paints the glove CONTAINED in a small box, so the 2752px source is heavily
@@ -177,6 +186,14 @@ const GLOVE_SRCSET = GLOVE_FRAME_IDS.map(
 // rung. Mobile (<=880px) is single-column with 24px side padding — exact.
 // Desktop is the 58% grid track; 48vw measured within 1% at 2560 and over-
 // declares at 1440/1920, which is the safe direction.
+const TAU = Math.PI * 2;
+
+// Transform for a frame using the LIVE tuner scale, keeping whatever x/y offset
+// is already committed in GLOVE_ALIGN (the panel only drives size).
+function liveTransform(id) {
+  const a = liveTune.align[id] || GLOVE_ALIGN[id] || { scale: 1, x: 0, y: 0 };
+  return `translate(${a.x}%, ${a.y}%) scale(${a.scale})`;
+}
 const GLOVE_SIZES = "(max-width: 880px) calc(100vw - 48px), 48vw";
 
 export default function ProductsV2() {
@@ -247,13 +264,18 @@ export default function ProductsV2() {
     });
 
     let scrollY = window.scrollY, t = 0, curActive = -1, gBase = -1, gNext = -1, raf = 0;
+    // t is elapsed MILLISECONDS since the loop started, not a frame counter, so the
+    // flip-book runs at the same speed on 60Hz and 120Hz. t0 is set on first tick
+    // rather than here so a slow first paint doesn't jump the animation forward.
+    let t0 = 0;
     const onScroll = () => { scrollY = window.scrollY; };
     const onResize = () => { H = window.innerHeight; measure(); };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
 
-    const frame = () => {
-      t += 1;
+    const frame = (now) => {
+      if (!t0) t0 = now;
+      t = now - t0;
       const c1 = sceneEls[1] ? (sceneEls[1].top + sceneEls[1].h / 2 - scrollY) : 9e9;
       // Feed the Canvas2D aurora the Eye2 tone lift (no-op when the GL aurora is active).
       lightRef.current = Math.max(0, Math.min(1, 1 - Math.abs(c1 - H / 2) / (H * .62)));
@@ -286,16 +308,54 @@ export default function ProductsV2() {
       // the next frame in (opacity = fractional part), so it's a buttery dissolve.
       if (gloveARef.current && gloveBRef.current) {
         const last = GLOVE_FRAMES.length - 1;
-        const fpos = (Math.sin(t * 0.012) * .5 + .5) * last; // continuous 0..last
+        // Wall-clock driven, NOT rAF-tick driven: see GLOVE_CYCLE_MS. A tick count
+        // made this run 2x fast on 120Hz displays.
+        // While the ?tune panel is mounted, read its live values instead of the
+        // shipped constants so a slider drag is felt on the next frame.
+        const cycle = liveTune.active ? liveTune.cycleMs : GLOVE_CYCLE_MS;
+        // Frozen on one frame while tuning it, otherwise the continuous sine sweep.
+        // compare mode pins the 000/001 pair; hold freezes a single frame;
+        // otherwise the continuous sine sweep.
+        const fpos = (liveTune.active && liveTune.compare)
+          ? 0
+          : (liveTune.active && liveTune.hold != null)
+          ? Math.min(liveTune.hold, last)
+          : (Math.sin(t * TAU / cycle) * .5 + .5) * last; // continuous 0..last
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);
         const blend = fpos - base;
-        // srcset before src: both assignments re-run the browser's candidate
+        // Per-frame size/position correction rides along with the src swap, and
+        // only on change, so the compositor isn't handed a fresh matrix each tick.
+        // srcset BEFORE src: both assignments re-run the browser's candidate
         // selection, and setting src first would briefly select against the
         // PREVIOUS frame's ladder.
-        if (base !== gBase) { gBase = base; gloveARef.current.srcset = GLOVE_SRCSET[base]; gloveARef.current.src = GLOVE_FRAMES[base]; }
-        if (next !== gNext) { gNext = next; gloveBRef.current.srcset = GLOVE_SRCSET[next]; gloveBRef.current.src = GLOVE_FRAMES[next]; }
-        gloveBRef.current.style.opacity = blend.toFixed(3);
+        // Each layer carries its OWN correction, so a crossfade between two
+        // differently-scaled frames dissolves corrected->corrected. That is what
+        // removes the pulse; interpolating one shared transform would not.
+        if (base !== gBase) {
+          gBase = base;
+          gloveARef.current.srcset = GLOVE_SRCSET[base];
+          gloveARef.current.src = GLOVE_FRAMES[base];
+          gloveARef.current.style.transform = GLOVE_TRANSFORMS[base];
+        }
+        if (next !== gNext) {
+          gNext = next;
+          gloveBRef.current.srcset = GLOVE_SRCSET[next];
+          gloveBRef.current.src = GLOVE_FRAMES[next];
+          gloveBRef.current.style.transform = GLOVE_TRANSFORMS[next];
+        }
+        // Tuning only: re-apply every tick so dragging a size slider shows up
+        // immediately instead of waiting for the next frame change. Production
+        // keeps the change-only path above, so no per-tick matrix churn ships.
+        if (liveTune.active) {
+          gloveARef.current.style.transform = liveTransform(GLOVE_FRAME_IDS[base]);
+          gloveBRef.current.style.transform = liveTransform(GLOVE_FRAME_IDS[next]);
+        }
+        // In compare mode the top layer is held at a fixed alpha so 001 ghosts over
+        // 000 instead of fading out (blend would be 0 with fpos pinned to 0).
+        gloveBRef.current.style.opacity = (liveTune.active && liveTune.compare)
+          ? String(liveTune.compareAlpha)
+          : blend.toFixed(3);
       }
       raf = requestAnimationFrame(frame);
     };
@@ -311,6 +371,7 @@ export default function ProductsV2() {
 
   return (
     <div className="pv2" ref={rootRef}>
+      {TUNING && <Suspense fallback={null}><GloveTunePanel /></Suspense>}
       {/* Suspense fallback is the Canvas2D aurora, not null: AuroraGL is lazy now,
           and the page background must never flash empty while its chunk loads. */}
       {USE_GL_AURORA
@@ -363,11 +424,12 @@ export default function ProductsV2() {
                       lands, so the page fetches BOTH tiers and gets heavier. */}
                   <img className="glove-layer" ref={gloveARef}
                     srcSet={GLOVE_SRCSET[0]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[0]}
-                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async" />
+                    alt={`6thSense ${s.title}`} draggable="false" loading="eager" decoding="async"
+                    style={{ transform: GLOVE_TRANSFORMS[0] }} />
                   <img className="glove-layer" ref={gloveBRef}
                     srcSet={GLOVE_SRCSET[1]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[1]}
                     alt="" aria-hidden="true" draggable="false" loading="eager"
-                    decoding="async" style={{ opacity: 0 }} />
+                    decoding="async" style={{ opacity: 0, transform: GLOVE_TRANSFORMS[1] }} />
                 </div>
               : s.title === "Eye2"
               ? <div className="pimg eye2-cell">
