@@ -19,8 +19,9 @@
   },
   "devDependencies": {
     "@gltf-transform/cli": "^4.4.1",
+    "@playwright/test": "^1.62.1",
     "@vitejs/plugin-react": "^4.3.1",
-    "playwright": "^1.61.1",
+    "playwright": "^1.62.1",
     "vite": "^5.4.8"
   }
 }

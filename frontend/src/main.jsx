@@ -41,8 +41,7 @@ const GloveSetupPage = lazy(() => import("./pages/GloveSetupPage.jsx"));
 // Remove this + the route below once the frames are locked in.
 const GloveTune = lazy(() => import("./pages/GloveTune.jsx"));
 
-// Legal pages (/privacy, /terms) — required public URLs for App Store + Google
-// Play submission. Data-driven from src/seo/legal.js with build-time crawlable
+// Legal pages — data-driven from src/seo/legal.js with build-time crawlable
 // HTML variants (see scripts/seoPrerenderPlugin.js), same as the product pages.
 const LegalPage = lazy(() => import("./pages/LegalPage.jsx"));
 
@@ -75,6 +74,7 @@ function AnimatedRoutes() {
         <Route path="/people" element={<PageTransition><PeoplePage /></PageTransition>} />
         <Route path="/gloves/setup" element={<PageTransition><GloveSetupPage /></PageTransition>} />
         <Route path="/privacy" element={<PageTransition><LegalPage slug="/privacy" /></PageTransition>} />
+        <Route path="/privacy/synapse" element={<PageTransition><LegalPage slug="/privacy/synapse" /></PageTransition>} />
         <Route path="/terms" element={<PageTransition><LegalPage slug="/terms" /></PageTransition>} />
         <Route path="/*" element={<PageTransition><App /></PageTransition>} />
       </Routes>
