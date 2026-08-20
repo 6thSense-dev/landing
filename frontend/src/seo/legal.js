@@ -1,15 +1,13 @@
 /**
- * Legal-page content manifest — single source of truth for /privacy and /terms.
+ * Legal-page content manifest — single source of truth for public legal routes.
  *
  * Mirrors the shape of productPages in ./pages.js so it can reuse the SAME
  * build-time prerender (scripts/seoPrerenderPlugin.js → crawlable static
  * dist/<path>/index.html) and the same light-paper layout (src/pages/product.css).
  *
- * These pages are load-bearing: Apple App Store and Google Play both require a
- * public privacy-policy URL for the synapse / Perle capture app. Keep the copy
- * HONEST and specific to what we actually do — record video, tactile-glove, and
- * IMU/motion data, upload it to AWS S3, and use it to build robotics training
- * datasets. Do not add boilerplate that misstates the product.
+ * These pages are load-bearing. /privacy/synapse is the store policy for the
+ * LAN controller app; /privacy covers the separate account/cloud capture
+ * service. Do not merge their materially different data flows.
  *
  * A section `body` may be a string OR an array of strings (rendered as multiple
  * paragraphs). `items` renders a bullet list. `contact: true` renders the
@@ -21,8 +19,97 @@
 
 const CONTACT_EMAIL = "ops@6thsense.dev";
 const LAST_UPDATED = "July 18, 2026";
+const SYNAPSE_LAST_UPDATED = "August 19, 2026";
 
 export const legalPages = [
+  {
+    path: "/privacy/synapse",
+    kind: "legal",
+    kicker: "Legal",
+    updated: SYNAPSE_LAST_UPDATED,
+    title: "Synapse Privacy Policy | 6thSense",
+    description:
+      "How 6thSense Synapse handles local-network camera data, app-local settings, recording playback and export, optional analytics, and software updates.",
+    h1: "Synapse Privacy Policy",
+    intro:
+      "Synapse is a mobile control plane for compatible egocentric capture rigs and cameras. It requires no user account. Capture devices remain the primary storage for recordings; Synapse communicates with them over the local network, sends usage analytics only after affirmative consent, and contacts software-update services as described below.",
+    sections: [
+      {
+        h2: "Camera and recording data",
+        body: [
+          "Synapse reads device status, identifiers, diagnostics, recording metadata, previews, and footage from compatible cameras over the local network. Recordings are created and retained by the camera.",
+          "When you play footage, the camera streams it through the app. When you export a recording, Synapse temporarily downloads the selected file into its private cache and opens the system share sheet. The destination you choose controls any resulting copy. Synapse does not request access to your photo library.",
+        ],
+      },
+      {
+        h2: "Data stored on this phone",
+        body: [
+          "Synapse may store camera IP addresses, device identifiers and nicknames, app settings, analytics consent, recent onboarding network names, an opaque installation identifier, and an optional camera access token. This data stays in the app's local storage.",
+          "Uninstalling Synapse removes that app-local data, but it does not delete recordings on cameras or copies previously shared to another app or service.",
+        ],
+      },
+      {
+        h2: "Wi-Fi credentials",
+        body: "Wi-Fi passwords used while onboarding a camera are held only in memory for the active setup session. They are sent directly to the camera over the local network, cleared when the session ends or the app backgrounds, and never included in analytics.",
+      },
+      {
+        h2: "Optional usage analytics",
+        body: [
+          "Synapse sends no usage analytics unless you affirmatively consent. If you consent, the app sends product-interaction events and an opaque installation identifier to PostHog so 6thSense can understand feature use and improve reliability.",
+          "These events do not include video, audio, still images, recording contents, filenames, Wi-Fi passwords, camera access tokens, or an account identity. Synapse does not use this data for advertising or cross-app tracking. You can disable analytics at any time in Settings to stop future sending.",
+        ],
+      },
+      {
+        h2: "Software and camera updates",
+        body: "Synapse uses Expo Updates to check 6thSense's configured app-update service. It may also contact a configured HTTPS manifest and download endpoint to retrieve camera software. These requests transmit standard network information such as IP address and user agent to the receiving service. Camera software is cached privately before it is sent to a selected camera over the local network.",
+      },
+      {
+        h2: "Permissions",
+        body: "Synapse requests only the access needed for its current features:",
+        items: [
+          "Local network — find and communicate with compatible cameras.",
+          "Internet and network state — reach update services and, after consent, PostHog; determine whether camera networking is available.",
+          "Location while in use on iOS — read the current Wi-Fi network name during camera setup. Apple gates Wi-Fi-name access behind this permission. Synapse does not use it to determine or transmit geographic location.",
+          "Notifications — show an immediate local alert when a capture finishes saving. Synapse does not register for marketing notifications or remote push messages.",
+        ],
+      },
+      {
+        h2: "Accounts, advertising, and sharing",
+        items: [
+          "Synapse has no user-account or login system.",
+          "Synapse contains no advertising network and does not sell or rent data.",
+          "Synapse does not build advertising profiles or use analytics for tracking.",
+          "6thSense receives the consented analytics described above. Camera and recording data is otherwise exchanged between the phone, the compatible camera, and destinations you explicitly choose.",
+        ],
+      },
+      {
+        h2: "Your choices",
+        items: [
+          "Decline or disable analytics in Synapse Settings.",
+          "Decline or revoke iOS location permission and enter the Wi-Fi name manually.",
+          "Decline notification permission; capture controls continue to work without the local alert.",
+          "Remove app-local settings by uninstalling Synapse.",
+          "Contact 6thSense about previously sent consented analytics.",
+        ],
+        contact: true,
+      },
+      {
+        h2: "Children",
+        body: "Synapse is an operations tool for robotics data collection. It is not directed at children, and 6thSense does not knowingly collect data from children under 13 through Synapse.",
+      },
+      {
+        h2: "Changes and contact",
+        body: "If this policy changes materially, 6thSense will update this page and the date above. Questions about Synapse privacy can be sent to:",
+        contact: true,
+      },
+    ],
+    related: [
+      { href: "/privacy", label: "6thSense Service Privacy Policy" },
+      { href: "/terms", label: "Terms of Service" },
+      { href: "/", label: "Home" },
+    ],
+  },
+
   {
     path: "/privacy",
     kind: "legal",

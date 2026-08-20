@@ -20,9 +20,13 @@ export default function LegalPage({ slug }) {
   useEffect(() => {
     if (!page) return;
     const prevTitle = document.title;
+    const canonical = document.querySelector('link[rel="canonical"]');
+    const prevCanonical = canonical?.getAttribute("href") ?? null;
     document.title = page.title;
+    canonical?.setAttribute("href", `https://6thsense.dev${page.path}`);
     return () => {
       document.title = prevTitle;
+      if (canonical && prevCanonical) canonical.setAttribute("href", prevCanonical);
     };
   }, [page]);
 
