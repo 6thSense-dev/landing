@@ -10,9 +10,14 @@ __pycache__/
 venv/
 env/
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 *.log
+
+# Catalog ingest scratch — regenerate with `make -C scripts/catalog`.
+# Tens of MB of synthetic mp4/npz plus the built bundle; never committed.
+scripts/catalog/sample/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -52,3 +57,13 @@ docs/superpowers/
 .superpowers/
 media-sources/
 .gstack/
+
+# Run artefacts from scripts/catalog/e2e/catalog_e2e.cjs. The screenshots beside
+# them ARE committed evidence; these JSON dumps are per-run detail for triage.
+docs/catalog/e2e-*.json
+
+# Catalog: local dev runtime state and the generated sample corpus
+scripts/catalog/.dev/
+
+# Catalog: local S3 credentials for `dev_local.sh --s3` (never committed)
+scripts/catalog/.env.local

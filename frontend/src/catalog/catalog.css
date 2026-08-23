@@ -1,0 +1,1249 @@
+/* Parts owned by the grid, the header, the detail modal and the chart. @import
+   must come first in a stylesheet, so these load BEFORE the rules below — which
+   means a part file can be overridden here. Where a class is shared, this file
+   uses :where() so its rules carry zero specificity and the part file always
+   wins. */
+@import "./parts.grid.css";
+@import "./parts.header.css";
+@import "./parts.detail.css";
+@import "./parts.chart.css";
+
+/* ==================================================================
+   Pretendard Variable — Latin subsets only.
+   SIL Open Font License 1.1 · (c) 2021 Kil Hyung-jin
+   https://github.com/orioncactus/pretendard
+
+   Three of the vendor's 92 dynamic subsets, covering Latin, Latin-1 and the
+   punctuation the catalog uses. `unicode-range` means the browser fetches only
+   what a page actually renders — in practice just subset 91 (37 KB), which is
+   the one index.html preloads.
+
+   The variable weight axis is 45-920, so extralight..black all come from ONE
+   file. Never add a second @font-face per weight: set `font-weight` numerically
+   (see the --cat-w-* tokens below).
+   ================================================================== */
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 45 920;
+  src: url(/fonts/PretendardVariable.subset.71.woff2) format("woff2-variations");
+  unicode-range: U+81-82, U+84, U+a2-a5, U+a7-a8, U+aa, U+ac, U+b1-b3, U+b6, U+b8-ba, U+bc-be,
+    U+c0, U+c2, U+c6-cb, U+ce-d0, U+d4, U+d8-d9, U+db-dc, U+de-df, U+e6, U+eb, U+ee-f0, U+f4,
+    U+f7-f9, U+fb, U+fe-ff, U+111, U+126-127, U+132-133, U+138, U+13f-142, U+149-14b, U+152-153,
+    U+166-167, U+2bc, U+2c7, U+2d0, U+2d8-2d9, U+2db-2dd, U+391-394, U+396-3a1, U+3a3-3a9,
+    U+3b2-3b6, U+3b8, U+3bc, U+3be-3c1, U+3c3-3c9, U+2010, U+2015-2016, U+2018-2019, U+201b,
+    U+201f-2021, U+2025, U+2030, U+2033-2036, U+203c, U+203e, U+2042, U+2074, U+207a-207f,
+    U+2081-2084, U+2109, U+2113, U+2116, U+2121, U+2126, U+212b, U+2153-2154;
+}
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 45 920;
+  src: url(/fonts/PretendardVariable.subset.79.woff2) format("woff2-variations");
+  unicode-range: U+b0, U+e9, U+2193, U+2462, U+260e, U+261e, U+300e-300f, U+3044, U+30a4,
+    U+30fb-30fc, U+314d, U+5973, U+6545, U+6708, U+7537, U+ac89, U+ac9c, U+acc1, U+ad04, U+ad75,
+    U+ad7d, U+ae45, U+ae61, U+af42, U+b0ab, U+b0af, U+b0b3, U+b12c, U+b194, U+b1a8, U+b220,
+    U+b258, U+b284, U+b2ff, U+b315, U+b371, U+b3d4-b3d5, U+b460, U+b527, U+b534, U+b810, U+b818,
+    U+b98e, U+ba55, U+bbac, U+bc0b, U+bc40, U+bca1, U+bccd, U+bd93, U+be54, U+be5a, U+bf08,
+    U+bf50, U+bf55, U+bfdc, U+c0c0, U+c0d0, U+c0f4, U+c100, U+c11e, U+c170, U+c20d, U+c274,
+    U+c290, U+c308, U+c369, U+c539, U+c587, U+c5ff, U+c6ec, U+c70c, U+c7ad, U+c7c8, U+c83c,
+    U+c881, U+cb48, U+cc60, U+ce69, U+ce6b, U+ce75, U+cf04, U+cf08, U+cf55, U+cf70, U+cffc,
+    U+d0b7, U+d1a8, U+d2c8, U+d384, U+d47c, U+d48b, U+d5dd, U+d5e8, U+d720, U+d759, U+f981;
+}
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 45 920;
+  src: url(/fonts/PretendardVariable.subset.91.woff2) format("woff2-variations");
+  unicode-range: U+20-22, U+27-2a, U+2c-39, U+3a-3b, U+3f, U+41-4e, U+4f-5d, U+61-7b, U+7d,
+    U+a0-a1, U+ab, U+ad-ae, U+b7, U+bb, U+bf, U+2013-2014, U+201c-201d, U+2122, U+ac00, U+ace0,
+    U+ae30, U+b2e4, U+b85c, U+b9ac, U+c0ac, U+c2a4, U+c2dc, U+c774, U+c778, U+c9c0, U+d558;
+}
+
+/* ==================================================================
+   catalog.css — page shell, design tokens and shared components.
+
+   Every token is defined inside .cat-root so the block is SELF-CONTAINED:
+   dropping src/catalog/** into the real site pulls in no dependency on the
+   host page's :root. The palette is copied verbatim from the site's
+   styles.css, so the catalog and the marketing pages stay one brand.
+
+   The TYPE is deliberately not the marketing site's. The landing pages are
+   Fraunces/Newsreader — handsome for a hero, wrong for a dense data product.
+   The catalog is Pretendard end to end, and uses the variable weight axis as
+   its hierarchy: extralight figures, semibold micro-labels, regular body.
+   Geist Mono survives for machine strings ONLY (checksums, ids, paths, hex).
+
+   Every class is `cat-` prefixed. Nothing here is a bare element selector
+   outside .cat-root, except the scroll lock, which must live on <html>.
+   ================================================================== */
+
+.cat-root {
+  /* ================================================================
+     PALETTE (source: gwangju/frontend/src/styles.css) — unchanged.
+     ================================================================ */
+  --paper: #ebe6d8;
+  --paper-2: #f3efe6;
+  --paper-deep: #ddd8cb;
+  --ink: #262312;
+  --muted: #5a5236;
+  --accent: #592202;
+  --accent-muted: #a69a60;
+  --dark: #14120c;
+  --dark-2: #1f1d14;
+  --dark-ink: #ece8dc;
+  --line: rgba(38, 35, 18, 0.12);
+  --line-strong: rgba(38, 35, 18, 0.24);
+  --accent-soft: rgba(89, 34, 2, 0.12);
+  --ink-rgb: 38 35 18;
+
+  /* ----------------------------------------------------------------
+     SECONDARY TEXT — one token, for the whole catalog.
+
+     --muted (#5a5236) measures 6.25:1 on --paper and 6.8:1 on --paper-2.
+     That is fine for an uppercase micro-label and short of the 7:1 this
+     surface holds itself to for text a buyer READS. Blending ink at 82%
+     instead lands at 7.6:1 on --paper and 8.0:1 on --paper-2 while staying
+     inside the palette — it is --ink, not a new colour.
+
+     THE SPLIT IS BY ROLE, NOT BY FILE. It was declared in parts.grid.css
+     and used there, and the modal and the header went on using --muted for
+     the same rank of copy at 6.25:1, so the two surfaces measurably did not
+     look like one system: the doc-link captions and the segment descriptions
+     in the modal read fainter than the same rank of copy in the grid. It
+     lives here now, and the rule is:
+
+       --cat-ink-2  anything a buyer READS: prose, captions, descriptions,
+                    table values, census counts, durations, hints.
+       --muted      uppercase micro-labels ONLY: .cat-label, .cat-fb__glabel,
+                    table <thead> cells. Those are scanned, not read.
+     ---------------------------------------------------------------- */
+  --cat-ink-2: rgb(var(--ink-rgb) / 0.82);
+
+  /* ================================================================
+     TYPEFACES
+
+     Two families, and only two. Pretendard is everything a human reads;
+     Geist Mono is reserved for strings a machine produced and a human may
+     need to copy character-for-character. A number inside prose, a stat
+     value, an axis tick and a table cell are all Pretendard — tabular
+     figures make them line up without the mono texture.
+     ================================================================ */
+  --cat-font-sans: "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+  --cat-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* DEPRECATED aliases. The part files were written against the marketing
+     site's four-family vocabulary; repointing the names here converts them
+     wholesale and keeps an un-migrated rule from falling back to a serif.
+     New code MUST use --cat-font-sans / --cat-font-mono. */
+  --font-display: var(--cat-font-sans);
+  --font-body: var(--cat-font-sans);
+  --font-ui: var(--cat-font-sans);
+  --font-mono: var(--cat-font-mono);
+
+  /* ================================================================
+     TYPE RAMP — fluid between a 360px and a 1440px viewport.
+
+     2xs  10-11  micro-labels (.cat-label), stat captions
+     xs   11-12  chips, pill counts, mono machine strings, axis ticks
+     sm   13-14  secondary UI, table cells, buttons, helper copy
+     base 15-16  body copy — the default
+     md   16.5-18.5  lead paragraph, modal intro
+     lg   19-22  card titles, tab headings (.cat-h3)
+     xl   22-28  section headings (.cat-h2)
+     2xl  28-40  stat-tile figures (.cat-figure)
+     3xl  36-56  page display (.cat-display)
+     4xl  44-80  a single hero figure, if a layout ever wants one
+     ================================================================ */
+  --cat-fs-2xs: clamp(0.625rem, 0.6042rem + 0.0926vw, 0.6875rem);
+  --cat-fs-xs: clamp(0.6875rem, 0.6667rem + 0.0926vw, 0.75rem);
+  --cat-fs-sm: clamp(0.8125rem, 0.7917rem + 0.0926vw, 0.875rem);
+  --cat-fs-base: clamp(0.9375rem, 0.9167rem + 0.0926vw, 1rem);
+  --cat-fs-md: clamp(1.031rem, 0.9896rem + 0.185vw, 1.156rem);
+  --cat-fs-lg: clamp(1.188rem, 1.125rem + 0.278vw, 1.375rem);
+  --cat-fs-xl: clamp(1.375rem, 1.25rem + 0.556vw, 1.75rem);
+  --cat-fs-2xl: clamp(1.75rem, 1.5rem + 1.11vw, 2.5rem);
+  --cat-fs-3xl: clamp(2.25rem, 1.833rem + 1.85vw, 3.5rem);
+  --cat-fs-4xl: clamp(2.75rem, 2rem + 3.33vw, 5rem);
+
+  /* Line height. Display sizes get less than the body, not more: at 40px a
+     1.5 leading is a paragraph gap, not a heading. */
+  --cat-lh-none: 1;
+  --cat-lh-display: 1.04;
+  --cat-lh-tight: 1.15;
+  --cat-lh-snug: 1.3;
+  --cat-lh-normal: 1.5;
+  --cat-lh-relaxed: 1.65;
+
+  /* Tracking. Optical compensation: big type needs negative, small uppercase
+     needs positive, body needs neither. */
+  --cat-tracking-tightest: -0.035em; /* 4xl */
+  --cat-tracking-tighter: -0.028em; /* 3xl */
+  --cat-tracking-tight: -0.02em; /* 2xl, xl */
+  --cat-tracking-snug: -0.01em; /* lg */
+  --cat-tracking-normal: 0em; /* body, everything else */
+  --cat-tracking-wide: 0.04em; /* small caps-ish runs that are not labels */
+  --cat-tracking-label: 0.08em; /* .cat-label, the uppercase micro-label */
+
+  /* ================================================================
+     WEIGHT — the point of a variable axis. One file, seven roles.
+     ================================================================ */
+  --cat-w-extralight: 200; /* .cat-figure and .cat-display only: big numerals / page title */
+  --cat-w-light: 300; /* large secondary figures; lead paragraphs at md+ */
+  --cat-w-regular: 400; /* body copy, table cells, everything unmarked */
+  --cat-w-medium: 500; /* buttons, pills, links, active nav — UI that is clickable */
+  --cat-w-semibold: 600; /* .cat-label, card titles, table headers, stat units */
+  --cat-w-bold: 700; /* section headings, emphasis inside a semibold run */
+  --cat-w-extrabold: 800; /* the 6THSENSE wordmark, and nothing else */
+
+  /* ================================================================
+     SPACE RAMP — fluid, same 360-1440 track as the type.
+     ================================================================ */
+  --cat-space-2xs: clamp(0.25rem, 0.2292rem + 0.0926vw, 0.3125rem);
+  --cat-space-xs: clamp(0.375rem, 0.3333rem + 0.185vw, 0.5rem);
+  --cat-space-sm: clamp(0.625rem, 0.5833rem + 0.185vw, 0.75rem);
+  --cat-space-md: clamp(0.875rem, 0.75rem + 0.556vw, 1.25rem);
+  --cat-space-lg: clamp(1.25rem, 1rem + 1.11vw, 2rem);
+  --cat-space-xl: clamp(1.75rem, 1.333rem + 1.85vw, 3rem);
+  --cat-space-2xl: clamp(2.5rem, 1.833rem + 2.96vw, 4.5rem);
+  --cat-space-3xl: clamp(3.5rem, 2.333rem + 5.19vw, 7rem);
+
+  /* Measure. Prose past ~72ch stops being readable; a lead past ~52ch stops
+     being scannable. Both are ch, so they retune with the font. */
+  --cat-measure-prose: 68ch;
+  --cat-measure-lead: 52ch;
+
+  /* ================================================================
+     ELEVATION — four steps, and no ad-hoc shadows anywhere else.
+
+     1  resting card / inset surface (barely there; the hairline does the work)
+     2  hover of a resting card, sticky filter bar once it detaches
+     3  popover, dropdown, the lifted state of an interactive card
+     4  modal, and only the modal
+     ================================================================ */
+  --cat-elev-1: 0 1px 2px rgb(var(--ink-rgb) / 0.05);
+  --cat-elev-2: 0 1px 2px rgb(var(--ink-rgb) / 0.05), 0 4px 10px rgb(var(--ink-rgb) / 0.06);
+  --cat-elev-3: 0 2px 4px rgb(var(--ink-rgb) / 0.06), 0 12px 28px rgb(var(--ink-rgb) / 0.1);
+  --cat-elev-4: 0 4px 8px rgb(var(--ink-rgb) / 0.08), 0 32px 64px rgb(var(--ink-rgb) / 0.18);
+
+  /* ================================================================
+     SHAPE
+     ================================================================ */
+  --cat-radius-sm: 6px;
+  --cat-radius-md: 10px;
+  --cat-radius-lg: 16px;
+  --cat-radius-pill: 999px;
+
+  /* ================================================================
+     MOTION. `normal` is the card-lift duration; nothing in the catalog
+     animates that is not responding to the user.
+     ================================================================ */
+  --cat-dur-fast: 140ms;
+  --cat-dur-normal: 200ms;
+  --cat-dur-slow: 320ms;
+  --cat-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --cat-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* DEPRECATED shape/rhythm/motion aliases, kept resolving for the part files
+     that already reference them. New code MUST use the --cat-* names. */
+  --radius-sm: var(--cat-radius-sm);
+  --radius-md: var(--cat-radius-md);
+  --radius-lg: var(--cat-radius-lg);
+  --radius-pill: var(--cat-radius-pill);
+  --space: var(--cat-space-lg);
+  --gap-grid: var(--cat-space-lg);
+  --ease-out: var(--cat-ease);
+  --ease-spring: var(--cat-ease-spring);
+  --dur-fast: var(--cat-dur-fast);
+  --dur-med: var(--cat-dur-normal);
+  --dur-slow: var(--cat-dur-slow);
+  --shadow-lift: var(--cat-elev-3);
+
+  --max: 1180px;
+
+  /*
+   * Cards per row. Owned here because the breakpoints are a page-layout
+   * decision, consumed by parts.grid.css:
+   *   grid-template-columns: repeat(var(--cat-grid-cols), minmax(0, 1fr));
+   */
+  --cat-grid-cols: 1;
+
+  /*
+   * Chart series ramp. The manifest may set a series `color` to null, meaning
+   * "the producer had no brand context — assign by index". These five are that
+   * index, warmed to sit on paper: ink, lilac, slate-blue, gold, clay.
+   */
+  --cat-series-1: #14120c;
+  --cat-series-2: #9a8fb0;
+  --cat-series-3: #6b7a99;
+  --cat-series-4: #a69a60;
+  --cat-series-5: #592202;
+
+  /* IMU trace legend: X dark, Y teal, Z gold. */
+  --cat-imu-x: #14120c;
+  --cat-imu-y: #1f6b63;
+  --cat-imu-z: #a69a60;
+
+  /* ---- base ---- */
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-base);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-normal);
+  letter-spacing: var(--cat-tracking-normal);
+  /* Matches the host site's body rule (font-optical-sizing) plus the smoothing
+     the catalog already set. Pretendard has no optical size axis, so the
+     declaration is inert here — it is present so a face that does have one
+     behaves identically inside and outside the catalog. */
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+@media (min-width: 720px) {
+  .cat-root {
+    --cat-grid-cols: 2;
+  }
+}
+/* 1000, not 1100: the page is capped at 1100 px, so at a 1024 px viewport a
+   two-column grid produces 471 px cards — wider than the card is at ANY other
+   width, including the 1440 px layout the design was drawn at. Moving the
+   breakpoint below the commonest laptop width gives ~305 px cards there, which
+   is the same card the 3-up layout produces at 1440. */
+@media (min-width: 1000px) {
+  .cat-root {
+    --cat-grid-cols: 3;
+  }
+}
+
+/* The detail modal carries its OWN copy of the legacy token block
+   (`:where(.cat-d-overlay) { --font-body: "Newsreader" ... }` in
+   parts.detail.css) so the part file renders standalone. Custom properties
+   resolve per element, not by specificity across elements: a redeclaration on
+   a descendant beats the .cat-root value for that whole subtree, so without
+   this the modal would have stayed on the marketing serif while the rest of
+   the catalog moved to Pretendard. `.cat-d-overlay` is (0,1,0) and the part
+   file's is (0,0,0), so this wins whether or not the detail agent removes
+   theirs. */
+.cat-d-overlay {
+  --font-display: var(--cat-font-sans);
+  --font-body: var(--cat-font-sans);
+  --font-ui: var(--cat-font-sans);
+  --font-mono: var(--cat-font-mono);
+}
+
+/* Scoped reset — the host site has its own; standalone does not.
+ *
+ * Every selector below is wrapped in :where() so the whole reset has ZERO
+ * specificity. This is not cosmetic. `.cat-root button { color: inherit }` is
+ * specificity (0,1,1) and silently outranks `.cat-btn--primary` (0,1,0) — and
+ * every `.cat-card`/`.cat-pill` rule in the part files, since those are buttons
+ * too. A reset that beats the styles it exists to support is a trap; at (0,0,0)
+ * it loses to anything authored, which is the only correct behaviour. */
+:where(.cat-root),
+:where(.cat-root) :where(*),
+:where(.cat-root) :where(*)::before,
+:where(.cat-root) :where(*)::after {
+  box-sizing: border-box;
+}
+
+:where(.cat-root) :where(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(.cat-root) :where(img, video, svg) {
+  display: block;
+  max-width: 100%;
+}
+
+/* ------------------------------------------------------------------
+   Focus. Every interactive element gets a visible ring from the keyboard
+   and none from the mouse. Non-negotiable, so it is set once, here.
+   ------------------------------------------------------------------ */
+
+.cat-root :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+.cat-root :focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ------------------------------------------------------------------
+   Typography
+
+   Weight IS the hierarchy here. A 40px extralight figure and a 10px
+   semibold label are the same family at opposite ends of one axis, which
+   is why the page reads as a system rather than as a font pairing.
+   ------------------------------------------------------------------ */
+
+/* Page title. Extralight at display size — the size carries the weight, so
+   the strokes do not have to. */
+.cat-display {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-3xl);
+  font-weight: var(--cat-w-extralight);
+  line-height: var(--cat-lh-display);
+  letter-spacing: var(--cat-tracking-tighter);
+  font-feature-settings: "ss01" 1;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* Section heading. */
+.cat-h2 {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xl);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-tight);
+  letter-spacing: var(--cat-tracking-tight);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+/* Card / panel / tab heading. */
+.cat-h3 {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink);
+}
+
+/* Lead paragraph — one per surface, at most. Light, because at md size a 400
+   is heavier than the body it introduces. */
+.cat-lead {
+  margin: 0;
+  max-width: var(--cat-measure-lead);
+  font-size: var(--cat-fs-md);
+  font-weight: var(--cat-w-light);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+/* Body copy. */
+.cat-body {
+  margin: 0;
+  max-width: var(--cat-measure-prose);
+  font-size: var(--cat-fs-base);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+/* THE micro-label. Every field name, column header, stat caption and section
+   eyebrow in the catalog is this and nothing else.
+   Deliberately not mono: 10px Geist Mono uppercase at +0.08em is a texture,
+   Pretendard 600 at the same size is a label. */
+.cat-label,
+.cat-mono-label /* deprecated alias — existing markup, retuned in place */ {
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* A big number and its unit, as ONE object.
+ *
+ * The eight stat tiles breaking "227.2 MB" and "56.74 ms" onto two lines was a
+ * named defect of the first pass. This makes it structurally impossible rather
+ * than merely unlikely:
+ *   - inline-flex + nowrap on the box, so the unit can never be a second line;
+ *   - white-space: nowrap on the text, so the numeral itself cannot break;
+ *   - the unit sized in `em`, so it tracks the figure at every clamp step and
+ *     the pair stays one optical unit rather than two typographic sizes;
+ *   - align-items: baseline, so a 40px numeral and a 14px unit sit on one line
+ *     rather than the unit floating at the numeral's midpoint.
+ * If the container is too narrow the figure OVERFLOWS visibly instead of
+ * silently wrapping — a bug you can see beats a bug you cannot. Set
+ * --cat-figure-size to step it down in tight columns.
+ */
+.cat-figure {
+  --cat-figure-size: var(--cat-fs-2xl);
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0.16em;
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-figure-size);
+  font-weight: var(--cat-w-extralight);
+  line-height: var(--cat-lh-none);
+  letter-spacing: var(--cat-tracking-tight);
+  color: var(--ink);
+  /* tnum is named in both properties on purpose: WebKit has historically
+     dropped font-variant-numeric the moment font-feature-settings is set. */
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+/* The unit half. Heavier and smaller than the numeral, which is what makes
+   "18.3 min" read as one word instead of a number next to a word. */
+.cat-figure__unit {
+  font-size: 0.4em;
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: 0.005em;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Step-down / step-up modifiers, so a consumer never has to redeclare the
+   whole rule to fit a narrower column or fill a hero slot. */
+.cat-figure--sm {
+  --cat-figure-size: var(--cat-fs-xl);
+  font-weight: var(--cat-w-light);
+  letter-spacing: var(--cat-tracking-snug);
+}
+.cat-figure--lg {
+  --cat-figure-size: var(--cat-fs-4xl);
+  letter-spacing: var(--cat-tracking-tightest);
+}
+
+/* Machine strings ONLY: checksums, clip ids, S3 keys, file paths, hex.
+   Not labels, not stat values, not numbers in a sentence. */
+.cat-mono {
+  font-family: var(--cat-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--cat-tracking-normal);
+  font-feature-settings: normal;
+}
+/* A checksum has no break opportunities and will otherwise widen its column
+   past the viewport. Opt in per use; the bare .cat-mono stays unopinionated. */
+.cat-mono--wrap {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* The wordmark, so the header and any future sign-out bar render it
+   identically. Pretendard 800 is the only place extrabold is allowed. */
+.cat-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-extrabold);
+  letter-spacing: 0.14em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cat-wordmark__mark {
+  flex: none;
+  width: 1.7em;
+  height: 1.7em;
+  object-fit: contain;
+}
+
+.cat-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------
+   Page layout
+   ------------------------------------------------------------------ */
+
+.cat-page {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: var(--cat-space-xl) var(--cat-space-lg) var(--cat-space-3xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-2xl);
+}
+
+.cat-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-md);
+}
+
+/* The filter bar and the grid share one section so the sticky bar has something
+   to travel over (see the note in CatalogPage.jsx). The bar carries its own
+   vertical padding, so the gap under it is smaller than a normal section gap —
+   otherwise the pinned bar leaves a band of bare paper over the first row. */
+.cat-section--browse {
+  gap: var(--cat-space-sm);
+}
+
+/* Base grid. :where() gives it zero specificity, so anything parts.grid.css
+   says about .cat-grid wins outright. This is only the fallback. */
+:where(.cat-grid) {
+  display: grid;
+  grid-template-columns: repeat(var(--cat-grid-cols), minmax(0, 1fr));
+  gap: var(--gap-grid);
+}
+
+/* ------------------------------------------------------------------
+   Surfaces
+
+   One card shape for the whole catalog. `--interactive` adds the only
+   hover choreography the product has: -2px and one elevation step at
+   200ms, 0.98 on press. Nothing else lifts.
+   ------------------------------------------------------------------ */
+
+.cat-card-surface {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-lg);
+  box-shadow: var(--cat-elev-1);
+}
+
+.cat-card-surface--interactive {
+  cursor: pointer;
+  transition:
+    transform var(--cat-dur-normal) var(--cat-ease),
+    box-shadow var(--cat-dur-normal) var(--cat-ease),
+    border-color var(--cat-dur-normal) var(--cat-ease);
+}
+.cat-card-surface--interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cat-elev-3);
+  border-color: var(--line-strong);
+}
+.cat-card-surface--interactive:active {
+  transform: scale(0.98);
+  box-shadow: var(--cat-elev-1);
+  transition-duration: var(--cat-dur-fast);
+}
+
+/* ------------------------------------------------------------------
+   Collection header
+
+   Every rule below is :where()-wrapped (specificity 0,0,0) because
+   parts.header.css owns this region now. These are the fallback shapes
+   only — the header part file overrides any of them without !important
+   and without having to out-specify an @import that loads before it.
+   ------------------------------------------------------------------ */
+
+:where(.cat-header) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-lg);
+}
+
+:where(.cat-header-top) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--cat-space-md);
+}
+
+:where(.cat-header-id) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cat-space-xs);
+  min-width: min(100%, 20rem);
+  flex: 1 1 24rem;
+}
+
+:where(.cat-header-name) {
+  margin: 0.15rem 0 0;
+  font-size: var(--cat-fs-md);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--cat-space-xs);
+}
+
+:where(.cat-header-version) {
+  color: var(--accent-muted);
+}
+
+:where(.cat-header-desc) {
+  margin: 0;
+  max-width: var(--cat-measure-lead);
+  color: var(--muted);
+  font-size: var(--cat-fs-base);
+  line-height: var(--cat-lh-relaxed);
+  text-wrap: pretty;
+}
+
+:where(.cat-header-actions) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--cat-space-xs);
+  margin-left: auto;
+}
+
+:where(.cat-header-vendor) {
+  margin: 0;
+}
+
+/* How to actually make the request the CTA above invites. */
+:where(.cat-header-how) {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cat-space-xs);
+  max-width: 26rem;
+  margin: 0;
+  text-align: right;
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-normal);
+  color: var(--muted);
+}
+:where(.cat-header-how svg) {
+  flex: none;
+  margin-top: 0.25rem;
+  color: var(--accent);
+}
+:where(.cat-header-how a) {
+  color: var(--accent);
+  font-weight: var(--cat-w-medium);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+/* Below the wrap point the actions column is full width and left-aligned, so
+   the right-alignment above would leave the copy floating away from its CTA. */
+@media (max-width: 719px) {
+  :where(.cat-header-actions) {
+    align-items: stretch;
+    margin-left: 0;
+    width: 100%;
+  }
+  :where(.cat-header-how) {
+    max-width: none;
+    text-align: left;
+  }
+  :where(.cat-header-vendor) {
+    text-align: left;
+  }
+}
+:where(.cat-header-vendor a) {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+:where(.cat-header-vendor a:hover) {
+  color: var(--accent);
+  border-bottom-color: currentColor;
+}
+
+/* Stat tiles. The 1px gap over a --line background is what draws the hairline
+   rules: it stays correct however the row wraps, which a per-tile border does
+   not. Also :where()-wrapped — parts.header.css owns the final layout, which
+   is where the "eight tiles is too many for one row" decision gets made. */
+:where(.cat-stats) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-md);
+  overflow: hidden;
+}
+
+:where(.cat-stat) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-xs);
+  padding: var(--cat-space-md);
+  background: var(--paper);
+}
+
+/* Two lines' worth of label space, always, wrapped or not, so a long label
+   cannot push its own value a line below every neighbour's. `em` (not `rem`)
+   and an explicit line-height, so 2.6em is exactly two lines of THIS element
+   however the label font-size is retuned. */
+:where(.cat-stat dt) {
+  margin: 0;
+  line-height: 1.3;
+  min-height: 2.6em;
+}
+
+/* The value itself is a .cat-figure now; this stays as the fallback for any
+   tile that has not been migrated. */
+:where(.cat-stat-value) {
+  margin: 0;
+  font-size: var(--cat-fs-2xl);
+  font-weight: var(--cat-w-extralight);
+  line-height: var(--cat-lh-none);
+  letter-spacing: var(--cat-tracking-tight);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+/* A second line under a stat, for the figure that qualifies the headline one
+   ("20/29 over one frame"). Deliberately quiet and deliberately present: the
+   qualifier is the half a buyer would otherwise have to derive. */
+:where(.cat-stat-sub) {
+  margin: var(--cat-space-2xs) 0 0;
+  color: var(--muted);
+  font-size: var(--cat-fs-2xs);
+  line-height: var(--cat-lh-snug);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------
+   Chip, notice, buttons
+   ------------------------------------------------------------------ */
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2xs);
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-pill);
+  background: var(--paper-2);
+  color: var(--muted);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color var(--cat-dur-fast) var(--cat-ease),
+    border-color var(--cat-dur-fast) var(--cat-ease),
+    background-color var(--cat-dur-fast) var(--cat-ease);
+}
+a.cat-chip:hover,
+button.cat-chip:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+/* Solid variant, for the one chip on a surface that must read as a state
+   rather than as a tag. */
+.cat-chip--solid {
+  background: var(--dark);
+  border-color: var(--dark);
+  color: var(--dark-ink);
+}
+
+/* Two one-line disclosures between the totals and the standing notice: the
+   published split (H10) and the open evaluation download. Both are data, not
+   chrome — they disappear entirely when the manifest does not carry them. */
+:where(.cat-header-splits),
+:where(.cat-header-sample) {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-relaxed);
+}
+:where(.cat-header-splits > span:first-child),
+:where(.cat-header-sample > span:first-child) {
+  color: var(--ink);
+}
+
+.cat-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cat-space-sm);
+  margin: 0;
+  padding: var(--cat-space-sm) var(--cat-space-md);
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--cat-radius-sm) var(--cat-radius-sm) 0;
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-normal);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.cat-notice svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--accent);
+}
+
+/* Generated media. Louder than the standing notice because it is the one
+   disclosure that, discovered rather than told, ends the conversation. */
+.cat-notice--warn {
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper));
+  border-left-color: var(--accent-strong, var(--accent));
+  font-weight: var(--cat-w-medium);
+}
+.cat-notice--warn svg {
+  color: var(--accent-strong, var(--accent));
+}
+
+/* The access-level notice sits under the producer's standing one. Same shape,
+   flatter, so the order reads as "about the data" then "about your account". */
+.cat-notice--access {
+  background: var(--paper-2);
+  border-left-color: var(--line-strong, var(--line));
+  color: var(--muted);
+}
+.cat-notice--access svg {
+  color: var(--muted);
+}
+
+/* Buttons. min-height 44px is the touch target, not a look — it is why the
+   padding is expressed as it is. */
+.cat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cat-space-xs);
+  min-height: 44px;
+  padding: 0.55rem 1.15rem;
+  border: 1px solid transparent;
+  border-radius: var(--cat-radius-pill);
+  background: transparent;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-normal);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--cat-dur-fast) var(--cat-ease),
+    color var(--cat-dur-fast) var(--cat-ease),
+    border-color var(--cat-dur-fast) var(--cat-ease),
+    box-shadow var(--cat-dur-fast) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* An icon-only button is square and still 44px. */
+.cat-btn--icon {
+  width: 44px;
+  padding: 0;
+}
+
+.cat-btn--primary {
+  background: var(--dark);
+  color: var(--dark-ink);
+  box-shadow: var(--cat-elev-1);
+}
+.cat-btn--primary:hover:not(:disabled) {
+  background: var(--accent);
+  box-shadow: var(--cat-elev-2);
+}
+.cat-btn--primary:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+.cat-btn--ghost {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.cat-btn--ghost:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: var(--paper-2);
+}
+.cat-btn--ghost:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Text-only tertiary action — "Sign out", "Clear filters". Still 44px tall. */
+.cat-btn--quiet {
+  padding-inline: 0.5rem;
+  color: var(--muted);
+}
+.cat-btn--quiet:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------------------
+   Segmented pill group — shared by Stereo|Mono, Overall|Top 20,
+   Accelerometer|Gyroscope and the detail tabs.
+
+   Markup contract: a container with role="tablist" (or "radiogroup") holding
+   real <button>s. Active state is read from whichever ARIA attribute the
+   pattern uses, so no component has to also set a class.
+   ------------------------------------------------------------------ */
+
+.cat-pillgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  background: var(--paper-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-pill);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.cat-pillgroup::-webkit-scrollbar {
+  display: none;
+}
+
+.cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2xs);
+  min-height: 36px;
+  padding: 0.38rem 0.95rem;
+  border: 0;
+  border-radius: var(--cat-radius-pill);
+  background: transparent;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  line-height: var(--cat-lh-snug);
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--cat-dur-fast) var(--cat-ease),
+    color var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-pill:hover:not(:disabled) {
+  color: var(--ink);
+}
+.cat-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cat-pill:is(
+    [aria-selected="true"],
+    [aria-checked="true"],
+    [aria-pressed="true"],
+    [data-active="true"],
+    .is-active
+  ) {
+  background: var(--dark);
+  color: var(--dark-ink);
+  font-weight: var(--cat-w-semibold);
+}
+
+/* Count suffix, e.g. "Manipulation 42". Tabular so the digits do not jitter as
+   the filter narrows — no need for the mono face to achieve that. */
+.cat-pill-count {
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-regular);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* Focus inside a pill group sits on the pill, not the track. */
+.cat-pillgroup :focus-visible {
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------------------
+   Skeletons, not spinners. A skeleton MUST be given the exact final
+   dimensions of the thing it stands in for, or it trades a spinner for
+   a layout shift.
+   ------------------------------------------------------------------ */
+
+.cat-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--cat-radius-sm);
+  background: var(--paper-deep);
+}
+.cat-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: cat-shimmer 1.4s var(--cat-ease) infinite;
+}
+.cat-skeleton--thumb {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border-radius: var(--cat-radius-lg);
+}
+/* A line of text-shaped placeholder: height is derived from the type ramp so
+   it matches whatever will replace it. */
+.cat-skeleton--text {
+  height: calc(var(--cat-fs-base) * var(--cat-lh-normal));
+  border-radius: var(--cat-radius-sm);
+}
+.cat-skeleton--label {
+  height: calc(var(--cat-fs-2xs) * var(--cat-lh-snug));
+  border-radius: var(--cat-radius-sm);
+}
+.cat-skeleton--figure {
+  height: calc(var(--cat-fs-2xl) * var(--cat-lh-none));
+  border-radius: var(--cat-radius-sm);
+}
+
+.cat-card-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-sm);
+}
+
+@keyframes cat-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Staggered reveal. One shared implementation so five components do not
+   each invent one.
+
+   Contract: put .cat-reveal on the element and set --cat-reveal-i to its
+   index. The delay is CAPPED at 5 steps (40ms each = 200ms max) so a
+   29-card grid does not make the last card wait 1.2s — only the first
+   row should feel staggered at all.
+   ------------------------------------------------------------------ */
+
+.cat-reveal {
+  animation: cat-reveal var(--cat-dur-slow) var(--cat-ease) both;
+  animation-delay: calc(min(var(--cat-reveal-i, 0), 5) * 40ms);
+}
+
+@keyframes cat-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Empty / error states
+   ------------------------------------------------------------------ */
+
+.cat-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cat-space-sm);
+  text-align: center;
+  padding: var(--cat-space-2xl) var(--cat-space-lg);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--cat-radius-lg);
+  background: var(--paper-2);
+  color: var(--muted);
+}
+.cat-state svg {
+  color: var(--accent-muted);
+}
+.cat-state-title {
+  margin: 0;
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink);
+}
+.cat-state-body {
+  margin: 0;
+  max-width: var(--cat-measure-lead);
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-normal);
+  /* An error message can be a long unbroken URL. */
+  overflow-wrap: anywhere;
+}
+.cat-state--error {
+  border-style: solid;
+  border-color: rgba(89, 34, 2, 0.35);
+  background: var(--accent-soft);
+}
+.cat-state--error svg {
+  color: var(--accent);
+}
+.cat-state .cat-btn {
+  margin-top: var(--cat-space-2xs);
+}
+
+/* ------------------------------------------------------------------
+   Background scroll lock while the modal is open. Set on <html> by
+   CatalogPage; the gutter variable stops the page shifting sideways when
+   the scrollbar disappears.
+   ------------------------------------------------------------------ */
+
+html.cat-scroll-locked {
+  overflow: hidden;
+  padding-right: var(--cat-scrollbar-w, 0px);
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion. Honour it globally rather than per-component, so a new
+   component cannot forget. Animations are not merely slowed — they are
+   removed, because vestibular triggers are about movement, not duration.
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-root *,
+  .cat-root *::before,
+  .cat-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .cat-skeleton::after {
+    display: none;
+  }
+  /* Keep the placeholder legible without the sweep. */
+  .cat-skeleton {
+    background: var(--paper-deep);
+  }
+  /* Lift and press are movement too. Colour still responds. */
+  .cat-root .cat-card-surface--interactive:hover,
+  .cat-root .cat-card-surface--interactive:active,
+  .cat-root .cat-btn:active,
+  .cat-root .cat-btn--primary:active:not(:disabled),
+  .cat-root .cat-btn--ghost:active:not(:disabled) {
+    transform: none;
+  }
+  .cat-reveal {
+    animation: none;
+  }
+}

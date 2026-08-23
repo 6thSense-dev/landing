@@ -4,6 +4,12 @@
 FROM node:22-alpine AS builder
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
+# How long the API's presigned S3 URLs live, in seconds. The catalog only uses
+# it as a fallback for a manifest that does not declare its own expiry, so the
+# default is right until someone changes CATALOG_PRESIGN_TTL on the API without
+# also making it declare `presign` in the payload. Keep the two in step.
+ARG VITE_CATALOG_PRESIGN_TTL=900
+ENV VITE_CATALOG_PRESIGN_TTL=${VITE_CATALOG_PRESIGN_TTL}
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

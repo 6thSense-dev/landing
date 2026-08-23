@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
 import App from "./App";
@@ -9,6 +9,10 @@ import "./fonts.css"; // self-hosted @font-face (no external font requests)
 import "./styles.css";
 import "./scroll-hero.css";
 import "./portal/portal.css";
+// The catalog's own stylesheet is imported by src/catalog/CatalogPage.jsx and
+// every rule in it is scoped under `.cat-root`, so it code-splits with the lazy
+// /portal/catalog route and cannot leak into the marketing pages. Nothing to
+// add here.
 
 const LoginPage = lazy(() => import("./portal/LoginPage.jsx"));
 const PortalApp = lazy(() => import("./portal/PortalApp.jsx"));
@@ -45,6 +49,18 @@ const GloveTune = lazy(() => import("./pages/GloveTune.jsx"));
 // HTML variants (see scripts/seoPrerenderPlugin.js), same as the product pages.
 const LegalPage = lazy(() => import("./pages/LegalPage.jsx"));
 
+/**
+ * `/catalog` is the URL people guess and paste; the real one is
+ * `/portal/catalog`, because the catalog is behind the portal login. Carry the
+ * query and hash across so a forwarded `/catalog?clip=<id>#tab=tactile` still
+ * opens that clip on that tab, and `replace` so Back does not bounce off the
+ * redirect.
+ */
+function CatalogRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={`/portal/catalog${search}${hash}`} replace />;
+}
+
 // Strip the build-time SEO prerender shell before client render so JS users
 // and screen readers don't get duplicate content (see scripts/seoPrerenderPlugin.js).
 document.getElementById("seo-prerender")?.remove();
@@ -63,6 +79,7 @@ function AnimatedRoutes() {
           <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
           <Route path="/portal/*" element={<PageTransition><PortalApp /></PageTransition>} />
         </Route>
+        <Route path="/catalog" element={<CatalogRedirect />} />
         <Route path="/product" element={<PageTransition><ProductPage slug="/product" /></PageTransition>} />
         <Route path="/product/gloves" element={<PageTransition><ProductPage slug="/product/gloves" /></PageTransition>} />
         <Route path="/product/skin" element={<PageTransition><ProductPage slug="/product/skin" /></PageTransition>} />

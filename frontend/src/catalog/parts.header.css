@@ -1,0 +1,729 @@
+/* ==================================================================
+   parts.header.css — the catalog's page chrome and collection masthead.
+
+   Owned by CatalogTopBar.jsx, CollectionHeader.jsx and CatalogPage.jsx.
+   Imported from CatalogPage.jsx AFTER ./catalog.css.
+
+   Every token, type role and utility here comes from catalog.css:
+   --cat-fs-*, --cat-w-*, --cat-space-*, --cat-lh-*, --cat-tracking-*,
+   --cat-elev-*, --cat-radius-*, --cat-dur-*, and the .cat-label /
+   .cat-figure / .cat-lead / .cat-display / .cat-wordmark /
+   .cat-card-surface / .cat-skeleton--* classes. Nothing below invents a
+   size, a weight or a shadow of its own. catalog.css has :where()-wrapped
+   the whole .cat-header / .cat-stat region and ceded it to this file, so
+   these rules override it without needing !important.
+
+   Everything is scoped under .cat-root. No bare element selectors, no
+   writes to :root.
+   ================================================================== */
+/* SECONDARY TEXT: --cat-ink-2, not --muted.
+   --muted is 6.25:1 on --paper and belongs to uppercase micro-labels a reader
+   SCANS (.cat-label, .cat-fb__glabel, table thead cells). Anything a buyer
+   READS -- descriptions, captions, hints, values, sub-lines -- takes
+   --cat-ink-2 (7.6:1), which is the bar the grid already held itself to and
+   this surface did not. Declared in catalog.css; the role split is documented
+   at the declaration. */
+
+
+/* ------------------------------------------------------------------
+   Page chrome
+   ------------------------------------------------------------------ */
+
+/* Set on the catalog's own .cat-root by CatalogPage. Holding the topbar
+   height here is what lets the sticky filter bar in parts.grid.css park
+   directly under it: it reads `top: var(--cat-sticky-top, 0px)`.
+   A fixed rem, not a clamp — a sticky offset has to be a number the filter
+   bar can resolve at any width. */
+.cat-root--chromed {
+  --cat-topbar-h: 3.5rem;
+  --cat-sticky-top: var(--cat-topbar-h);
+}
+
+/*
+ * The top bar is on --dark, not on paper. Four reasons:
+ *   1. SiteNav already establishes the mark-on-dark treatment (the invert
+ *      filter below is lifted from it), so this is the brand's existing
+ *      usage rather than a second one.
+ *   2. It gives the paper page a hard top edge without a shadow, which
+ *      keeps the elevation scale reserved for things that genuinely float.
+ *   3. The filter bar below it is sticky AND on paper. Paper sticking to
+ *      paper needs two hairlines to read; dark-then-paper reads instantly,
+ *      and the filter bar's own shadow lands against a colour, not a twin.
+ *   4. A buyer arriving from the marketing site's dark nav lands on the
+ *      same chrome and does not feel dropped into a different product.
+ */
+.cat-root .cat-topbar {
+  position: sticky;
+  top: 0;
+  /* Above the sticky filter bar (20), far below the clip modal (900). */
+  z-index: 30;
+  width: 100%;
+  background: var(--dark);
+  color: var(--dark-ink);
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.cat-root .cat-topbar__inner {
+  max-width: var(--max);
+  min-height: var(--cat-topbar-h, 3.5rem);
+  margin: 0 auto;
+  padding: 0 var(--cat-space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-sm);
+}
+
+/* The ring from catalog.css is --accent, a dark brown that is all but
+   invisible on --dark. On the bar it is the paper ink instead. */
+.cat-root .cat-topbar :focus-visible {
+  outline: 2px solid var(--dark-ink);
+  outline-offset: 2px;
+  border-radius: var(--cat-radius-sm);
+}
+
+/* .cat-wordmark is the shared component from catalog.css — same size, same
+   0.14em, same extrabold. Only the colour and the hit area are local. */
+.cat-root .cat-topbar .cat-wordmark {
+  min-height: 2.75rem;
+  color: var(--dark-ink);
+  transition: opacity var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-root .cat-topbar .cat-wordmark:hover {
+  opacity: 0.78;
+}
+
+/* SiteNav's own treatment for the mark on dark: it flattens the brown/olive
+   dot cluster to paper white. The source is the 128px webp against a ~23px
+   box, so it stays crisp at 2x and 3x. */
+.cat-root .cat-topbar .cat-wordmark__mark {
+  filter: brightness(0) invert(1);
+}
+
+.cat-root .cat-topbar__rule {
+  flex: none;
+  width: 1px;
+  height: 1.15rem;
+  background: rgb(255 255 255 / 0.18);
+}
+
+/* Where you are. The bar says it, which is what frees the masthead below
+   from spending its display line on the word "Catalog". */
+/* The one elastic item on the bar: everything else is flex:none, so this is
+   where every pixel of shrink lands. `min-width: 0` is what lets it go below
+   its content width and hand the name to text-overflow. */
+.cat-root .cat-topbar__context {
+  display: flex;
+  align-items: baseline;
+  gap: var(--cat-space-xs);
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.cat-root .cat-topbar__collection {
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  letter-spacing: var(--cat-tracking-snug);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-root .cat-topbar__version {
+  font-family: var(--cat-font-mono);
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgb(236 232 220 / 0.55);
+}
+
+/* Reserves the context slot while the manifest is in flight, so the bar does
+   not resize when the name lands. */
+.cat-root .cat-topbar__context-pending {
+  display: block;
+  width: 7rem;
+  height: calc(var(--cat-fs-sm) * var(--cat-lh-snug));
+  border-radius: var(--cat-radius-sm);
+  background: rgb(255 255 255 / 0.09);
+}
+
+/* `flex: none`, NOT `min-width: 0`.
+ *
+ * The session block holds two children that both refuse to shrink (the role chip
+ * and the 44px Log out target). `min-width: 0` let the BOX shrink under them
+ * anyway, so at 360 the box was 124px around 140px of content and the chip was
+ * painted underneath the button -- measured overlap 11px, visible in
+ * docs/catalog/screenshots/header-360.png before this rule.
+ *
+ * All of the shrink belongs to .cat-topbar__context instead: it is the only item
+ * on the bar that CAN give ground gracefully, because the collection name
+ * ellipsises. At 360 that leaves it ~127px, which still reads. */
+.cat-root .cat-topbar__session {
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-xs);
+  margin-left: auto;
+  flex: none;
+}
+
+.cat-root .cat-topbar__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-xs);
+  flex: none;
+}
+
+.cat-root .cat-topbar__role {
+  flex: none;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: var(--cat-radius-pill);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: rgb(236 232 220 / 0.82);
+}
+
+.cat-root .cat-topbar__who {
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-regular);
+  color: rgb(236 232 220 / 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
+/* 44px, always. This is the only sign-out in the product — before it there
+   was no way for a guest to end a session anywhere at all. */
+.cat-root .cat-topbar__logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cat-space-xs);
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--cat-space-md);
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: var(--cat-radius-pill);
+  background: transparent;
+  color: var(--dark-ink);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--cat-dur-fast) var(--cat-ease),
+    border-color var(--cat-dur-fast) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-root .cat-topbar__logout:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(255 255 255 / 0.4);
+}
+.cat-root .cat-topbar__logout:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.cat-root .cat-topbar__logout:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* 560 and below: the wordmark text and the account name go; the mark, the
+   collection, the role chip and Log out stay. Measured at 360 that is ~280px
+   of content inside a 328px box, so nothing truncates and the 44px target is
+   untouched. */
+@media (max-width: 560px) {
+  .cat-root .cat-topbar .cat-wordmark span,
+  .cat-root .cat-topbar__who,
+  /* The version is the display heading's own chip two lines below; on a 360
+     bar it only steals room from the collection name, which then ellipsises. */
+  .cat-root .cat-topbar__version {
+    display: none;
+  }
+  .cat-root .cat-topbar__logout {
+    padding: 0 var(--cat-space-sm);
+  }
+
+  /* With the wordmark text hidden the home link collapses onto the 22px mark, so
+     the only route back to the marketing site became a 22x44 target -- under
+     WCAG 2.5.8's 24px minimum in the width axis, and a genuinely awkward tap.
+     The mark stays 22px; the hit area does not. */
+  .cat-root .cat-topbar .cat-wordmark {
+    justify-content: center;
+    min-width: 44px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Page rhythm
+
+   The seams between header, filter bar, grid and chart were all one large
+   clamp, which left a dead band above the filter bar. Set from the ramp
+   instead: one --cat-space-xl step between sections, and a smaller top pad
+   because the topbar now draws the page's top edge.
+   ------------------------------------------------------------------ */
+
+.cat-root .cat-page--catalog {
+  gap: var(--cat-space-xl);
+  padding-top: var(--cat-space-lg);
+}
+
+/* ------------------------------------------------------------------
+   Collection masthead
+   ------------------------------------------------------------------ */
+
+.cat-root .cat-masthead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-lg);
+}
+
+/*
+ * Two columns, not one column and an empty right half. The lede is capped at
+ * the system's 52ch lead measure so the paragraph cannot run twelve lines
+ * down a gutter, and the access block is a real card in the second column
+ * rather than a button floating in whitespace.
+ */
+.cat-root .cat-masthead__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cat-space-lg);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .cat-root .cat-masthead__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 24rem);
+    gap: var(--cat-space-xl);
+  }
+}
+
+.cat-root .cat-masthead__lede {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cat-space-md);
+  min-width: 0;
+  max-width: var(--cat-measure-lead);
+}
+
+/* .cat-display supplies the size, the extralight weight and the negative
+   tracking; this only makes room for the version chip on the same line. */
+.cat-root .cat-masthead__title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--cat-space-2xs) var(--cat-space-sm);
+  /* One step up from .cat-display's 3xl: this is the only display line on the
+     page and at 1440 it has to hold its own against the access card opposite
+     it. 4xl brings the matching tightest tracking with it — at 80px, -0.028em
+     leaves visible gaps that extralight cannot close on its own. */
+  font-size: var(--cat-fs-4xl);
+  letter-spacing: var(--cat-tracking-tightest);
+  overflow-wrap: anywhere;
+}
+
+.cat-root .cat-masthead__version {
+  align-self: center;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-sm);
+  background: var(--paper-2);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  color: var(--cat-ink-2);
+  white-space: nowrap;
+}
+
+/* The full paragraph, kept word for word, just no longer the first thing on
+   the page. Starts collapsed. */
+.cat-root .cat-disclosure {
+  width: 100%;
+}
+
+.cat-root .cat-disclosure__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-xs);
+  min-height: 44px;
+  border-radius: var(--cat-radius-sm);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-semibold);
+  color: var(--accent);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-root .cat-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+.cat-root .cat-disclosure__summary:hover {
+  color: var(--ink);
+}
+
+.cat-root .cat-disclosure__chevron {
+  flex: none;
+  transition: transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-root .cat-disclosure[open] .cat-disclosure__chevron {
+  transform: rotate(90deg);
+}
+
+.cat-root .cat-disclosure__body {
+  margin-top: var(--cat-space-2xs);
+  padding-left: var(--cat-space-md);
+  border-left: 2px solid var(--line);
+}
+
+/* --ink, not the .cat-body --muted: --muted is 6.3:1 on paper and this is a
+   paragraph a buyer has to read to the end. --ink is 12.7:1. */
+.cat-root .cat-disclosure__body p {
+  margin: 0 0 var(--cat-space-sm);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.cat-root .cat-disclosure__body p:last-child {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------
+   Access card — the CTA gets an anchor
+   ------------------------------------------------------------------ */
+
+/* .cat-card-surface supplies the paper-2 fill, the hairline, the radius and
+   elev-1. Not `--interactive`: the card does not lift, the button inside it
+   is what responds. */
+.cat-root .cat-access {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-sm);
+  padding: var(--cat-space-lg);
+}
+
+/* Below the two-column breakpoint the card is the only thing in its row, and
+   a 700px-wide CTA reads as a banner rather than a button. Capping the card at
+   the same 52ch the lede uses lines its right edge up with the paragraph above
+   it, so the stack reads as one measure instead of two. */
+@media (max-width: 899px) {
+  .cat-root .cat-access {
+    max-width: var(--cat-measure-lead);
+  }
+}
+
+.cat-root .cat-access__eyebrow {
+  margin: 0 0 var(--cat-space-2xs);
+}
+
+/* Full width inside the card. The version this replaced let the CTA float
+   right with nothing under it; here it has a box to sit in. */
+.cat-root .cat-access .cat-btn {
+  width: 100%;
+}
+
+/* Both buttons in this card are anchors (a mailto and a download), and an
+   anchor still carries the UA underline through .cat-btn. A pill with an
+   underlined label reads as a link that has been drawn wrong. */
+.cat-root .cat-access a.cat-btn {
+  text-decoration: none;
+}
+
+.cat-root .cat-access__how {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cat-space-xs);
+  margin: 0;
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-normal);
+  color: var(--cat-ink-2);
+  text-wrap: pretty;
+}
+.cat-root .cat-access__how svg {
+  flex: none;
+  margin-top: 0.2rem;
+  color: var(--accent);
+}
+.cat-root .cat-access__how a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  overflow-wrap: anywhere;
+}
+
+.cat-root .cat-access__rule {
+  height: 1px;
+  margin: var(--cat-space-2xs) 0;
+  background: var(--line);
+}
+
+.cat-root .cat-access__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cat-space-xs);
+}
+
+/* A licence name can be a whole sentence ("Evaluation sample - no licence
+   granted"). In a 21rem column that is two lines, and two lines inside a pill
+   reads as a mistake — so inside the card the chip is a bordered block with
+   left-aligned copy. Same tokens, same hairline, no ellipsis: the licence is
+   the last thing on this page that should be truncated. */
+.cat-root .cat-access .cat-chip {
+  align-items: center;
+  /* It is a link to the licence, so it is a target, so it is 44px. */
+  min-height: 44px;
+  max-width: 100%;
+  padding: var(--cat-space-2xs) var(--cat-space-sm);
+  border-radius: var(--cat-radius-sm);
+  line-height: var(--cat-lh-snug);
+  text-align: left;
+}
+.cat-root .cat-access .cat-chip svg {
+  flex: none;
+}
+/* .cat-chip is nowrap by default, which is right for a one-word tag and wrong
+   for a licence name. The label wraps inside the card; the two icons do not
+   shrink and do not get pushed outside it. */
+.cat-root .cat-access .cat-chip > span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The archive's own facts: id, format, size, digest. Mono because a buyer
+   checks the digest character by character. */
+.cat-root .cat-access__sample {
+  margin: 0;
+  font-family: var(--cat-font-mono);
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--cat-lh-relaxed);
+  color: var(--cat-ink-2);
+  overflow-wrap: anywhere;
+}
+.cat-root .cat-access__sample b {
+  font-weight: var(--cat-w-medium);
+  color: var(--ink);
+}
+
+.cat-root .cat-access__vendor {
+  margin: 0;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--cat-ink-2);
+}
+.cat-root .cat-access__vendor a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.cat-root .cat-access__vendor a:hover {
+  color: var(--accent);
+  border-bottom-color: currentColor;
+}
+/* The key is the quieter half of the pair: the publisher's NAME carries the
+   weight, the word "Published by" only has to be legible. */
+.cat-root .cat-access__vendor-k {
+  font-weight: var(--cat-w-regular);
+  letter-spacing: var(--cat-tracking-wide);
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------------
+   Stat strip
+
+   Four tiles, ranked: what a buyer scanning for three seconds wants.
+   Subjects / Countries / Modalities / Total size drop to the summary row
+   below. Four columns is also what keeps every label on ONE line without
+   shrinking the type — the eight-tile auto-fit row gave 136px columns at
+   1440 and wrapped three of them.
+
+   Two columns below 640px, where four would be 110px each. The e2e's
+   one-baseline check runs at 1440, where this is a single row.
+   ------------------------------------------------------------------ */
+
+.cat-root .cat-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-md);
+  overflow: hidden;
+  box-shadow: var(--cat-elev-1);
+}
+
+@media (min-width: 640px) {
+  .cat-root .cat-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.cat-root .cat-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-xs);
+  padding: var(--cat-space-md);
+  background: var(--paper-2);
+}
+
+/* ONE line, enforced. catalog.css reserves two lines unconditionally as a
+   defence against wrapping; at four tiles nothing wraps, so the reservation
+   is a hole in the layout instead. The longest label ("MAX SYNC ERROR", 14
+   characters) measures ~103px against 123px of text width at the 640px
+   breakpoint and 248px at 1440. nowrap makes that a structural guarantee
+   rather than a measurement a future label could quietly break. */
+.cat-root .cat-stat dt {
+  margin: 0;
+  min-height: calc(var(--cat-fs-2xs) * var(--cat-lh-snug));
+  line-height: var(--cat-lh-snug);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The value is a .cat-figure: catalog.css already gives it the extralight
+   2xl numeral, the semibold 0.4em unit, tabular figures and nowrap. */
+.cat-root .cat-stat-value {
+  margin: 0;
+}
+
+.cat-root .cat-stat-sub {
+  margin: var(--cat-space-2xs) 0 0;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--cat-ink-2);
+}
+
+/* ------------------------------------------------------------------
+   Secondary figures + one-line meta
+
+   Deliberately NOT .cat-stat: a second row of tiles would put four more
+   values on a second baseline, which is the exact defect the eight-tile row
+   had and the exact thing the e2e's baseline check exists to catch.
+   ------------------------------------------------------------------ */
+
+.cat-root .cat-masthead__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-sm);
+}
+
+.cat-root .cat-substats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cat-space-2xs) var(--cat-space-lg);
+  margin: 0;
+  padding: 0;
+}
+
+.cat-root .cat-substat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--cat-space-xs);
+  min-width: 0;
+}
+
+/* Not .cat-label: at four pairs on one line, 10px uppercase reads as texture
+   and the row stops being scannable. Same rank signalled with colour and one
+   size step instead, so "Subjects 5" reads as a phrase. */
+.cat-root .cat-substat dt {
+  margin: 0;
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* --cat-figure-size retunes the shared .cat-figure down three steps: same
+   component, same tabular figures, secondary rank. */
+.cat-root .cat-substat dd {
+  --cat-figure-size: var(--cat-fs-base);
+  margin: 0;
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-normal);
+  white-space: nowrap;
+}
+
+.cat-root .cat-masthead__line {
+  margin: 0;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-relaxed);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--cat-ink-2);
+}
+.cat-root .cat-masthead__line b {
+  font-weight: var(--cat-w-semibold);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------
+   Notices
+
+   These were added because a reviewer caught us laundering caveats. They do
+   not get quieter: the provenance banner sits ABOVE the totals, because
+   "these frames are synthetic" changes what every number under it means.
+   ------------------------------------------------------------------ */
+
+.cat-root .cat-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-xs);
+}
+
+.cat-root .cat-notice {
+  border-left-width: 3px;
+}
+
+/* ------------------------------------------------------------------
+   Loading skeleton
+
+   The exact final geometry, derived from the same tokens the real elements
+   use, so nothing shifts when the manifest lands.
+   ------------------------------------------------------------------ */
+
+.cat-root .cat-skel-title {
+  width: min(18rem, 80%);
+  height: calc(var(--cat-fs-3xl) * var(--cat-lh-display));
+}
+.cat-root .cat-skel-standfirst {
+  width: 100%;
+  max-width: var(--cat-measure-lead);
+  height: calc(var(--cat-fs-md) * var(--cat-lh-snug) * 2);
+}
+.cat-root .cat-skel-access {
+  width: 100%;
+  height: 16rem;
+  border-radius: var(--cat-radius-lg);
+}
+
+/* ------------------------------------------------------------------
+   Reduced motion
+
+   catalog.css already zeroes every transition and animation globally and
+   resets the transforms it knows about. This adds the one it cannot: the
+   topbar's own press state.
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-root .cat-topbar__logout:active:not(:disabled) {
+    transform: none;
+  }
+}

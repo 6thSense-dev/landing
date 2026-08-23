@@ -1,0 +1,21 @@
+# Catalog ingest tooling. Nothing here is imported by backend/ or frontend/ — install
+# it only when you are building a bundle:
+#
+#     python3 -m pip install -r scripts/catalog/requirements.txt
+#
+# Also needs `ffmpeg` and `ffprobe` on PATH. TOML parsing is stdlib `tomllib` (3.11+).
+
+jsonschema==4.26.0     # validates catalog.schema.json and clip.schema.json
+numpy==2.4.2           # tactile .npz arrays: channel census and peak envelope
+
+# Intake files may be .toml, .json or .yaml. INTAKE.md documents take.yaml as the
+# format an operator writes by hand, and generate_fixtures.py emits YAML, so the
+# parser is a real dependency of the documented workflow rather than an optional one.
+pyyaml>=6.0
+
+# `make test` only.
+pytest>=8.0
+
+# `make upload` / upload_bundle.py only. Kept here rather than in a second file
+# because one requirements.txt per directory is the convention in this repo.
+boto3>=1.34

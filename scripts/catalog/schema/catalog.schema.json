@@ -1,0 +1,1612 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://6thsense.dev/schema/6s-catalog/1.0/catalog.schema.json",
+  "title": "6thSense catalog manifest (6s-catalog/1.0)",
+  "description": "The single collection manifest shipped to the buyer-facing catalog UI. It is fetched once, in one request, and must contain everything the grid, the facet filters and the task-distribution chart need to render WITHOUT fetching anything else. Per-clip detail lives in separate records validated by clip.schema.json. Every asset URL in this document is RELATIVE to the directory that contains catalog.json, so the same bundle works unchanged on localhost, behind a signed-URL CDN, and behind the portal proxy. A `null` value ALWAYS means 'the ingest could not determine this'; it never means zero, never means false, and the UI must render it as an em-dash. An empty string is never a legal substitute for null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_utc",
+    "collection",
+    "facets",
+    "benchmark",
+    "clips"
+  ],
+  "properties": {
+    "schema": {
+      "title": "Schema identifier",
+      "description": "Constant discriminator so a consumer can tell this file apart from any other JSON in the bundle and refuse an unknown major version. Bump the minor for additive changes, the major for anything that removes or retypes a field.",
+      "type": "string",
+      "const": "6s-catalog/1.0"
+    },
+    "generated_utc": {
+      "title": "Manifest build time (UTC)",
+      "description": "RFC 3339 instant, always in UTC with a literal trailing Z, at which the ingest CLI produced this manifest. Used for cache busting and to let a buyer tell a stale mirror from a fresh one. This is NOT the recording time of any clip.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "examples": [
+        "2026-08-23T09:26:23Z"
+      ]
+    },
+    "collection": {
+      "$ref": "#/$defs/Collection"
+    },
+    "facets": {
+      "$ref": "#/$defs/Facets"
+    },
+    "benchmark": {
+      "title": "Task-distribution chart data",
+      "description": "Precomputed stacked-bar data for the 'Task distribution' chart. null means the collection has no task breakdown yet and the UI must hide the entire chart section rather than render an empty axis.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Benchmark"
+        },
+        {
+          "type": "null",
+          "title": "No benchmark",
+          "description": "No task-distribution data available."
+        }
+      ]
+    },
+    "clips": {
+      "title": "Clip summaries",
+      "description": "Every clip in the collection, in the order the grid should show them by default (the UI may re-sort). These are SUMMARIES: they carry exactly what the card, the filter bar and the sort need, and nothing else. Anything heavier lives in the per-clip detail record. An empty array is legal and means the collection is published but currently holds no accepted clips.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ClipSummary"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "title": "Every clip must resolve to a detail record",
+      "description": "A clip's detail URL comes either from `collection.paths.detail` (a template) or from the clip's own `detail` key. If the template is null there is no fallback, so each clip MUST carry an explicit `detail`.",
+      "if": {
+        "required": [
+          "collection"
+        ],
+        "properties": {
+          "collection": {
+            "required": [
+              "paths"
+            ],
+            "properties": {
+              "paths": {
+                "required": [
+                  "detail"
+                ],
+                "properties": {
+                  "detail": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "clips": {
+            "items": {
+              "required": [
+                "detail"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "AssetUrl": {
+      "title": "Relative asset URL",
+      "description": "A path to a file inside this catalog bundle, resolved against the directory containing catalog.json. MUST be relative: no scheme (http:, https:, file:, data:), no protocol-relative '//host', no leading '/', no leading './' or '../', no embedded '/../' segment, and no whitespace. This is what makes the bundle portable across localhost, a signed-URL CDN and the portal proxy: the host rewrites the base, never the manifest. URLs to third parties (a vendor site, a licence deed) are NOT asset URLs; see ExternalUrl.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!//)(?!/)(?!\\.\\.?/)(?!.*/\\.\\./)[^\\s]+$",
+      "examples": [
+        "clips/ego-20260823-000821-16a260.json",
+        "media/ego-20260823-000821-16a260/poster.jpg"
+      ]
+    },
+    "ExternalUrl": {
+      "title": "Absolute third-party URL",
+      "description": "An absolute https URL pointing OUTSIDE the catalog bundle: a vendor homepage, a licence deed, a contact page. This is the only legal exception to the relative-URL rule, because these resources are not part of the bundle and cannot move with it. Plain http is rejected: the catalog is served over TLS and a mixed-content link will be blocked by the browser.",
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^https://[^\\s]+$",
+      "examples": [
+        "https://6thsense.dev",
+        "https://creativecommons.org/licenses/by/4.0/"
+      ]
+    },
+    "LicenseUrl": {
+      "title": "Licence location",
+      "description": "Where the licence text lives. Either a file shipped inside the bundle (relative asset URL, e.g. the per-take LICENSE.txt) or a public licence deed (absolute https URL).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AssetUrl"
+        },
+        {
+          "$ref": "#/$defs/ExternalUrl"
+        }
+      ]
+    },
+    "PathTemplate": {
+      "title": "Asset path template",
+      "description": "A relative asset path containing at least one of the literal placeholders {id} or {slug}, expanded per clip by verbatim string substitution. Both id and slug are already restricted to [a-z0-9-], so no percent-encoding is required or permitted. Templates exist purely to keep the manifest small: repeating three full URLs on every clip costs roughly 125 bytes per clip, which is a quarter of the whole per-clip budget.",
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!//)(?!/)(?!\\.\\.?/)[^\\s]*\\{(id|slug)\\}[^\\s]*$",
+      "examples": [
+        "clips/{id}.json",
+        "media/{id}/poster.jpg"
+      ]
+    },
+    "ClipId": {
+      "title": "Stable clip identifier",
+      "description": "The permanent machine key for a clip, derived mechanically from the source take id by lowercasing and replacing every run of non-alphanumeric characters with a single hyphen (ego_20260823_000821_16A260 -> ego-20260823-000821-16a260). It MUST be stable for the life of the clip: it keys bookmarks, download receipts and any buyer-side cache. Unique across the collection.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "examples": [
+        "ego-20260823-000821-16a260"
+      ]
+    },
+    "Slug": {
+      "title": "URL path segment",
+      "description": "The human-readable URL form of the clip, derived from the title and disambiguated with a suffix on collision. Unique across the collection. If no usable title exists, the slug is identical to the id. Changing a slug breaks shared links, so treat it as append-only in practice.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "examples": [
+        "bimanual-bin-picking-16a260"
+      ]
+    },
+    "CountryCode": {
+      "title": "ISO 3166-1 alpha-2 country code",
+      "description": "Upper-case two-letter code for where the clip was RECORDED (not where the vendor is incorporated). Rendered on the card as the uppercase mono label on the right of the title row. The ingest cannot infer this from a UTC offset -- +08:00 spans nine countries -- so it must be supplied by hand and is null when it was not. THIS COLLECTION IS CAPTURED IN TWO PLACES ONLY: `CN` (mainland China) and `HK` (Hong Kong SAR). They are two separate alpha-2 codes, not one with a subdivision, because a buyer's jurisdiction review treats them separately. Every code that appears here must also have a display name the ingest can emit on the facet bucket -- an unnameable code FAILS the build rather than shipping the bare code into the filter bar.",
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "examples": [
+        "CN",
+        "HK"
+      ]
+    },
+    "YearMonth": {
+      "title": "Year-month",
+      "description": "Recording month as YYYY-MM. Deliberately coarser than a date: it is enough for a buyer to judge recency and for the collection date_range, without publishing a per-clip timeline of an identifiable operator's movements.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "examples": [
+        "2026-08"
+      ]
+    },
+    "Split": {
+      "title": "Evaluation split assignment",
+      "description": "Which of the published train / val / test partitions this clip belongs to (H10). It is carried per clip rather than left to the buyer because a split invented independently by every buyer makes no two evaluations comparable, and because the normalisation constants in `collection.splits.normalization` are only defensible if the partition they were computed over is published alongside them. null means no split has been assigned; the UI renders an em-dash and a buyer must assume nothing.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "train",
+        "val",
+        "test",
+        null
+      ]
+    },
+    "Capture": {
+      "title": "Capture rig class",
+      "description": "Which camera rig produced the clip. This drives the Stereo/Mono segmented toggle above the grid and whether the detail view renders one video pane or the side-by-side pair with LEFT CAMERA / RIGHT CAMERA corner labels. Closed enum: adding a rig class is a minor version bump of the schema, never an ad-hoc string.",
+      "type": "string",
+      "enum": [
+        "stereo_egocentric",
+        "mono_egocentric"
+      ]
+    },
+    "Modality": {
+      "title": "Data modality",
+      "description": "One kind of stream present in the clip's delivered package. Drives the modality facet and which tabs the detail view enables. 'segcap' means time-segmented captions/labels (the Segcap tab). 'calibration' means a machine-readable intrinsics/extrinsics file ships with the clip, not that the data is calibrated to physical units. Every value in this enum has a file pointer in `media` and a quality block that describes it; a modality with nowhere to point cannot be listed, because a chip on the card that resolves to no file and no quality metadata is an overstatement. `audio`, `hand_pose` and `depth` were removed in 1.1 for exactly that reason and return only when `media` gains a slot for them.",
+      "type": "string",
+      "enum": [
+        "video",
+        "tactile",
+        "imu",
+        "segcap",
+        "calibration"
+      ]
+    },
+    "Hand": {
+      "title": "Instrumented hand",
+      "description": "A hand for which tactile data was recorded. An empty hands array means no tactile glove was worn, which is legal (a video-only clip) and different from null.",
+      "type": "string",
+      "enum": [
+        "left",
+        "right"
+      ]
+    },
+    "Permission": {
+      "title": "Rights permission value",
+      "description": "One of the four independent per-clip permissions required by H5. 'granted' = the buyer may do this today under the stated licence. 'denied' = they may not, and no negotiation is currently possible (typically because subject consent does not cover it). 'on_request' = not granted by default but obtainable by agreement. There is deliberately no null and no 'unknown': if the rights review has not happened, the correct and only honest value is 'denied'. Buyers treat 'the file downloaded' as NOT implying training rights, and so do we.",
+      "type": "string",
+      "enum": [
+        "granted",
+        "denied",
+        "on_request"
+      ]
+    },
+    "Rights": {
+      "title": "Per-clip rights (H5)",
+      "description": "The four permissions are separate, per-clip and independent. They are never collapsed into a single licence label, because licence -- not content -- is what disqualifies most corpora for a commercial buyer (Ego4D research-only, EPIC-KITCHENS CC BY-NC, EgoDex CC BY-NC-ND). Key names are the short form; the EGXO equivalents are model_training_permission, commercial_use_permission, redistribution_permission and derived_model_permission respectively.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_training",
+        "commercial_use",
+        "redistribution",
+        "derived_model"
+      ],
+      "properties": {
+        "model_training": {
+          "title": "Model training permission",
+          "description": "May the buyer train or fine-tune a model on this clip? EGXO field name: model_training_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "commercial_use": {
+          "title": "Commercial use permission",
+          "description": "May the resulting work be used commercially, including in a shipped product? EGXO field name: commercial_use_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "redistribution": {
+          "title": "Redistribution permission",
+          "description": "May the buyer pass the raw clip on to a third party, including a subsidiary or a compute provider? EGXO field name: redistribution_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "derived_model": {
+          "title": "Derived model permission",
+          "description": "May a model whose weights were influenced by this clip be released or sold? This is separate from model_training on purpose: consent to train is routinely given without consent to publish the resulting weights. EGXO field name: derived_model_permission.",
+          "$ref": "#/$defs/Permission"
+        }
+      }
+    },
+    "PrivacySummary": {
+      "title": "Privacy state, card-level (H6)",
+      "description": "The three privacy facts a buyer's counsel screens on before they will look at anything else. The full H6 record -- notice, redaction policy version and reviewer, retention and deletion, re-identification prohibition -- lives in the clip detail record, whose `privacy` object is a strict superset of this one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "faces_redacted",
+        "consent_on_file",
+        "pii_review"
+      ],
+      "properties": {
+        "faces_redacted": {
+          "title": "Faces redacted",
+          "description": "true if every identifiable face in the footage has been blurred or masked. false means identifiable faces are present and visible. null means no assessment has been made -- which is materially worse than false and the UI must show it as an em-dash, never as 'No'.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "consent_on_file": {
+          "title": "Subject consent on file",
+          "description": "true if a signed release from every recorded person covers the permissions asserted in `rights`. false means it does not exist or does not cover them. null means unverified.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "pii_review": {
+          "title": "PII review disposition",
+          "description": "Outcome of the human PII review. 'not_required' is only legal when the footage provably contains no identifiable person, premises, screen, document or plate. null means no review has been scheduled.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "passed",
+            "pending",
+            "failed",
+            "not_required",
+            null
+          ]
+        }
+      }
+    },
+    "Grade": {
+      "title": "Buyer-facing quality grade",
+      "description": "A single letter summarising delivery quality, computed by a published deterministic rule from the QA measurements (see CONTRACT.md) and overridable downward, never upward, by a human. A = clean delivery: no check result is 'warn' or 'fail', zero dropped video frames, tactile CRC pass >= 0.9999, usable channels >= 60% of readout sites on every instrumented hand, and measured max inter-stream alignment error <= 33 ms. B = within the H2 tolerance: dropout <= 1%, CRC >= 0.999, usable >= 40%. C = accepted with a named caveat that is spelled out in known_limitations. Clips whose QA disposition is anything other than 'accepted' do not appear in the catalog at all.",
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "QaSummary": {
+      "title": "QA measurements, card-level (H2, H4)",
+      "description": "The numbers a buyer uses to sort and to reject, precomputed so the grid never opens a detail record. The full per-check H4 table -- check_id, category, result, measured_value and threshold for each check -- lives in the clip detail record, whose `qa` object is a strict superset of this one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grade",
+        "video_frames_dropped",
+        "tactile_crc_pass_rate",
+        "usable_channels",
+        "tactile_coverage",
+        "disposition",
+        "checks_warn",
+        "checks_fail",
+        "sync_validated"
+      ],
+      "properties": {
+        "grade": {
+          "$ref": "#/$defs/Grade"
+        },
+        "tactile_coverage": {
+          "title": "Tactile channel coverage (worst hand)",
+          "description": "usable_channels on the WORST instrumented hand divided by that hand's readout sites, as a fraction in [0,1]. Shipped as one derived number rather than repeating readout_sites in the summary, because this is the figure the grade rule and the coverage-weighted hour totals both consume. null when no hand was instrumented -- which is NOT the same as 0.0, and the UI must not weight anything by a null.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1,
+          "examples": [
+            0.5744
+          ]
+        },
+        "sync_validated": {
+          "title": "Alignment independently validated",
+          "description": "true when a common-mode physical event corroborated this clip's stream alignment; false when nothing did and the alignment rests on the shared host clock; null when the clip ships no `sync` record. Promoted into the summary because a QA grade shown without it lets a card imply a quality the sync record does not support -- the fact was previously legible only by opening the Calib & sync tab and reading its tail.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "video_frames_dropped": {
+          "title": "Video frames dropped",
+          "description": "Count of frames the capture pipeline lost, as an absolute integer, not a rate. 0 is a real and common value and is NOT the same as null. H2 alerts above 1% of delivered frames; the UI computes that ratio against the clip's frame count from the detail record. null means the source did not report dropout, which itself fails H2 and should have blocked acceptance.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tactile_crc_pass_rate": {
+          "title": "Tactile CRC pass rate (worst hand)",
+          "description": "Fraction in [0,1] of tactile frames whose on-wire CRC verified, taken as the MINIMUM across instrumented hands so the card never flatters a clip with one good glove. 1.0 means every frame verified. null means no tactile stream, or a stream with no CRC -- both of which make frame loss unprovable.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "usable_channels": {
+          "title": "Usable tactile channels per hand",
+          "description": "Channels that are both live AND stable, per hand. 'Live' excludes channels that never reported and channels pinned over the physical ceiling; 'stable' additionally excludes intermittent channels that jump implausibly between adjacent samples. Quote this number, never the size of the readout grid: a 22x22 glove has 484 readout sites and can easily have only 278 working channels.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "left",
+            "right"
+          ],
+          "properties": {
+            "left": {
+              "title": "Usable channels, left hand",
+              "description": "Live-and-stable channel count on the left glove. null when the left hand was not instrumented.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "right": {
+              "title": "Usable channels, right hand",
+              "description": "Live-and-stable channel count on the right glove. null when the right hand was not instrumented.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "disposition": {
+          "title": "QA disposition (H4)",
+          "description": "Exactly one disposition per clip, carried on the card as well as in the record. Only `accepted` clips appear in the manifest at all, so this reads `accepted` for every published clip -- which is precisely why `checks_warn` sits next to it: 'accepted' alone, with the warnings dropped, is how a caveat gets laundered on the way to the buyer.",
+          "enum": [
+            "accepted",
+            "quarantined",
+            "rejected",
+            "pending"
+          ]
+        },
+        "checks_warn": {
+          "title": "Checks that missed their preferred bound",
+          "description": "Count of entries in the detail record's `qa.checks` whose `result` is `warn`: outside the preferred bound, inside the acceptance bound. Derived, published, and shown on the card so 'accepted' is never read as 'clean'.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_fail": {
+          "title": "Checks outside the acceptance bound",
+          "description": "Count of `qa.checks` entries whose `result` is `fail`. Always 0 in a published manifest -- any fail quarantines the clip -- and published anyway so the invariant is checkable from the data rather than taken on trust.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Resolution": {
+      "title": "Pixel dimensions",
+      "description": "Exactly [width, height] in pixels of the DELIVERED media, not the raw sensor. For a side-by-side stereo pane this is the width of the composite: a 960x600 pair is [1920, 600]. Source resolution, when it differs, is recorded in the clip detail record under media.video.source_resolution.",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "examples": [
+        [
+          1920,
+          600
+        ]
+      ]
+    },
+    "ClipSummary": {
+      "title": "Clip summary (grid row)",
+      "description": "Everything the catalog grid, the facet filters and the sort need, and nothing else. Every key except poster, preview and detail is REQUIRED to be present; where a value is genuinely unknown it is present and null. Requiring presence keeps the UI total -- no optional chaining, no ambiguity between 'missing' and 'unknown'. poster, preview and detail are the three exceptions: absent means 'expand the corresponding template in collection.paths', present-and-null means 'this asset does not exist for this clip'. Budget note: a fully populated summary minifies to roughly 700-800 bytes, so a 1000-clip manifest is ~750 KB raw and ~80 KB gzipped. See CONTRACT.md for the measured size table.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slug",
+        "title",
+        "description_short",
+        "category",
+        "subcategory",
+        "country",
+        "recorded_month",
+        "capture",
+        "duration_s",
+        "resolution",
+        "fps",
+        "modalities",
+        "hands",
+        "subjects",
+        "bytes",
+        "rights",
+        "privacy",
+        "qa",
+        "split"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ClipId"
+        },
+        "slug": {
+          "$ref": "#/$defs/Slug"
+        },
+        "split": {
+          "$ref": "#/$defs/Split"
+        },
+        "title": {
+          "title": "Clip title",
+          "description": "Short human title, sentence case, shown in bold on the left of the card's title row. Describe the ACTIVITY, not the equipment: 'Bimanual bin-picking', not 'Glove capture 4'. Keep it under about 48 characters so it does not wrap next to the country label.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "examples": [
+            "Bimanual industrial bin-picking"
+          ]
+        },
+        "description_short": {
+          "title": "One-line description",
+          "description": "A single sentence for the card hover and the modal subhead. null when none was written; the UI then falls back to 'category / subcategory'. This is the largest field in the summary at up to 160 bytes -- for collections above roughly 600 clips the ingest SHOULD emit null here and keep the prose in the detail record only.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "category": {
+          "title": "Primary category",
+          "description": "The top-level taxonomy bucket, lower_snake_case, matching a value in facets.category. Required and non-null: it is the primary grouping of the grid and the ingest derives it from the take directory, so there is no case where it is unknown.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "examples": [
+            "manipulation"
+          ]
+        },
+        "subcategory": {
+          "title": "Secondary category",
+          "description": "Finer bucket within the category, lower_snake_case, matching a value in facets.subcategory. Shown in grey under the title. null when the category has no meaningful subdivision; the UI renders an em-dash.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 48,
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "examples": [
+            "bin_picking"
+          ]
+        },
+        "country": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CountryCode"
+            },
+            {
+              "type": "null",
+              "title": "Country unknown",
+              "description": "Recording country was not supplied. Render an em-dash."
+            }
+          ]
+        },
+        "recorded_month": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/YearMonth"
+            },
+            {
+              "type": "null",
+              "title": "Recording month unknown",
+              "description": "No trustworthy recording date. Render an em-dash."
+            }
+          ]
+        },
+        "capture": {
+          "$ref": "#/$defs/Capture"
+        },
+        "duration_s": {
+          "title": "Duration in seconds",
+          "description": "Wall-clock length of the clip as a float, always in seconds. Never store a preformatted 'M:SS' string: the UI formats it, and a string cannot be summed, sorted or converted. Derived from the media, not from a human estimate.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "examples": [
+            84.6
+          ]
+        },
+        "resolution": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Resolution"
+            },
+            {
+              "type": "null",
+              "title": "Resolution unknown",
+              "description": "No video stream, or the container did not report dimensions."
+            }
+          ]
+        },
+        "fps": {
+          "title": "Delivered frame rate",
+          "description": "Measured frames per second of the delivered video, as a float -- 30.06, not 30. Rounding this to an integer is how a 2 ms/s drift becomes invisible. null when there is no video stream.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0,
+          "examples": [
+            30.06
+          ]
+        },
+        "modalities": {
+          "title": "Modalities present",
+          "description": "Sorted, duplicate-free list of the streams this clip actually delivers. Only list a modality if the file ships: a dead IMU that emits nothing is NOT an imu modality, and listing it is the single easiest way to lose a buyer's trust.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Modality"
+          }
+        },
+        "hands": {
+          "title": "Instrumented hands",
+          "description": "Which gloves were worn and produced data. [] means none, which is legal for a video-only clip and is not the same as null.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/Hand"
+          }
+        },
+        "subjects": {
+          "title": "Number of subjects",
+          "description": "Count of distinct people recorded in this clip. Almost always 1 for egocentric capture. null when not established.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "bytes": {
+          "title": "Delivered package size in bytes",
+          "description": "Total size of everything the buyer receives for this clip, as an integer count of bytes. Always named `bytes`, never `size` and never a megabyte string: the UI formats it, and prefixed units are how a factor of 1024 goes unnoticed. null when the package has not been assembled.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "examples": [
+            159312184
+          ]
+        },
+        "poster": {
+          "title": "Card thumbnail",
+          "description": "Still image for the card, 16:9 or the clip's own aspect. ABSENT means expand collection.paths.poster; present-and-null means no poster exists and the UI must draw its neutral placeholder tile rather than a broken image. Alt text is not carried here: the poster is a frame of the clip, so the UI derives its accessible name from the title (`<title>, still frame`), which is both correct and one fewer string per clip.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AssetUrl"
+            },
+            {
+              "type": "null",
+              "title": "No poster",
+              "description": "No poster image exists for this clip."
+            }
+          ]
+        },
+        "preview": {
+          "title": "Hover preview loop",
+          "description": "Short, silent, looping video shown on card hover or focus. ABSENT means expand collection.paths.preview; present-and-null means none exists. The UI must not autoplay it when prefers-reduced-motion is set.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AssetUrl"
+            },
+            {
+              "type": "null",
+              "title": "No preview",
+              "description": "No preview loop exists for this clip."
+            }
+          ]
+        },
+        "rights": {
+          "$ref": "#/$defs/Rights"
+        },
+        "privacy": {
+          "$ref": "#/$defs/PrivacySummary"
+        },
+        "qa": {
+          "$ref": "#/$defs/QaSummary"
+        },
+        "detail": {
+          "title": "Full clip record",
+          "description": "Relative URL of the JSON document validated by clip.schema.json. ABSENT means expand collection.paths.detail; present-and-null means there is no detail record, in which case the UI must disable the modal's IMU, Segcap and Metadata tabs instead of showing empty ones.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AssetUrl"
+            },
+            {
+              "type": "null",
+              "title": "No detail record",
+              "description": "This clip has no full record; the modal shows the summary only."
+            }
+          ]
+        }
+      }
+    },
+    "Collection": {
+      "title": "Collection header",
+      "description": "Identity, provenance and headline totals for the whole collection. Rendered as the page header and the 'about this collection' block.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "version",
+        "description",
+        "vendor",
+        "license",
+        "totals",
+        "paths",
+        "splits",
+        "sample_archive",
+        "provenance_class"
+      ],
+      "properties": {
+        "id": {
+          "title": "Collection identifier",
+          "description": "Stable machine key for the collection, lower-kebab. Appears in download receipts and in any buyer-side cache key.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "examples": [
+            "nervous-1"
+          ]
+        },
+        "name": {
+          "title": "Collection display name",
+          "description": "Human title shown in the page header next to the Catalog heading.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "version": {
+          "title": "Collection version",
+          "description": "Version of the DATA, independent of the schema version. Semver-shaped: bump patch for a re-render, minor for added clips, major for anything that changes or removes an existing clip's bytes.",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+          "examples": [
+            "1.0.0",
+            "0.2.0-eval"
+          ]
+        },
+        "description": {
+          "title": "Collection description",
+          "description": "A paragraph, in plain language, stating what the collection is and -- explicitly -- what it is not. If the collection is a capability sample rather than a corpus, say so here in the first two sentences.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "standfirst": {
+          "title": "Promoted standfirst",
+          "description": "The one or two sentences the collection header promotes above the fold. AUTHORED, never sliced off `description`: a rule that takes 'the first sentence or two' is a position rule, and a position rule promotes whatever the writer put first, which is always the claim and never the limit. Write ONE CLAIM AND ONE LIMIT; if the limit does not fit, the claim is too big. Omit or set null and the header shows no promoted line at all, which is better than showing an unqualified half of one. It is held to the same build rules as `description` -- no frame-level sync claim the measurements refuse, no readout-grid size, and no 'captured in' on a synthetic corpus.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 400,
+          "examples": [
+            "Thirty egocentric takes, every one of them a calibrated stereo camera and two tactile gloves at 246.5 Hz. A capability sample and not a corpus: nineteen minutes, five operators, four rigs, and tactile in raw ADC counts with no calibration into force units."
+          ]
+        },
+        "vendor": {
+          "title": "Vendor",
+          "description": "Who produced and stands behind the data. A buyer needs a named counterparty before they will engage legal.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "url",
+            "contact"
+          ],
+          "properties": {
+            "name": {
+              "title": "Vendor name",
+              "description": "Legal or trading name of the data provider.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "url": {
+              "title": "Vendor homepage",
+              "description": "Absolute https URL of the vendor's public site. null when the vendor has no public site.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/ExternalUrl"
+                },
+                {
+                  "type": "null",
+                  "title": "No vendor site",
+                  "description": "Vendor has no public homepage."
+                }
+              ]
+            },
+            "contact": {
+              "title": "Contact address",
+              "description": "An email address or absolute https contact URL for licensing and data questions. Must be a monitored role address, not a personal one.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 3,
+              "maxLength": 254,
+              "examples": [
+                "data@6thsense.dev"
+              ]
+            }
+          }
+        },
+        "license": {
+          "title": "Default licence",
+          "description": "The collection-level licence. This is CONTEXT ONLY and is never authoritative: H5 makes rights per-clip, and a clip's `rights` object always wins over anything stated here. A buyer's engineer must be able to see that at a glance, which is why the summary field spells it out.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "url",
+            "summary"
+          ],
+          "properties": {
+            "id": {
+              "title": "Licence identifier",
+              "description": "SPDX identifier where one applies (CC-BY-4.0, CC-BY-NC-4.0, Apache-2.0), or a vendor-specific token for a bespoke agreement. null when no licence has been settled -- which is a real and honest state for an evaluation sample.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 64,
+              "examples": [
+                "CC-BY-4.0",
+                "6S-EVAL-NO-LICENCE"
+              ]
+            },
+            "name": {
+              "title": "Licence name",
+              "description": "Human name of the licence as it should be displayed.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "url": {
+              "title": "Licence text",
+              "description": "Where the licence text lives: a bundled file (relative) or a public deed (absolute https). null when no text exists yet.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LicenseUrl"
+                },
+                {
+                  "type": "null",
+                  "title": "No licence text",
+                  "description": "No licence document exists yet."
+                }
+              ]
+            },
+            "summary": {
+              "title": "Plain-language summary",
+              "description": "Two or three sentences a non-lawyer can act on. Must state the per-clip override explicitly, e.g. 'Per-clip rights in each clip's rights object override this.'",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            }
+          }
+        },
+        "totals": {
+          "title": "Headline totals",
+          "description": "Precomputed aggregates over the clips array, so the header renders without iterating. The producer MUST keep these consistent with clips[]; a consumer that finds a mismatch should trust clips[] and report the manifest as stale.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "clips",
+            "hours",
+            "duration_unit",
+            "tactile_hours",
+            "tactile_usable_hours",
+            "subjects",
+            "sessions",
+            "bytes",
+            "countries",
+            "categories",
+            "date_range",
+            "sync_clips_measured",
+            "sync_max_alignment_error_ms",
+            "sync_p95_alignment_error_ms",
+            "sync_clips_over_one_frame",
+            "sync_clips_independently_validated"
+          ],
+          "properties": {
+            "clips": {
+              "title": "Clip count",
+              "description": "Number of entries in clips[]. Present as a total so a truncated download is detectable.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "hours": {
+              "title": "Total hours",
+              "description": "Sum of duration_s over all clips, divided by 3600, as a float. Not rounded to an integer: 0.023 h is the honest figure for a single 84.6 s sample and rounding it to 0 hides the whole story.",
+              "type": "number",
+              "minimum": 0,
+              "examples": [
+                0.0235
+              ]
+            },
+            "duration_unit": {
+              "title": "Unit these hours should be displayed in",
+              "description": "How a consumer MUST render `hours`, `tactile_hours` and `tactile_usable_hours`. The stored figures are always hours; this says whether the header shows them as hours or multiplies by 60 and shows minutes. Resolved by the same >= 2 h rule as `benchmark.unit`, and published rather than re-derived so a stat tile reading '0.04 hours' can never sit next to a minutes axis on the same page.",
+              "type": "string",
+              "enum": [
+                "hours",
+                "minutes"
+              ]
+            },
+            "tactile_hours": {
+              "title": "Wall-clock hours carrying tactile",
+              "description": "Sum of duration_s over the clips that ship a tactile stream, in hours. The denominator of the coverage story.",
+              "type": "number",
+              "minimum": 0
+            },
+            "tactile_usable_hours": {
+              "title": "Coverage-weighted tactile hours",
+              "description": "Sum of duration_s * qa.tactile_coverage over the clips that ship a tactile stream, in hours. A clip with 173 of 484 channels working contributes 36% of its wall clock, because that is what a buyer actually receives. Publishing `tactile_hours` without this one is how a corpus with a third of its gloves dead gets quoted as if it were whole.",
+              "type": "number",
+              "minimum": 0
+            },
+            "subjects": {
+              "title": "Distinct subjects",
+              "description": "Number of distinct people across the collection, de-duplicated -- NOT the sum of per-clip subjects. null when subject identity was not tracked across takes.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "sessions": {
+              "title": "Distinct sessions",
+              "description": "Number of distinct recording sessions. A session is one continuous rig setup; several clips may share one. null when not tracked.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bytes": {
+              "title": "Total delivered bytes",
+              "description": "Sum of every clip's `bytes`. null if any clip's size is unknown -- a partial sum presented as a total is a lie.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "countries": {
+              "title": "Countries represented",
+              "description": "Sorted, duplicate-free list of the ISO 3166-1 alpha-2 codes appearing in clips[]. Clips with a null country contribute nothing and are not represented by a placeholder.",
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/CountryCode"
+              }
+            },
+            "categories": {
+              "title": "Categories represented",
+              "description": "Sorted, duplicate-free list of the category values appearing in clips[].",
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+              }
+            },
+            "date_range": {
+              "title": "Recording date range",
+              "description": "Exactly [earliest, latest] as YYYY-MM over the non-null recorded_month values. null when no clip has a known month. When only one month is represented, both entries are that month.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "$ref": "#/$defs/YearMonth"
+                  },
+                  "title": "Range",
+                  "description": "Earliest and latest recording month."
+                },
+                {
+                  "type": "null",
+                  "title": "No dates",
+                  "description": "No clip has a known recording month."
+                }
+              ]
+            },
+            "sync_clips_measured": {
+              "title": "Clips carrying a measured alignment error",
+              "description": "How many clips in `clips` published a measured `sync.maximum_alignment_error_ms`. It is the denominator for the three figures below and it is published so a reader never has to assume it equals `clips`. 0 when no clip measured its alignment, in which case the three figures below are all null -- which is a far worse answer than a large number, and must read as one.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "sync_max_alignment_error_ms": {
+              "title": "Worst measured inter-stream alignment error (H1)",
+              "description": "The MAXIMUM of `sync.maximum_alignment_error_ms` over every clip that measured it, in milliseconds. H1 says report the measured maximum, not a claim: this is the one number that tells a buyer how precisely a contact event can be located in time across the whole collection, and quoting a typical value instead is the single most common way a sync caveat is laundered. null when no clip measured it.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "examples": [
+                56.74
+              ]
+            },
+            "sync_p95_alignment_error_ms": {
+              "title": "95th-percentile measured alignment error",
+              "description": "Linear-interpolated 95th percentile of the same per-clip measurements, in milliseconds. Published NEXT TO the maximum, never instead of it: the pair says whether the worst case is one outlier or the shape of the corpus. null when no clip measured it.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "sync_clips_over_one_frame": {
+              "title": "Clips whose alignment error exceeds one video frame",
+              "description": "Count of measured clips whose `sync.maximum_alignment_error_ms` is greater than one frame period at that clip's own `fps` (33.33 ms at 30 fps). This is the fraction of the corpus for which the claim 'a contact event can be located to about one video frame' is FALSE, and it is on the header so nobody has to derive it from 29 detail records. null when no clip measured it.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "sync_clips_independently_validated": {
+              "title": "Clips whose alignment was independently validated",
+              "description": "Count of clips whose `sync.validation_result` is `pass`, i.e. a common-mode PHYSICAL event (a clap, visible in video and sharp on both gloves) corroborated the alignment rather than the alignment resting on clock arithmetic alone. This is the figure that says what `sync_max_alignment_error_ms` is WORTH: a corpus can publish a small measured error and still have nothing physical confirming it. Counted over every clip, not only the measured ones -- a clip with no measured error is also a clip nothing corroborated. 0 is a legitimate and meaningful answer.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "paths": {
+          "title": "Per-clip asset templates",
+          "description": "Templates the UI expands for any clip that omits the corresponding key. Present on every manifest so a consumer never has to guess whether templating is in play. A null template means there is no fallback for that asset, and any clip omitting the key simply has none.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "detail",
+            "poster",
+            "preview"
+          ],
+          "properties": {
+            "detail": {
+              "title": "Detail record template",
+              "description": "Template for the per-clip full record. If null, every clip must carry an explicit `detail` -- enforced by the root allOf of this schema.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/PathTemplate"
+                },
+                {
+                  "type": "null",
+                  "title": "No template",
+                  "description": "Clips must carry explicit detail URLs."
+                }
+              ]
+            },
+            "poster": {
+              "title": "Poster template",
+              "description": "Template for card thumbnails, e.g. media/{id}/poster.jpg.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/PathTemplate"
+                },
+                {
+                  "type": "null",
+                  "title": "No template",
+                  "description": "Clips must carry explicit poster URLs or have none."
+                }
+              ]
+            },
+            "preview": {
+              "title": "Preview template",
+              "description": "Template for hover-preview loops, e.g. media/{id}/preview.mp4.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/PathTemplate"
+                },
+                {
+                  "type": "null",
+                  "title": "No template",
+                  "description": "Clips must carry explicit preview URLs or have none."
+                }
+              ]
+            }
+          }
+        },
+        "splits": {
+          "title": "Published evaluation splits (H10)",
+          "description": "The train / val / test partition of this collection and the normalisation constants derived from it. null means no split has been published, in which case every buyer will invent their own and no two evaluations of this data are comparable -- so null is a real gap, not a neutral default, and the UI says so.",
+          "oneOf": [
+            {
+              "title": "Split definition",
+              "description": "How the collection is partitioned, and what was computed from which part.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "policy",
+                "buckets",
+                "normalization"
+              ],
+              "properties": {
+                "policy": {
+                  "title": "Assignment policy",
+                  "description": "How a clip was assigned to a partition, stated precisely enough to audit -- 'by capture device, so no device appears in two splits' is checkable; 'randomly' is not.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 600
+                },
+                "buckets": {
+                  "title": "Per-split counts",
+                  "description": "One bucket per split present, with clip counts and hours. Same shape as a facet bucket so the UI renders it with the same component.",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/FacetBucket"
+                  }
+                },
+                "normalization": {
+                  "title": "Normalisation constants",
+                  "description": "The constants a consumer should standardise with, plus the partition they were computed over. H10 exists because constants fitted over the whole collection leak test statistics into training; publishing the scope is the only way a buyer can check that we did not. null means no constants are published and the buyer must fit their own -- on the train split only.",
+                  "oneOf": [
+                    {
+                      "title": "Constants",
+                      "description": "Normalisation constants and their provenance.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "scope",
+                        "computed_from_clips",
+                        "statement",
+                        "tactile_pedestal_counts",
+                        "tactile_scale_counts"
+                      ],
+                      "properties": {
+                        "scope": {
+                          "title": "Computation scope",
+                          "description": "Which partition the constants were fitted on. Only 'train' is a defensible answer; 'all' is published only so a producer who did leak can say so out loud rather than hide it.",
+                          "type": "string",
+                          "enum": [
+                            "train",
+                            "all"
+                          ]
+                        },
+                        "computed_from_clips": {
+                          "title": "Clips contributing",
+                          "description": "How many clips the constants were fitted over. A consumer can multiply this against the train bucket's clip count and see whether the two agree.",
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "statement": {
+                          "title": "Provenance statement",
+                          "description": "One sentence a reviewer can quote, naming the scope explicitly.",
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        },
+                        "tactile_pedestal_counts": {
+                          "title": "Tactile pedestal",
+                          "description": "Value to subtract from raw tactile counts, in counts, averaged over the scope's clips. null when no clip in scope carries tactile.",
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "tactile_scale_counts": {
+                          "title": "Tactile scale",
+                          "description": "Value to divide the pedestal-subtracted counts by, in counts, over the scope's clips. null when no clip in scope carries tactile.",
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "exclusiveMinimum": 0
+                        }
+                      }
+                    },
+                    {
+                      "type": "null",
+                      "title": "None published",
+                      "description": "No normalisation constants are published."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No split",
+              "description": "No train/val/test partition has been published for this collection."
+            }
+          ]
+        },
+        "sample_archive": {
+          "title": "Open evaluation download",
+          "description": "One complete clip package a prospective buyer can download and run through their own loader WITHOUT a contract -- the answer to 'send me one clip end to end'. It points at a real archive in this bundle, with its size and digest, so the first thing a buyer does is verify a SHA-256 we published. null means no open sample exists, and a catalog that cannot produce one downloadable clip is a brochure.",
+          "oneOf": [
+            {
+              "title": "Sample archive",
+              "description": "The open evaluation clip.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "clip_id",
+                "url",
+                "format",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "clip_id": {
+                  "$ref": "#/$defs/ClipId"
+                },
+                "url": {
+                  "$ref": "#/$defs/AssetUrl"
+                },
+                "format": {
+                  "title": "Archive format",
+                  "description": "Container format of the download.",
+                  "type": "string",
+                  "enum": [
+                    "zip",
+                    "tar",
+                    "tar.gz",
+                    "tar.zst"
+                  ]
+                },
+                "bytes": {
+                  "title": "Archive size",
+                  "description": "Exact size of the archive file in bytes.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "sha256": {
+                  "title": "Archive digest",
+                  "description": "SHA-256 of the archive file, lower-case hex, so the buyer's first act can be to verify it.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No open sample",
+              "description": "No open evaluation download is published."
+            }
+          ]
+        },
+        "provenance_class": {
+          "title": "Where the media in this collection came from",
+          "description": "`recorded` = every clip is a real capture. `synthetic` = every clip was generated (fixtures, simulation, test patterns). `mixed` = some of each. Set by the ingest from the per-clip record, never by hand, and rendered as a banner above the grid when it is not `recorded`. A buyer who discovers on their own that the frames are test patterns stops reading; one who is told up front can still evaluate the delivery format, which is what a fixture drop is FOR.",
+          "enum": [
+            "recorded",
+            "synthetic",
+            "mixed"
+          ]
+        },
+        "notice": {
+          "title": "Standing notice",
+          "description": "One short line pinned above the grid, for a caveat that applies to the entire collection -- 'Evaluation sample: no licence granted', 'Consent and redaction pending'. Omit or set null when there is nothing to disclose. Never use this for marketing copy.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        }
+      }
+    },
+    "FacetBucket": {
+      "title": "Facet bucket",
+      "description": "One selectable value in a filter, with its precomputed counts so the filter bar can show 'manipulation (42)' without scanning clips[].",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "label",
+        "clips",
+        "hours",
+        "usable_hours"
+      ],
+      "properties": {
+        "value": {
+          "title": "Machine value",
+          "description": "The exact value as it appears on a ClipSummary field. Filtering is an equality test against this, never against the label.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "label": {
+          "title": "Display label",
+          "description": "Human form of the value: 'Bin picking' for bin_picking, 'China' for CN, 'Hong Kong' for HK, 'Stereo' for stereo_egocentric. REQUIRED, and required to be a human form: the UI carries no lookup table that can drift out of step with the manifest, so this string is the only name a buyer ever sees for the bucket. A label that is just the machine value back again satisfies this schema (it is a non-empty string) but defeats the field -- `{value: 'HK', label: 'HK'}` in a list next to `China` reads as a missing entry, so the ingest refuses to emit one for a country code and `catalog-ingest validate` re-checks it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "clips": {
+          "title": "Clip count",
+          "description": "Number of clips matching this bucket.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "hours": {
+          "title": "Hours",
+          "description": "Sum of duration_s over the matching clips, in hours, as a float. This is WALL CLOCK: it counts a clip whose glove was 64% dead exactly as heavily as one whose glove was whole. Read it next to `usable_hours`, never on its own.",
+          "type": "number",
+          "minimum": 0
+        },
+        "usable_hours": {
+          "title": "Coverage-weighted tactile hours",
+          "description": "Sum of duration_s * qa.tactile_coverage over the matching clips, in hours. Clips with no tactile stream contribute NOTHING, so this is strictly 'hours of usable tactile', not a discounted version of `hours`. Quoting wall-clock hours for a corpus whose gloves are a third dead is the specific way '10,000 hours' becomes a lie, so both numbers ship and the header renders both. 0 is a determined answer meaning no bucket member carried tactile.",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "Facets": {
+      "title": "Precomputed facets",
+      "description": "Filter buckets with counts, keyed by facet name. The set of facet names is closed: every one of them is a specific control in the filter bar. All nine are optional -- a facet with no buckets is simply omitted and its control is hidden -- but when present the buckets MUST agree with clips[], because the UI trusts these counts and does not recompute them.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "title": "Category facet",
+          "description": "Buckets over ClipSummary.category. Drives the primary grouping control.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "subcategory": {
+          "title": "Subcategory facet",
+          "description": "Buckets over ClipSummary.subcategory. Clips with a null subcategory are excluded, not bucketed under a placeholder.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "country": {
+          "title": "Country facet",
+          "description": "Buckets over ClipSummary.country, value = the alpha-2 code, label = the country's English name. This collection is CN and HK only. A code with no English name is a BUILD FAILURE, not a fallback to the bare code: see CountryCode and FacetBucket.label.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "capture": {
+          "title": "Capture facet",
+          "description": "Buckets over ClipSummary.capture. Drives the Stereo | Mono segmented toggle above the grid; the toggle shows every bucket present, so a single-rig collection shows one pill, not a dead one. THE DELIVERED COLLECTION IS ALL `stereo_egocentric`, so this facet has exactly one bucket and the control should render as a static badge or not at all -- a two-position toggle with one dead position tells a buyer we have mono clips somewhere and they are being hidden.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "modality": {
+          "title": "Modality facet",
+          "description": "Buckets over the members of ClipSummary.modalities. A clip contributes to every modality it carries, so bucket clip counts sum to more than the collection total; that is expected and the UI must not present them as a partition.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "rights": {
+          "title": "Rights facet",
+          "description": "Buckets over derived rights states, so a buyer can filter to what they may actually use. Values are of the form <permission>_<value>, e.g. model_training_granted, commercial_use_on_request. A clip contributes one bucket per permission.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "hands": {
+          "title": "Hands facet",
+          "description": "Buckets over ClipSummary.hands. Conventional values are 'left', 'right' and 'both'; 'both' is emitted only when a clip carries two hands, in addition to its left and right buckets.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "split": {
+          "title": "Split facet",
+          "description": "Buckets over ClipSummary.split. Clips with a null split are excluded, not bucketed under a placeholder.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        },
+        "qa_grade": {
+          "title": "QA grade facet",
+          "description": "Buckets over ClipSummary.qa.grade with values A, B and C.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FacetBucket"
+          }
+        }
+      }
+    },
+    "Benchmark": {
+      "title": "Task distribution",
+      "description": "Stacked-bar data for the 'Task distribution' chart: one bar per task, each bar stacked by named dataset (series). The chart is hand-rolled inline SVG, so this must be render-ready: no nesting, no sparse keys, no derived totals. TWO ROLL-UPS OF THE SAME CLIPS SHIP: `tasks` is keyed by subcategory (~24 fine-grained bars over ~30 clips, which is one to two clips a bar) and `categories` is keyed by ClipSummary.category (~10 bars a buyer can read at a glance). Both carry the same `unit`, the same `series` and the same overall total, because they are the same fold over the same clips. The renderer PICKS one; it must never aggregate `tasks` into categories itself, because it holds no clip-to-category map and would have to reverse one out of display labels. The 'Overall | Top 20' toggle is a pure UI operation -- sort bars by the sum of their values descending and slice the first 20 -- and needs no extra data.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "series",
+        "tasks",
+        "categories"
+      ],
+      "properties": {
+        "unit": {
+          "title": "Value unit",
+          "description": "What the stacked values measure, and therefore the y-axis label. Closed enum so the axis label is never a free-text surprise. The producer picks between `hours` and `minutes` from the data -- a corpus totalling under two hours is emitted in minutes, because an hours axis on a twenty-minute corpus draws bars of 0.0027 and reads to a buyer as either a rendering fault or a padded number. A consumer MUST honour this field: rendering `minutes` values through an hours formatter is wrong by a factor of sixty.",
+          "type": "string",
+          "enum": [
+            "hours",
+            "minutes",
+            "clips"
+          ]
+        },
+        "note": {
+          "title": "Chart note",
+          "description": "One short paragraph rendered under the bars. Its purpose is citation: any series that is NOT our own measured data -- a published third-party corpus quoted for scale -- must be named here with its source URL and the date the figure was retrieved. A comparison series with no citation is not emitted at all, so this field being absent means every bar on the chart came from clips[].",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 800
+        },
+        "series": {
+          "title": "Stack series",
+          "description": "The named datasets making up each stack, in stacking order from the bottom up. This same order is the legend order.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "title": "Series",
+            "description": "One named dataset contributing a segment to every bar.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "color"
+            ],
+            "properties": {
+              "id": {
+                "title": "Series key",
+                "description": "Stable key used as the property name inside every task's values map.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+              },
+              "label": {
+                "title": "Series label",
+                "description": "Display name shown next to the legend dot.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 96
+              },
+              "color": {
+                "title": "Series colour",
+                "description": "Six-digit hex colour for the legend dot and the stack segment. SHOULD come from the brand ramp (see CONTRACT.md) so the chart matches the page. null lets the UI assign a colour by index from its own ramp, which is the right choice when the producer has no brand context.",
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "examples": [
+                  "#14120c",
+                  "#592202",
+                  "#a69a60"
+                ]
+              }
+            }
+          }
+        },
+        "tasks": {
+          "title": "Task bars",
+          "description": "One entry per bar, in the order they should appear along the x axis before any UI sorting.",
+          "type": "array",
+          "items": {
+            "title": "Task bar",
+            "description": "A single stacked bar: a task label plus its per-series values.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "values",
+              "clips"
+            ],
+            "properties": {
+              "label": {
+                "title": "Task label",
+                "description": "Full task name. The chart rotates x labels 45 degrees and truncates them visually; the untruncated string stays here so the tooltip and the accessible name are complete.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "short_label": {
+                "title": "Short task label",
+                "description": "Optional pre-shortened label for the axis when mechanical truncation would be ambiguous. Omit or null to let the UI truncate `label` itself.",
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 32
+              },
+              "values": {
+                "title": "Per-series values",
+                "description": "Map from series id to a non-negative magnitude in the chart's unit. Series ids MUST all appear in `series`; a series contributing nothing to this task is simply omitted rather than set to 0, which keeps the manifest small. This is a keyed map, so it is closed by propertyNames rather than by additionalProperties:false.",
+                "type": "object",
+                "propertyNames": {
+                  "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+                },
+                "additionalProperties": {
+                  "title": "Magnitude",
+                  "description": "Non-negative value in the chart's unit contributed by this series to this task.",
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "clips": {
+                "title": "Clips behind this bar",
+                "description": "How many of OUR clips contribute to this bar. null for a third-party comparison bar, which is a published whole-corpus total and has no clip count of ours behind it. Published so the UI can tell a distribution from a picket fence: at roughly one clip per task a stacked bar chart carries no information the labels do not, and the renderer switches to a plain count list rather than drawing 24 identical bars.",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "categories": {
+          "title": "Category bars",
+          "description": "The same clips as `tasks`, folded to the coarser ClipSummary.category instead of the subcategory, in the order they should appear along the x axis before any UI sorting. This exists because the fine-grained roll-up of a ~30 clip sample is ~24 bars of one to two clips each -- a picket fence that carries no information its own labels do not. Rendering THIS list instead gives ~10 bars with real differences between them, off the same measured seconds and in the same `unit`. Emitted by the producer rather than derived by the chart on purpose: the chart has no clip-to-category map, so aggregating client-side would mean parsing display labels, and a label parse that silently mis-buckets is invisible until a buyer counts the bars.",
+          "type": "array",
+          "items": {
+            "title": "Category bar",
+            "description": "A single stacked bar: a category, its display label, and its per-series values.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "value",
+              "label",
+              "values",
+              "clips"
+            ],
+            "properties": {
+              "value": {
+                "title": "Machine category value",
+                "description": "The exact lower_snake_case value carried on ClipSummary.category, so a bar joins to facets.category[].value by string equality. This is the join key a chart uses to cross-filter the grid: clicking a bar sets the category filter to THIS string, never to `label`. For a third-party comparison bar there is no category of ours, so `value` is the comparison's series id, `clips` is null, and it joins to no facet -- the null on `clips` is the flag for that case.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "label": {
+                "title": "Category label",
+                "description": "Human form of `value`: 'Industrial inspection' for industrial_inspection. Shipped in the data so the chart carries no lookup table that can drift out of step with the filter bar, which labels the same buckets from facets.category[].label.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "short_label": {
+                "title": "Short category label",
+                "description": "Optional pre-shortened label for the axis when mechanical truncation would be ambiguous. Omit or null to let the UI truncate `label` itself.",
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 32
+              },
+              "values": {
+                "title": "Per-series values",
+                "description": "Map from series id to a non-negative magnitude in the chart's unit -- the same unit, and the same series ids, as `tasks`. A series contributing nothing to this category is omitted rather than set to 0. Summing every category's values gives the same total as summing every task's values, because both are the same fold over the same clips.",
+                "type": "object",
+                "propertyNames": {
+                  "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+                },
+                "additionalProperties": {
+                  "title": "Magnitude",
+                  "description": "Non-negative value in the chart's unit contributed by this series to this category.",
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "clips": {
+                "title": "Clips behind this bar",
+                "description": "How many of OUR clips contribute to this bar. Sums to the collection's clip total across all category bars, because a clip has exactly one category. null for a third-party comparison bar, which is a published whole-corpus total with no clip count of ours behind it.",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

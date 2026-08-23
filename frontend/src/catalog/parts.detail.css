@@ -1,0 +1,2092 @@
+/* ===========================================================================
+   parts.detail.css — clip detail modal and its six tabs.
+
+   Scoping contract:
+   * Every rule is scoped under `.cat-d-overlay`, so nothing here can reach the
+     catalog grid or the host page.
+   * The overlay root also carries `.cat-root`, because the modal is portalled
+     to <body> and would otherwise sit outside the catalog's token block. The
+     token defaults below are written with `:where()` (zero specificity) so a
+     real `.cat-root { }` declaration in catalog.css always wins, whatever the
+     stylesheet order turns out to be.
+   * No dependency on the host page's :root.
+
+   Type system (catalog.css owns the tokens; this file only consumes them):
+   * --cat-font-sans is Pretendard Variable, axis 45-920. Weight IS the
+     hierarchy: --cat-w-extralight for big figures, --cat-w-semibold for the
+     micro-labels, --cat-w-regular for everything unmarked. There is one
+     @font-face family; a weight is a NUMBER, never a second file.
+   * --cat-font-mono is reserved for strings a machine produced and a human may
+     need to copy character-for-character: file paths, ids, checksums, code,
+     verbatim index rules. A measurement is Pretendard with tabular figures.
+   * --cat-fs-*, --cat-space-*, --cat-elev-*, --cat-radius-*, --cat-dur-* are
+     the shared ramps. Nothing in this file invents a size, a shadow or a
+     duration of its own.
+   =========================================================================== */
+/* SECONDARY TEXT: --cat-ink-2, not --muted.
+   --muted is 6.25:1 on --paper and belongs to uppercase micro-labels a reader
+   SCANS (.cat-label, .cat-fb__glabel, table thead cells). Anything a buyer
+   READS -- descriptions, captions, hints, values, sub-lines -- takes
+   --cat-ink-2 (7.6:1), which is the bar the grid already held itself to and
+   this surface did not. Declared in catalog.css; the role split is documented
+   at the declaration. */
+
+
+/* Standalone fallbacks only. Every one of these is re-declared by
+   `.cat-root` in catalog.css at (0,1,0), which beats :where()'s (0,0,0), so
+   these values apply ONLY if the modal is dropped into a host that never
+   loaded catalog.css. They are kept in step with it deliberately. */
+:where(.cat-d-overlay) {
+  --paper: #ebe6d8;
+  --paper-2: #f3efe6;
+  --paper-deep: #ddd8cb;
+  --ink: #262312;
+  --muted: #5a5236;
+  --accent: #592202;
+  --accent-muted: #a69a60;
+  --accent-soft: rgba(89, 34, 2, 0.12);
+  --dark: #14120c;
+  --dark-2: #1f1d14;
+  --dark-ink: #ece8dc;
+  --line: rgba(38, 35, 18, 0.12);
+  --line-strong: rgba(38, 35, 18, 0.24);
+  --ink-rgb: 38 35 18;
+
+  --cat-font-sans: "Pretendard Variable", Pretendard, -apple-system, system-ui, sans-serif;
+  --cat-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --cat-fs-2xs: clamp(0.625rem, 0.6042rem + 0.0926vw, 0.6875rem);
+  --cat-fs-xs: clamp(0.6875rem, 0.6667rem + 0.0926vw, 0.75rem);
+  --cat-fs-sm: clamp(0.8125rem, 0.7917rem + 0.0926vw, 0.875rem);
+  --cat-fs-base: clamp(0.9375rem, 0.9167rem + 0.0926vw, 1rem);
+  --cat-fs-md: clamp(1.031rem, 0.9896rem + 0.185vw, 1.156rem);
+  --cat-fs-lg: clamp(1.188rem, 1.125rem + 0.278vw, 1.375rem);
+  --cat-fs-xl: clamp(1.375rem, 1.25rem + 0.556vw, 1.75rem);
+  --cat-fs-2xl: clamp(1.75rem, 1.5rem + 1.11vw, 2.5rem);
+
+  --cat-lh-none: 1;
+  --cat-lh-tight: 1.15;
+  --cat-lh-snug: 1.3;
+  --cat-lh-normal: 1.5;
+  --cat-lh-relaxed: 1.65;
+
+  --cat-tracking-tight: -0.02em;
+  --cat-tracking-snug: -0.01em;
+  --cat-tracking-normal: 0em;
+  --cat-tracking-wide: 0.04em;
+  --cat-tracking-label: 0.08em;
+
+  --cat-w-extralight: 200;
+  --cat-w-light: 300;
+  --cat-w-regular: 400;
+  --cat-w-medium: 500;
+  --cat-w-semibold: 600;
+  --cat-w-bold: 700;
+
+  --cat-space-2xs: clamp(0.25rem, 0.2292rem + 0.0926vw, 0.3125rem);
+  --cat-space-xs: clamp(0.375rem, 0.3333rem + 0.185vw, 0.5rem);
+  --cat-space-sm: clamp(0.625rem, 0.5833rem + 0.185vw, 0.75rem);
+  --cat-space-md: clamp(0.875rem, 0.75rem + 0.556vw, 1.25rem);
+  --cat-space-lg: clamp(1.25rem, 1rem + 1.11vw, 2rem);
+  --cat-space-xl: clamp(1.75rem, 1.333rem + 1.85vw, 3rem);
+
+  --cat-measure-prose: 68ch;
+  --cat-measure-lead: 52ch;
+
+  --cat-elev-1: 0 1px 2px rgb(var(--ink-rgb) / 0.05);
+  --cat-elev-2: 0 1px 2px rgb(var(--ink-rgb) / 0.05), 0 4px 10px rgb(var(--ink-rgb) / 0.06);
+  --cat-elev-3: 0 2px 4px rgb(var(--ink-rgb) / 0.06), 0 12px 28px rgb(var(--ink-rgb) / 0.1);
+  --cat-elev-4: 0 4px 8px rgb(var(--ink-rgb) / 0.08), 0 32px 64px rgb(var(--ink-rgb) / 0.18);
+
+  --cat-radius-sm: 6px;
+  --cat-radius-md: 10px;
+  --cat-radius-lg: 16px;
+  --cat-radius-pill: 999px;
+
+  --cat-dur-fast: 140ms;
+  --cat-dur-normal: 200ms;
+  --cat-dur-slow: 320ms;
+  --cat-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Deprecated aliases still referenced by a handful of rules below. */
+  --radius-sm: var(--cat-radius-sm);
+  --radius-pill: var(--cat-radius-pill);
+}
+
+.cat-d-overlay {
+  /* ---- detail-only tokens ---- */
+
+  /* The gutter is BOTH the overlay's padding and what the panel's height is
+     measured against, so the two can never disagree and leave the panel
+     hanging off the bottom of a short viewport. */
+  --cat-d-gutter: clamp(0.5rem, 2.4vw, 2rem);
+  --cat-d-pad: clamp(1rem, 2.4vw, 1.75rem);
+
+  /* The floating controls over the dark media, and their inset. Every
+     position that has to clear them is calc()'d from these three, because the
+     one time they were hard-coded the camera labels ended up underneath the
+     prev/next cluster at every width. */
+  --cat-d-ctl: 38px;
+  --cat-d-ctl-gap: 6px;
+  --cat-d-ctl-inset: 12px;
+
+  /*
+   * The muted that clears 7:1 on paper.
+   *
+   * --muted (#5a5236) measures 6.25:1 against --paper, which is fine for a
+   * field label nobody reads as a sentence. The paragraphs in this modal are
+   * not that: they are the units caveat, the "accepted does not mean clean"
+   * disposition note, the em-dash rule and the per-permission rationale — the
+   * text a buyer is expected to actually read, and the text this product's
+   * credibility rests on. They get 7.9:1. Labels and metadata stay --muted so
+   * the modal still reads as the same system as the grid.
+   */
+  --cat-d-prose: #4a4329;
+
+  --cat-d-line-dark: rgba(236, 232, 220, 0.16);
+  --cat-d-axis-x: #262312;
+  --cat-d-axis-y: #5f8f8a;
+  --cat-d-axis-z: #c8a85a;
+  --cat-d-ok: #3f6b46;
+  --cat-d-warn: #8a5a10;
+  --cat-d-bad: #8c2f14;
+
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--cat-d-gutter);
+  /* A flat scrim, not a blurred one: the modal is opaque paper on top of it,
+     so a backdrop-filter buys nothing and costs a compositing pass on every
+     scroll of the list behind. */
+  background: rgb(20 18 12 / 0.66);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-base);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-normal);
+  color: var(--ink);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---------------------------------------------------------------- panel -- */
+
+.cat-d-overlay .cat-d-panel {
+  position: relative;
+  /* `100%` and not `94vw`: the overlay already reserves --cat-d-gutter on both
+     sides, so a percentage of its CONTENT box is the only width that keeps the
+     gutter true at every viewport. At 360px the vw form overflowed by exactly
+     the scrollbar-less difference and clipped the close button. */
+  width: min(1200px, 100%);
+  /* Same argument vertically: 94vh ignored the gutter and pushed the panel
+     past the fold on short viewports. */
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border-radius: var(--cat-radius-lg);
+  overflow: hidden;
+  /* Step 4 is the modal, and only the modal. */
+  box-shadow: var(--cat-elev-4);
+}
+.cat-d-overlay .cat-d-panel:focus { outline: none; }
+
+.cat-d-overlay .cat-d-close,
+.cat-d-overlay .cat-d-navbtn {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: var(--cat-d-ctl);
+  height: var(--cat-d-ctl);
+  padding: 0;
+  border: 0;
+  border-radius: var(--cat-radius-pill);
+  background: rgb(20 18 12 / 0.55);
+  color: var(--dark-ink);
+  cursor: pointer;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+/* 38px is the drawn size; 44px is the target. The pseudo-element grows the hit
+   area outward without moving the circle or disturbing the calc()s that clear
+   it. */
+.cat-d-overlay .cat-d-close::after,
+.cat-d-overlay .cat-d-navbtn::after {
+  content: "";
+  position: absolute;
+  inset: calc((44px - var(--cat-d-ctl)) / -2);
+}
+.cat-d-overlay .cat-d-close { top: var(--cat-d-ctl-inset); right: var(--cat-d-ctl-inset); }
+.cat-d-overlay .cat-d-close:hover,
+.cat-d-overlay .cat-d-navbtn:hover { background: rgb(20 18 12 / 0.86); }
+.cat-d-overlay .cat-d-close:active,
+.cat-d-overlay .cat-d-navbtn:active { transform: scale(0.94); }
+
+.cat-d-overlay .cat-d-nav {
+  position: absolute;
+  top: var(--cat-d-ctl-inset);
+  left: var(--cat-d-ctl-inset);
+  z-index: 5;
+  display: flex;
+  gap: var(--cat-d-ctl-gap);
+}
+.cat-d-overlay .cat-d-nav .cat-d-navbtn { position: static; }
+
+.cat-d-overlay :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--cat-radius-sm);
+}
+
+/* ----------------------------------------------------------------- atoms -- */
+
+.cat-d-overlay .cat-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* `.cat-label` and `.cat-mono` are catalog.css utilities. They are re-declared
+   here at ZERO specificity so the modal still reads correctly when it is
+   dropped into a host that has not loaded catalog.css — and so the real
+   definitions, which score (0,1,0), always win when it has. */
+:where(.cat-d-overlay) :where(.cat-label, .cat-lab) {
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+:where(.cat-d-overlay) :where(.cat-mono) {
+  font-family: var(--cat-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--cat-tracking-normal);
+}
+
+/* Tabular figures WITHOUT the mono texture. This is what a measurement wears:
+   every timecode, index, count, percentage and axis tick in the modal, so a
+   column of them lines up on the decimal and a ticking one does not jitter. */
+.cat-d-overlay .cat-num {
+  font-variant-numeric: tabular-nums lining-nums;
+  /* tnum is named twice on purpose: WebKit has historically dropped
+     font-variant-numeric the moment font-feature-settings is set. */
+  font-feature-settings: "tnum" 1;
+}
+
+.cat-d-overlay .cat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-pill);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  cursor: pointer;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    border-color var(--cat-dur-normal) var(--cat-ease),
+    box-shadow var(--cat-dur-normal) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-btn:hover {
+  background: var(--paper-deep);
+  border-color: var(--line-strong);
+  box-shadow: var(--cat-elev-1);
+}
+.cat-d-overlay .cat-btn:active { transform: scale(0.98); }
+.cat-d-overlay .cat-btn--solid {
+  background: var(--ink);
+  color: var(--paper-2);
+  border-color: var(--ink);
+}
+.cat-d-overlay .cat-btn--solid:hover { background: #000; border-color: #000; }
+
+.cat-d-overlay .cat-iconbtn {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-pill);
+  background: var(--paper-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-iconbtn::after { content: ""; position: absolute; inset: -7px; }
+.cat-d-overlay .cat-iconbtn:hover:not(:disabled) { background: var(--paper-deep); }
+.cat-d-overlay .cat-iconbtn:active:not(:disabled) { transform: scale(0.94); }
+.cat-d-overlay .cat-iconbtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.cat-d-overlay .cat-pillgroup {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--cat-radius-pill);
+  background: var(--paper-deep);
+}
+.cat-d-overlay .cat-pill {
+  position: relative;
+  min-height: 30px;
+  padding: 0.34rem 0.75rem;
+  border: 0;
+  border-radius: var(--cat-radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    color var(--cat-dur-normal) var(--cat-ease);
+}
+.cat-d-overlay .cat-pill::after { content: ""; position: absolute; inset: -7px 0; }
+.cat-d-overlay .cat-pill:hover:not(.is-off):not(.is-on) { color: var(--ink); }
+.cat-d-overlay .cat-pill.is-on { background: var(--ink); color: var(--paper-2); }
+.cat-d-overlay .cat-pill.is-off { opacity: 0.35; cursor: not-allowed; }
+
+.cat-d-overlay .cat-chip {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--cat-radius-pill);
+  background: var(--paper-deep);
+  color: var(--muted);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  letter-spacing: var(--cat-tracking-wide);
+  font-variant-numeric: tabular-nums;
+}
+.cat-d-overlay .cat-chip--verb { background: var(--accent-soft); color: var(--accent); }
+.cat-d-overlay .cat-chip--obj { background: rgba(166, 154, 96, 0.24); color: #4c4526; }
+
+.cat-d-overlay .cat-code,
+.cat-d-overlay code {
+  font-family: var(--cat-font-mono);
+  font-size: 0.9em;
+  background: var(--paper-deep);
+  padding: 0.05em 0.32em;
+  border-radius: 4px;
+}
+
+.cat-d-overlay .cat-note {
+  margin: var(--cat-space-sm) 0 0;
+  max-width: var(--cat-measure-prose);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--cat-d-prose);
+  text-wrap: pretty;
+}
+/* A hairline and a wash, not a box. The rule carries the warning; the fill
+   only stops it reading as body copy. */
+.cat-d-overlay .cat-note--warn {
+  max-width: none;
+  padding: 0.6rem 0.85rem;
+  border-left: 2px solid var(--accent);
+  background: rgb(89 34 2 / 0.055);
+  color: #4a3320;
+  border-radius: 0 var(--cat-radius-sm) var(--cat-radius-sm) 0;
+}
+/* The reset in catalog.css makes every svg `display: block`, which would put
+   the warning triangle on a line of its own above its own sentence. */
+.cat-d-overlay .cat-note--warn > svg {
+  display: inline-block;
+  vertical-align: -0.18em;
+  margin-right: 0.4rem;
+  color: var(--accent);
+}
+.cat-d-overlay .cat-note strong { font-weight: var(--cat-w-semibold); }
+
+.cat-d-overlay .cat-empty {
+  display: grid;
+  gap: 0.5rem;
+  padding: var(--cat-space-xl) 1rem;
+  text-align: center;
+}
+.cat-d-overlay .cat-empty__head {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-empty__body {
+  margin: 0 auto;
+  max-width: var(--cat-measure-lead);
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--cat-ink-2);
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------------- media region -- */
+
+.cat-d-overlay .cat-d-media {
+  position: relative;
+  flex: 0 0 auto;
+  background: var(--dark);
+  color: var(--dark-ink);
+  min-height: 120px;
+}
+.cat-d-overlay .cat-d-media--compact { min-height: 0; }
+
+.cat-d-overlay .cat-d-camlabel {
+  position: absolute;
+  top: 13px;
+  z-index: 3;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: rgb(236 232 220 / 0.62);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* Derived, never typed. The left label has to clear the prev/next CLUSTER
+   (inset + two controls + the gap between them) and the right label a single
+   close button; at a hard-coded 52px the left label sat underneath the arrows
+   at every viewport width, not just narrow ones. Changing --cat-d-ctl now
+   moves the labels with it. */
+.cat-d-overlay .cat-d-camlabel--l {
+  left: calc(var(--cat-d-ctl-inset) + (2 * var(--cat-d-ctl)) + var(--cat-d-ctl-gap) + 10px);
+}
+.cat-d-overlay .cat-d-camlabel--r {
+  right: calc(var(--cat-d-ctl-inset) + var(--cat-d-ctl) + 10px);
+}
+.cat-d-overlay .cat-d-media--compact .cat-d-camlabel { top: 9px; }
+
+.cat-d-overlay .cat-d-tabpanel:focus { outline: none; }
+.cat-d-overlay .cat-d-tabpanel--media { display: block; }
+
+.cat-d-overlay .cat-d-posterstrip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 88px;
+  padding: 0;
+  border: 0;
+  background: var(--dark);
+  cursor: pointer;
+  overflow: hidden;
+}
+.cat-d-overlay .cat-d-posterstrip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.4;
+  filter: saturate(0.8);
+  transition: opacity var(--cat-dur-normal) var(--cat-ease);
+}
+.cat-d-overlay .cat-d-posterstrip__empty {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(120deg, var(--dark) 0%, var(--dark-2) 100%);
+}
+.cat-d-overlay .cat-d-posterstrip__cta {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: rgb(236 232 220 / 0.92);
+}
+.cat-d-overlay .cat-d-posterstrip:hover img { opacity: 0.56; }
+
+.cat-d-overlay .cat-d-mediaskel {
+  position: relative;
+  /* Sized like the media it stands in for so the panel does not jump when the
+     record lands. */
+  height: clamp(180px, 30vw, 340px);
+  background: var(--dark-2);
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------- bar/tabs -- */
+
+.cat-d-overlay .cat-d-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--cat-space-md) var(--cat-space-lg);
+  flex-wrap: wrap;
+  padding: var(--cat-space-md) var(--cat-d-pad);
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.cat-d-overlay .cat-d-heading { flex: 1 1 18rem; min-width: 0; }
+
+/* Eyebrow above the title: the buyer is oriented (which category, which
+   country, how long) before being handed a name. */
+.cat-d-overlay .cat-d-crumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  margin: 0 0 0.3rem;
+}
+.cat-d-overlay .cat-d-crumb__sep { color: var(--accent-muted); }
+
+.cat-d-overlay .cat-d-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xl);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-tight);
+  letter-spacing: var(--cat-tracking-tight);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-d-title > span { min-width: 0; text-wrap: balance; }
+.cat-d-overlay .cat-d-titlelink {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--cat-radius-pill);
+  color: var(--muted);
+  background: var(--paper-deep);
+  text-decoration: none;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    color var(--cat-dur-normal) var(--cat-ease);
+}
+.cat-d-overlay .cat-d-titlelink::after { content: ""; position: absolute; inset: -10px; }
+.cat-d-overlay .cat-d-titlelink:hover { background: var(--ink); color: var(--paper-2); }
+
+/*
+ * Six tabs is more horizontal room than a phone has. The strip is a scroller
+ * at EVERY width rather than only below a breakpoint, and the active tab is
+ * scrolled into view whenever it changes, so the keyboard's roving tabindex
+ * never focuses something off-screen.
+ *
+ * `data-edge` is written by the component and says which side still has
+ * content past the fold; the mask turns that into a fade so the overflow is
+ * discoverable rather than a cliff. Mask and not a gradient overlay, because
+ * the strip's own background is a pill and an overlay would have to match its
+ * radius at both ends.
+ */
+.cat-d-overlay .cat-d-tabs {
+  /* The offsetParent for its own buttons: the "scroll the active tab into
+     view" maths reads `button.offsetLeft`, and without this the nearest
+     positioned ancestor is `.cat-d-panel`, so the offsets would be measured
+     from the wrong origin and the strip would scroll to the wrong place. */
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--cat-radius-pill);
+  background: var(--paper-deep);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cat-d-overlay .cat-d-tabs::-webkit-scrollbar { width: 0; height: 0; }
+
+.cat-d-overlay .cat-d-tabs[data-edge="end"] {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+}
+.cat-d-overlay .cat-d-tabs[data-edge="start"] {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 26px, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 26px, #000 100%);
+}
+.cat-d-overlay .cat-d-tabs[data-edge="both"] {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 26px,
+    #000 calc(100% - 26px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 26px,
+    #000 calc(100% - 26px),
+    transparent 100%
+  );
+}
+
+.cat-d-overlay .cat-d-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.36rem;
+  /* 44px is the touch target, and it is the whole control rather than a
+     pseudo-element: these sit side by side, so an expanded hit area would
+     overlap its neighbour's. */
+  min-height: 44px;
+  padding: 0 0.72rem;
+  border: 0;
+  border-radius: var(--cat-radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    color var(--cat-dur-normal) var(--cat-ease);
+}
+.cat-d-overlay .cat-d-tab > svg { flex: none; }
+/* `:not(.is-on)` is load-bearing, not tidiness. `:hover:not(.is-off)` scores one
+   class higher than `.cat-d-tab.is-on` below, so without it the hover rule wins on
+   the SELECTED tab and repaints its label var(--ink) -- on the var(--ink) pill that
+   same rule leaves in place. Ink on ink: the label of the tab you just clicked
+   vanishes while the pointer rests on it, which is where a pointer always is. */
+.cat-d-overlay .cat-d-tab:hover:not(.is-off):not(.is-on) {
+  color: var(--ink);
+  background: rgb(var(--ink-rgb) / 0.05);
+}
+.cat-d-overlay .cat-d-tab.is-on {
+  background: var(--ink);
+  color: var(--paper-2);
+  font-weight: var(--cat-w-semibold);
+}
+.cat-d-overlay .cat-d-tab.is-off { opacity: 0.36; cursor: not-allowed; }
+.cat-d-overlay .cat-d-tab:active:not(.is-off) { transform: scale(0.98); }
+
+/* ------------------------------------------------------------------ body -- */
+
+.cat-d-overlay .cat-d-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--cat-space-md) var(--cat-d-pad) var(--cat-space-xl);
+  background: var(--paper);
+}
+
+/* ------------------------------------------------------- skeleton / load -- */
+
+.cat-d-overlay .cat-d-shimmer {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--paper-deep) 0%,
+    var(--paper-2) 42%,
+    var(--paper-deep) 84%
+  );
+  background-size: 280% 100%;
+  animation: cat-d-shimmer 1.4s linear infinite;
+  border-radius: var(--cat-radius-sm);
+}
+.cat-d-overlay .cat-d-mediaskel .cat-d-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  opacity: 0.09;
+}
+@keyframes cat-d-shimmer {
+  from { background-position: 140% 0; }
+  to { background-position: -140% 0; }
+}
+
+/* The skeleton is the metadata grid's geometry, not a generic stack of bars:
+   same three columns, same row height, same hairline. Nothing moves when the
+   record lands. */
+.cat-d-overlay .cat-d-skel { display: block; }
+.cat-d-overlay .cat-d-skel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--cat-space-lg);
+}
+.cat-d-overlay .cat-d-skel__cell {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.75rem 0 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+.cat-d-overlay .cat-d-skel__lab { height: 10px; width: 38%; }
+.cat-d-overlay .cat-d-skel__val { height: 15px; width: 72%; }
+.cat-d-overlay .cat-d-skel__para { display: grid; gap: 0.55rem; margin-top: var(--cat-space-lg); }
+.cat-d-overlay .cat-d-skel__line { height: 13px; }
+
+.cat-d-overlay .cat-d-error { display: grid; gap: 0.4rem; padding: var(--cat-space-lg) 0; }
+.cat-d-overlay .cat-d-error__head {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-snug);
+}
+.cat-d-overlay .cat-d-error__body { margin: 0; font-size: var(--cat-fs-sm); color: var(--cat-ink-2); }
+.cat-d-overlay .cat-d-error__row { display: flex; gap: 0.5rem; margin-top: 0.7rem; flex-wrap: wrap; }
+
+/* =========================================================== VIDEO TAB === */
+
+.cat-d-overlay .cat-v { display: block; background: var(--dark); }
+.cat-d-overlay .cat-v:focus { outline: none; }
+.cat-d-overlay .cat-v:focus-visible { outline: 2px solid var(--accent-muted); outline-offset: -2px; }
+
+.cat-d-overlay .cat-v-stage {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: #000;
+  /* Clears the camera labels, which are absolutely positioned over the top of
+     the media region. */
+  padding-top: 34px;
+}
+.cat-d-overlay .cat-v-el {
+  display: block;
+  width: 100%;
+  max-height: min(52vh, 560px);
+  object-fit: contain;
+  background: #000;
+}
+.cat-d-overlay .cat-v-stage--pair .cat-v-el { width: 50%; }
+
+.cat-d-overlay .cat-v-split {
+  position: absolute;
+  top: 34px;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgb(236 232 220 / 0.3);
+  pointer-events: none;
+}
+
+/* Two separately encoded eyes sit flush; the hairline marks the join. */
+.cat-d-overlay .cat-v-split--pair { background: rgb(236 232 220 / 0.42); }
+
+.cat-d-overlay .cat-v-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem var(--cat-d-pad) 0.85rem;
+  background: var(--dark);
+}
+.cat-d-overlay .cat-v-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid var(--cat-d-line-dark);
+  border-radius: var(--cat-radius-pill);
+  background: transparent;
+  color: var(--dark-ink);
+  cursor: pointer;
+  transition:
+    background var(--cat-dur-normal) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-v-btn::after { content: ""; position: absolute; inset: -6px; }
+.cat-d-overlay .cat-v-btn:hover { background: rgb(236 232 220 / 0.12); }
+.cat-d-overlay .cat-v-btn:active { transform: scale(0.94); }
+.cat-d-overlay .cat-v-btn--play {
+  background: var(--dark-ink);
+  color: var(--dark);
+  border-color: var(--dark-ink);
+}
+.cat-d-overlay .cat-v-btn--play:hover { background: #fff; }
+
+/* A timecode changes ten times a second. Proportional figures make it twitch;
+   tabular ones hold the control still. */
+.cat-d-overlay .cat-v-time {
+  flex: 0 0 auto;
+  min-width: 3.4em;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: var(--cat-tracking-wide);
+  color: rgb(236 232 220 / 0.78);
+}
+
+.cat-d-overlay .cat-v-track { position: relative; flex: 1 1 auto; padding-bottom: 10px; }
+
+.cat-d-overlay .cat-v-range {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cat-d-overlay .cat-v-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: var(--cat-radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--dark-ink) 0%,
+    var(--dark-ink) var(--cat-v-pct, 0%),
+    rgb(236 232 220 / 0.24) var(--cat-v-pct, 0%),
+    rgb(236 232 220 / 0.24) 100%
+  );
+}
+.cat-d-overlay .cat-v-range::-moz-range-track {
+  height: 3px;
+  border-radius: var(--cat-radius-pill);
+  background: rgb(236 232 220 / 0.24);
+}
+.cat-d-overlay .cat-v-range::-moz-range-progress {
+  height: 3px;
+  border-radius: var(--cat-radius-pill);
+  background: var(--dark-ink);
+}
+.cat-d-overlay .cat-v-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  border-radius: var(--cat-radius-pill);
+  background: var(--dark-ink);
+  border: 0;
+}
+.cat-d-overlay .cat-v-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: var(--cat-radius-pill);
+  background: var(--dark-ink);
+}
+
+.cat-d-overlay .cat-v-ribbon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+}
+.cat-d-overlay .cat-v-seg {
+  position: absolute;
+  top: 0;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: rgb(200 168 90 / 0.45);
+  cursor: pointer;
+  transition:
+    background var(--cat-dur-fast) var(--cat-ease),
+    transform var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-v-seg:hover { background: var(--cat-d-axis-z); transform: scaleY(1.5); }
+.cat-d-overlay .cat-v-seg.is-live { background: var(--cat-d-axis-z); }
+
+/* The view switch and the close-up link share one line under the transport.
+   The pill group is the catalog's shared control and is built for paper, so on
+   the dark panel the track and the selected pill invert: the same widget, not a
+   lit rectangle punched into the media region. */
+.cat-d-overlay .cat-v-views {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--cat-space-sm) var(--cat-space-md);
+  padding: 0 var(--cat-d-pad) 0.9rem;
+  background: var(--dark);
+}
+.cat-d-overlay .cat-v-views .cat-pillgroup {
+  background: rgb(236 232 220 / 0.08);
+  border-color: var(--cat-d-line-dark);
+}
+.cat-d-overlay .cat-v-views .cat-pill {
+  min-height: 30px;
+  padding: 0.3rem 0.85rem;
+  font-size: var(--cat-fs-xs);
+  color: rgb(236 232 220 / 0.7);
+}
+.cat-d-overlay .cat-v-views .cat-pill:hover:not(:disabled) { color: var(--dark-ink); }
+.cat-d-overlay .cat-v-views .cat-pill[aria-checked="true"] {
+  background: var(--dark-ink);
+  color: var(--dark);
+}
+
+/* Deliberately quiet: one taxel next to a switch that offers the whole hand. */
+.cat-d-overlay .cat-v-aside {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  color: rgb(236 232 220 / 0.58);
+  text-decoration: none;
+  border-bottom: 1px solid rgb(236 232 220 / 0.24);
+  transition: color var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-v-aside:hover { color: var(--dark-ink); }
+
+.cat-d-overlay .cat-v-note {
+  margin: 0;
+  padding: 0 var(--cat-d-pad) 0.9rem;
+  max-width: var(--cat-measure-prose);
+  font-size: var(--cat-fs-xs);
+  line-height: var(--cat-lh-relaxed);
+  color: rgb(236 232 220 / 0.58);
+}
+.cat-d-overlay .cat-v-note code { background: rgb(236 232 220 / 0.12); color: inherit; }
+
+.cat-d-overlay .cat-v-empty {
+  display: grid;
+  gap: 0.4rem;
+  padding: var(--cat-space-xl) 1.5rem;
+  text-align: center;
+  color: var(--dark-ink);
+}
+.cat-d-overlay .cat-v-empty__head {
+  margin: 0;
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-snug);
+}
+.cat-d-overlay .cat-v-empty__body {
+  margin: 0 auto;
+  max-width: var(--cat-measure-lead);
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-relaxed);
+  color: rgb(236 232 220 / 0.64);
+}
+.cat-d-overlay .cat-v-empty code { background: rgb(236 232 220 / 0.14); color: inherit; }
+
+/* ================================================== shared tab furniture === */
+
+.cat-d-overlay .cat-imu,
+.cat-d-overlay .cat-m,
+.cat-d-overlay .cat-sc,
+.cat-d-overlay .cat-t { display: block; }
+
+/* Every tab opens the same way: a semibold heading, a tabular sub-line, and
+   whatever control the tab owns pushed to the far end of the same row. */
+.cat-d-overlay .cat-imu-head,
+.cat-d-overlay .cat-t-head,
+.cat-d-overlay .cat-sc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cat-space-md) var(--cat-space-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--cat-space-md);
+}
+
+.cat-d-overlay .cat-imu-title,
+.cat-d-overlay .cat-t-title,
+.cat-d-overlay .cat-sc-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-imu-title > svg,
+.cat-d-overlay .cat-t-title > svg { flex: none; color: var(--accent-muted); }
+
+.cat-d-overlay .cat-imu-sub,
+.cat-d-overlay .cat-t-sub,
+.cat-d-overlay .cat-sc-sub {
+  margin: 0.3rem 0 0;
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-regular);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+
+/* ============================================================= IMU TAB === */
+
+.cat-d-overlay .cat-imu-units { color: var(--accent-muted); }
+
+.cat-d-overlay .cat-imu-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.85rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  color: var(--muted);
+}
+.cat-d-overlay .cat-imu-legend li { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cat-d-overlay .cat-imu-dot { width: 7px; height: 7px; border-radius: var(--cat-radius-pill); }
+
+.cat-d-overlay .cat-imu-tools { display: grid; gap: 0.5rem; justify-items: end; }
+.cat-d-overlay .cat-imu-visible {
+  margin: 0;
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted);
+  text-align: right;
+}
+.cat-d-overlay .cat-imu-hint { color: var(--accent-muted); }
+.cat-d-overlay .cat-imu-toolrow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.cat-d-overlay .cat-imu-zoom { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cat-d-overlay .cat-imu-zoomval {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted);
+  min-width: 5em;
+  text-align: center;
+}
+
+.cat-d-overlay .cat-imu-chart {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.cat-d-overlay .cat-imu-gutter {
+  flex: 0 0 54px;
+  background: var(--paper-2);
+  border-right: 1px solid var(--line);
+}
+/* Axis text is Pretendard with tabular figures, not the mono the first pass
+   used and not the SVG default sans: a tick column has to line up on the
+   decimal, and it has to be the same face as every other number on the page. */
+.cat-d-overlay .cat-imu-ylab,
+.cat-d-overlay .cat-imu-xlab {
+  font-family: var(--cat-font-sans);
+  font-size: 10px;
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0.01em;
+  fill: var(--muted);
+}
+.cat-d-overlay .cat-imu-scroll {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  cursor: crosshair;
+}
+.cat-d-overlay .cat-imu-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* `max-width: none` is required, not defensive. The media reset in catalog.css
+   (`:where(.cat-root) :where(img, video, svg) { max-width: 100% }`) has zero
+   specificity but still applies here, and this SVG is deliberately WIDER than the
+   .cat-imu-scroll box that holds it -- 120 px per second, so ~4970px for a 41 s
+   take. Clamped to 100% it stops overflowing, so the strip never scrolls, and
+   because the element also carries a matching viewBox the whole coordinate space
+   is scaled down to fit: the traces collapse into the left third of the plot while
+   the time axis still spans the full width. */
+.cat-d-overlay .cat-imu-svg { display: block; max-width: none; }
+.cat-d-overlay .cat-imu-grid {
+  stroke: rgb(var(--ink-rgb) / 0.18);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+.cat-d-overlay .cat-imu-vgrid {
+  stroke: rgb(var(--ink-rgb) / 0.08);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.cat-d-overlay .cat-imu-cross {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Floats over the plot, so it gets a shadow. */
+.cat-d-overlay .cat-imu-readout {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-sm);
+  background: rgb(243 239 230 / 0.96);
+  box-shadow: var(--cat-elev-2);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  color: var(--ink);
+  pointer-events: none;
+}
+.cat-d-overlay .cat-imu-readout__t { color: var(--muted); }
+.cat-d-overlay .cat-imu-readout__v { display: inline-flex; align-items: center; gap: 0.32rem; }
+.cat-d-overlay .cat-imu-readout__v i { width: 6px; height: 6px; border-radius: var(--cat-radius-pill); }
+
+.cat-d-overlay .cat-imu-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 0.5rem;
+  background: rgb(243 239 230 / 0.82);
+  font-size: var(--cat-fs-xs);
+  color: var(--muted);
+}
+.cat-d-overlay .cat-imu-overlay .cat-d-shimmer { width: 160px; height: 4px; }
+
+/* ========================================================= TACTILE TAB === */
+/* This is the product. It is the densest and the most confident tab in the
+   modal, and the two things it must never soften are the hatched dead-channel
+   treatment and the raw-counts caveat. */
+
+.cat-d-overlay .cat-t-grids {
+  display: flex;
+  gap: var(--cat-space-lg);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--cat-space-md);
+}
+/* 440, not 340. A 22x22 lattice at 340px gives 15px cells; at 440 it gives 20,
+   which is the difference between a texture and a map you can hover a taxel in.
+   This is the tab the product is sold on, so it gets the room. */
+.cat-d-overlay .cat-t-grid { margin: 0; flex: 1 1 240px; max-width: 440px; }
+.cat-d-overlay .cat-t-grid__cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+.cat-d-overlay .cat-t-grid__count { color: var(--ink); }
+.cat-d-overlay .cat-t-grid__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-md);
+  background: var(--paper-2);
+  padding: 5px;
+}
+.cat-d-overlay .cat-t-cell { transition: filter var(--cat-dur-fast) var(--cat-ease); }
+.cat-d-overlay .cat-t-cell:hover { filter: brightness(0.86); }
+.cat-d-overlay .cat-t-cell--intermittent { stroke: #a35a3a; stroke-width: 0.9; stroke-dasharray: 2 2; }
+.cat-d-overlay .cat-t-cell--unknown { opacity: 0.55; }
+
+.cat-d-overlay .cat-t-legendrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  flex-wrap: wrap;
+  margin-top: var(--cat-space-sm);
+  padding-top: var(--cat-space-sm);
+  border-top: 1px solid var(--line);
+}
+.cat-d-overlay .cat-t-legend {
+  display: inline-flex;
+  align-items: center;
+  /* The ramp, its two end labels, a separator and three keyed swatches come to
+     ~460 px laid out in one line — wider than a phone. Without wrapping this
+     one row gave the whole modal body a horizontal scrollbar. */
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+  max-width: 100%;
+  gap: 0.45rem;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted);
+}
+.cat-d-overlay .cat-t-legend__lab { color: var(--muted); white-space: nowrap; }
+.cat-d-overlay .cat-t-legend__ramp {
+  display: inline-flex;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.cat-d-overlay .cat-t-legend__ramp i { display: block; width: 26px; height: 10px; }
+.cat-d-overlay .cat-t-legend__sep {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background: var(--line-strong);
+  margin: 0 0.2rem;
+}
+.cat-d-overlay .cat-t-legend__key { display: inline-flex; align-items: center; gap: 0.3rem; }
+/* The hatch IS the encoding. A dead channel is not a low reading, so it is
+   never drawn in the ramp's colour space at any lightness — it is drawn in a
+   texture the ramp cannot produce. */
+.cat-d-overlay .cat-t-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+.cat-d-overlay .cat-t-swatch--silent {
+  background: repeating-linear-gradient(45deg, #e2ded2 0 2px, #a7a08a 2px 3.4px);
+}
+.cat-d-overlay .cat-t-swatch--bad {
+  background: repeating-linear-gradient(-45deg, #e6dcd4 0 2px, #a35a3a 2px 3.4px);
+}
+.cat-d-overlay .cat-t-swatch--int {
+  background: #ddd8cb;
+  border: 1px dashed #a35a3a;
+}
+.cat-d-overlay .cat-t-hover {
+  margin: 0;
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+
+.cat-d-overlay .cat-t-peak { margin-top: var(--cat-space-lg); }
+.cat-d-overlay .cat-t-peak--empty { margin-top: var(--cat-space-md); }
+.cat-d-overlay .cat-t-peak__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  flex-wrap: wrap;
+}
+.cat-d-overlay .cat-t-peak__head h4 {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-md);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-snug);
+}
+.cat-d-overlay .cat-t-peak__head span {
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+.cat-d-overlay .cat-t-peak__plot {
+  position: relative;
+  margin-top: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-md);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+.cat-d-overlay .cat-t-peak__plot svg { display: block; width: 100%; height: 96px; }
+.cat-d-overlay .cat-t-playhead {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.cat-d-overlay .cat-t-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: ew-resize;
+}
+.cat-d-overlay .cat-t-scrub::-webkit-slider-runnable-track { height: 100%; background: transparent; }
+.cat-d-overlay .cat-t-scrub::-moz-range-track { height: 100%; background: transparent; }
+.cat-d-overlay .cat-t-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 96px;
+  border: 0;
+  border-radius: 2px;
+  background: rgb(89 34 2 / 0.16);
+}
+.cat-d-overlay .cat-t-scrub::-moz-range-thumb {
+  width: 13px;
+  height: 96px;
+  border: 0;
+  border-radius: 2px;
+  background: rgb(89 34 2 / 0.16);
+}
+.cat-d-overlay .cat-t-peak__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+}
+
+.cat-d-overlay .cat-t-stills { margin-top: var(--cat-space-lg); }
+.cat-d-overlay .cat-t-stills__main figure { margin: 0; }
+.cat-d-overlay .cat-t-stills__main img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-md);
+  background: var(--paper-2);
+}
+.cat-d-overlay .cat-t-stills__main figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+.cat-d-overlay .cat-t-stills__reel {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: var(--cat-space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cat-d-overlay .cat-t-thumb {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-sm);
+  background: var(--paper-2);
+  cursor: pointer;
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted);
+  transition:
+    transform var(--cat-dur-normal) var(--cat-ease),
+    box-shadow var(--cat-dur-normal) var(--cat-ease),
+    border-color var(--cat-dur-normal) var(--cat-ease);
+}
+.cat-d-overlay .cat-t-thumb:hover { transform: translateY(-2px); box-shadow: var(--cat-elev-2); }
+.cat-d-overlay .cat-t-thumb:active { transform: scale(0.98); }
+.cat-d-overlay .cat-t-thumb.is-on { border-color: var(--accent); background: rgb(89 34 2 / 0.07); }
+.cat-d-overlay .cat-t-thumb img { display: block; width: 54px; height: 54px; object-fit: contain; }
+
+.cat-d-overlay .cat-t-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--cat-space-md) var(--cat-space-lg);
+  margin-top: var(--cat-space-lg);
+  padding-top: var(--cat-space-md);
+  border-top: 1px solid var(--line);
+}
+.cat-d-overlay .cat-t-stat { display: grid; gap: 0.2rem; align-content: start; min-width: 0; }
+/* Weight as hierarchy: the figure is the largest thing in the block and the
+   lightest, so size carries it and the strokes do not have to. */
+.cat-d-overlay .cat-t-stat strong {
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xl);
+  font-weight: var(--cat-w-extralight);
+  line-height: var(--cat-lh-tight);
+  letter-spacing: var(--cat-tracking-snug);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  color: var(--ink);
+}
+.cat-d-overlay .cat-t-stat__note {
+  font-size: var(--cat-fs-2xs);
+  line-height: var(--cat-lh-snug);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+.cat-d-overlay .cat-t-dmg {
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ========================================================== SEGCAP TAB === */
+
+.cat-d-overlay .cat-sc-ribbon {
+  position: relative;
+  height: 26px;
+  border-radius: var(--cat-radius-sm);
+  background: var(--paper-deep);
+  overflow: hidden;
+}
+.cat-d-overlay .cat-sc-band {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--paper);
+  background: var(--accent-muted);
+  cursor: pointer;
+  transition: background var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-sc-band:hover,
+.cat-d-overlay .cat-sc-band.is-on { background: var(--accent); }
+.cat-d-overlay .cat-sc-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted);
+}
+
+.cat-d-overlay .cat-sc-list { margin: var(--cat-space-md) 0 0; padding: 0; list-style: none; }
+.cat-d-overlay .cat-sc-row {
+  display: grid;
+  grid-template-columns: 2.1rem 7.4rem 1fr 1.4rem;
+  align-items: start;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.7rem 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-sc-row:hover,
+.cat-d-overlay .cat-sc-row.is-on { background: var(--paper-2); }
+.cat-d-overlay .cat-sc-idx {
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--accent-muted);
+  padding-top: 0.15rem;
+}
+.cat-d-overlay .cat-sc-time {
+  display: grid;
+  font-size: var(--cat-fs-xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  color: var(--cat-ink-2);
+  padding-top: 0.15rem;
+}
+.cat-d-overlay .cat-sc-time em { font-style: normal; font-size: var(--cat-fs-2xs); opacity: 0.72; }
+.cat-d-overlay .cat-sc-body { display: grid; gap: 0.3rem; min-width: 0; }
+.cat-d-overlay .cat-sc-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-sc-objs { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.cat-d-overlay .cat-sc-desc {
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--cat-ink-2);
+}
+.cat-d-overlay .cat-sc-go { color: var(--accent-muted); padding-top: 0.3rem; }
+
+/* ======================================================== METADATA TAB === */
+
+.cat-d-overlay .cat-m-topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--cat-space-sm);
+}
+
+/*
+ * The definition grid. Three columns, then two, then one — and the columns are
+ * separated by space and a hairline per row, never by a box. `column-gap` is
+ * on the fluid ramp so the grid breathes as the modal widens instead of
+ * holding one gutter from 360 to 1440.
+ */
+.cat-d-overlay .cat-m-defs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--cat-space-xl);
+  row-gap: 0;
+  margin: 0;
+}
+.cat-d-overlay .cat-m-def {
+  padding: 0.8rem 0 0.7rem;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.cat-d-overlay .cat-m-def dt { margin: 0 0 0.3rem; }
+.cat-d-overlay .cat-m-def dd {
+  margin: 0;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-snug);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* (0,3,1), so it beats the `dd` rule above — which is (0,2,1) and, before this
+   line existed, silently repainted every machine string in the grid (take ids,
+   device ids, checksums) in the sans face while leaving the `mono` prop that
+   asked for the other one looking like it had worked. */
+.cat-d-overlay .cat-m-def dd.cat-mono {
+  font-family: var(--cat-font-mono);
+  font-size: var(--cat-fs-xs);
+  overflow-wrap: anywhere;
+}
+.cat-d-overlay .cat-m-def--dash { color: var(--muted); }
+.cat-d-overlay .cat-m-defs--tight { margin-top: 0.2rem; }
+
+.cat-d-overlay .cat-m-block { margin-top: var(--cat-space-xl); }
+.cat-d-overlay .cat-m-blocktitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 var(--cat-space-sm);
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+.cat-d-overlay .cat-m-aside {
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+  text-align: right;
+}
+
+.cat-d-overlay .cat-m-para {
+  margin: 0 0 0.65rem;
+  max-width: var(--cat-measure-prose);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.cat-d-overlay .cat-m-para--dash { color: var(--muted); }
+.cat-d-overlay .cat-m-para--muted { color: var(--cat-ink-2); font-size: var(--cat-fs-xs); }
+.cat-d-overlay .cat-m-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--accent);
+  font-weight: var(--cat-w-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.cat-d-overlay .cat-m-link:hover { text-decoration-thickness: 2px; }
+
+/* Package contents. The path is a machine string and stays mono; its size and
+   role are measurements and are Pretendard tabular. */
+.cat-d-overlay .cat-m-files {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem var(--cat-space-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cat-d-overlay .cat-m-files li {
+  display: grid;
+  gap: 1px;
+  padding-left: 0.85rem;
+  position: relative;
+  min-width: 0;
+}
+.cat-d-overlay .cat-m-files li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--cat-radius-pill);
+  background: var(--accent-muted);
+}
+.cat-d-overlay .cat-m-file {
+  font-family: var(--cat-font-mono);
+  font-size: var(--cat-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cat-d-overlay .cat-m-file a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.cat-d-overlay .cat-m-file a:hover { border-color: var(--accent); }
+.cat-d-overlay .cat-m-filemeta {
+  font-size: var(--cat-fs-2xs);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cat-ink-2);
+}
+
+/*
+ * Rights. Four independent permissions, and a buyer may be colourblind, so
+ * colour is the LAST of four cues rather than the only one:
+ *   1. the word          Granted / Denied / On request
+ *   2. a glyph           check / slash / clock
+ *   3. the border style  solid / solid-heavy / dashed
+ *   4. the tint
+ * Remove the tint and every state is still unambiguous, which is the test.
+ */
+.cat-d-overlay .cat-m-perms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--cat-space-md) var(--cat-space-lg);
+  margin: 0 0 var(--cat-space-md);
+  padding: 0;
+  list-style: none;
+}
+.cat-d-overlay .cat-m-perms li { display: grid; gap: 0.3rem; align-content: start; }
+.cat-d-overlay .cat-perm {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.16rem 0.6rem 0.16rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--cat-radius-pill);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.cat-d-overlay .cat-perm > svg { flex: none; }
+.cat-d-overlay .cat-perm--granted {
+  background: rgb(63 107 70 / 0.14);
+  border-color: rgb(63 107 70 / 0.55);
+  color: var(--cat-d-ok);
+}
+.cat-d-overlay .cat-perm--denied {
+  background: rgb(140 47 20 / 0.12);
+  border-color: rgb(140 47 20 / 0.62);
+  border-width: 2px;
+  color: var(--cat-d-bad);
+}
+.cat-d-overlay .cat-perm--on_request {
+  background: rgb(138 90 16 / 0.12);
+  border-style: dashed;
+  border-color: rgb(138 90 16 / 0.62);
+  color: var(--cat-d-warn);
+}
+.cat-d-overlay .cat-m-why {
+  font-size: var(--cat-fs-2xs);
+  line-height: var(--cat-lh-snug);
+  color: var(--cat-d-prose);
+  text-wrap: pretty;
+}
+
+.cat-d-overlay .cat-m-list {
+  margin: 0.45rem 0 0;
+  padding: 0 0 0 1.1rem;
+  list-style: none;
+}
+.cat-d-overlay .cat-m-list li {
+  position: relative;
+  margin-bottom: 0.4rem;
+  font-size: var(--cat-fs-sm);
+  line-height: var(--cat-lh-relaxed);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-m-list li::before {
+  content: "";
+  position: absolute;
+  left: -0.9rem;
+  top: 0.62em;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--cat-radius-pill);
+  background: var(--accent-muted);
+}
+
+/* ============================================ CALIBRATION & SYNC TAB === */
+/* Also used by the QA-check and documentation blocks in the Metadata tab:
+   one table style, so a buyer reading three tables reads one grammar. */
+
+.cat-d-overlay .cat-tablewrap {
+  /* The intrinsics table is 7 columns of numbers and the sync table is 6. On a
+     phone they scroll rather than reflow: a 6-digit focal length wrapped onto
+     two lines stops being a number you can compare down a column. */
+  margin: var(--cat-space-sm) 0 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cat-d-overlay .cat-table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  /* Every cell in every table here is either a measurement or an identifier;
+     both want the figures to line up. */
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+}
+.cat-d-overlay .cat-table th,
+.cat-d-overlay .cat-table td {
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-table thead th {
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  border-bottom-color: var(--line-strong);
+}
+.cat-d-overlay .cat-table tbody th {
+  font-weight: var(--cat-w-medium);
+  white-space: nowrap;
+}
+/* Element-qualified: the `th, td` rule above is (0,2,1) and would otherwise win
+   the text-align, silently leaving every numeric column left-ragged. Anything
+   that adds a rule for `.cat-table td` must keep this one at least as specific.
+   Verified after the Pretendard retypeset: this selector is (0,3,1) and the
+   generic one is (0,2,1), so right-alignment still wins. */
+.cat-d-overlay .cat-table th.cat-table-num,
+.cat-d-overlay .cat-table td.cat-table-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+/* A warn row is marked by a tint AND a left rule, so the row is findable in a
+   greyscale print-out or by a buyer who cannot separate the tint from paper. */
+.cat-d-overlay .cat-table-row--warn > * {
+  background: var(--accent-soft);
+}
+.cat-d-overlay .cat-table-row--warn > *:first-child {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* A stream that is DELIVERED but is on no shared timeline. Not a --warn: nothing
+   measured badly, the measurement does not exist, and colouring it like a missed
+   bound would be the wrong kind of alarm. A dashed rail and a lighter fill read
+   as "outside the system" rather than as "failing inside it". */
+.cat-d-overlay .cat-table-row--unaligned > * {
+  background: rgb(var(--ink-rgb) / 0.035);
+}
+.cat-d-overlay .cat-table-row--unaligned > *:first-child {
+  box-shadow: inset 2px 0 0 var(--line-strong);
+}
+
+/* The tab-level "this stream is not time-aligned" banner. It is the first thing
+   in the panel, so it needs the gap the flow does not give it. */
+.cat-d-overlay .cat-imu > .cat-note--warn {
+  margin-bottom: var(--cat-space-md);
+}
+
+/* An explicit state where a numeral would otherwise be an em-dash. "—" means
+   "not estimated"; this means "there is no such quantity for this stream". */
+.cat-d-overlay .cat-table-note {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--cat-ink-2);
+  white-space: nowrap;
+}
+
+/* Matrices. A monospace grid, right-aligned, so the columns line up the way a
+   3x3 rotation has to for anyone to read it as one. */
+.cat-d-overlay .cat-cal-mat {
+  display: grid;
+  gap: 0.12rem 0;
+  margin-top: 0.35rem;
+  font-size: var(--cat-fs-xs);
+  color: var(--ink);
+}
+.cat-d-overlay .cat-cal-matrow {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(5.5rem, max-content);
+  gap: 0 0.9rem;
+}
+.cat-d-overlay .cat-cal-matrow > span {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cat-d-overlay .cat-cal-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--cat-space-md) var(--cat-space-xl);
+  margin-top: var(--cat-space-sm);
+}
+.cat-d-overlay .cat-cal-dist {
+  font-size: var(--cat-fs-2xs);
+  min-width: 12rem;
+}
+
+/* Conventions and index rules are quoted VERBATIM. A paraphrased sign
+   convention is how a loader applies the offset backwards. */
+.cat-d-overlay .cat-cal-verbatim {
+  padding: 0.6rem 0.8rem;
+  background: var(--paper-2);
+  border-left: 2px solid var(--line-strong);
+  font-size: var(--cat-fs-xs);
+  line-height: var(--cat-lh-relaxed);
+  max-width: none;
+}
+
+/* --------------------------------------------------- QA checks (H4) --- */
+/* pass / warn / fail / not run must survive greyscale: the border style and
+   the fill differ per state, not only the hue. */
+
+.cat-d-overlay .cat-qa-result {
+  display: inline-block;
+  min-width: 3.6rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--cat-radius-pill);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  text-align: center;
+}
+.cat-d-overlay .cat-qa-result--pass {
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font-weight: var(--cat-w-medium);
+}
+.cat-d-overlay .cat-qa-result--warn {
+  color: var(--accent);
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+.cat-d-overlay .cat-qa-result--fail {
+  color: var(--paper);
+  background: var(--accent);
+  border: 2px solid var(--accent);
+}
+.cat-d-overlay .cat-qa-result--not_run {
+  color: var(--muted);
+  border: 1px dashed var(--line-strong);
+  font-weight: var(--cat-w-medium);
+}
+.cat-d-overlay .cat-qa-val {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+}
+.cat-d-overlay .cat-qa-cat {
+  padding-top: var(--cat-space-md);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cat-d-overlay .cat-qa-note {
+  display: block;
+  margin-top: 0.25rem;
+  max-width: 52ch;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-regular);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: var(--cat-tracking-normal);
+  text-transform: none;
+  color: var(--cat-d-prose);
+  white-space: normal;
+}
+
+/* --------------------------------------------------- documentation --- */
+
+.cat-d-overlay .cat-m-docs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--cat-space-sm) var(--cat-space-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cat-d-overlay .cat-m-doclink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--accent);
+  font-family: var(--cat-font-mono);
+  font-size: var(--cat-fs-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.cat-d-overlay .cat-m-doclink:hover { text-decoration-thickness: 2px; }
+.cat-d-overlay .cat-m-docmeta {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  line-height: var(--cat-lh-snug);
+  color: var(--cat-ink-2);
+}
+
+/* ---------------------------------------------------- redaction (H6) --- */
+
+.cat-d-overlay .cat-m-sub {
+  margin-top: var(--cat-space-md);
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--line);
+}
+.cat-d-overlay .cat-m-subhead { margin: 0.75rem 0 0; }
+
+.cat-d-overlay .cat-m-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cat-d-overlay .cat-m-chips li {
+  padding: 0.12rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--cat-radius-pill);
+  font-family: var(--cat-font-mono);
+  font-size: var(--cat-fs-2xs);
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------ responsive -- */
+
+/* 1024, not 900. Six tabs plus the heading's 18rem basis need ~615px of bar to
+   sit on one line without the strip going into permanent scroll; below that
+   the stack is the honest layout. */
+@media (max-width: 1023px) {
+  .cat-d-overlay .cat-d-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    /* Tight on purpose. At the previous 1.5rem the title, the eyebrow and the
+       tab strip read as three unrelated bands with a dead field between them,
+       which is exactly what the 768 screenshot showed. */
+    gap: var(--cat-space-sm);
+  }
+  /* `.cat-d-heading { flex: 1 1 18rem }` was written for a ROW bar, where the
+     basis is a width. The line above turns the bar into a COLUMN, at which
+     point the same declaration makes 18rem the heading's HEIGHT and flex-grow
+     stretches it further — leaving the title floating in ~290 px of empty
+     paper above the tab strip on every phone and tablet. Reset it on the axis
+     it is no longer describing. */
+  .cat-d-overlay .cat-d-heading { flex: 0 0 auto; width: 100%; }
+  /* Stacked, the strip owns the full line, so the tabs share it evenly instead
+     of huddling at the left edge. */
+  .cat-d-overlay .cat-d-tabs { flex: 0 0 auto; width: 100%; }
+  .cat-d-overlay .cat-d-tab { flex: 1 0 auto; }
+}
+
+@media (max-width: 900px) {
+  .cat-d-overlay .cat-m-defs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cat-d-overlay .cat-m-files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cat-d-overlay .cat-d-skel__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  /* The panel keeps a gutter at EVERY width — it is smaller here, not absent.
+     Full-bleed hid the fact that the panel was 100vw against a viewport whose
+     scrollbar had already been subtracted, which is what clipped the close
+     button and the right camera label at 360. */
+  .cat-d-overlay { --cat-d-gutter: 0.5rem; --cat-d-ctl: 34px; --cat-d-ctl-inset: 10px; }
+  .cat-d-overlay .cat-d-panel { border-radius: var(--cat-radius-md); }
+  .cat-d-overlay .cat-cal-pair { grid-template-columns: minmax(0, 1fr); }
+  .cat-d-overlay .cat-m-docs { grid-template-columns: minmax(0, 1fr); }
+  .cat-d-overlay .cat-m-defs { grid-template-columns: minmax(0, 1fr); }
+  .cat-d-overlay .cat-m-files { grid-template-columns: minmax(0, 1fr); }
+  .cat-d-overlay .cat-d-skel__grid { grid-template-columns: minmax(0, 1fr); }
+  .cat-d-overlay .cat-sc-row { grid-template-columns: 1.8rem 1fr; grid-auto-flow: row; }
+  .cat-d-overlay .cat-sc-go { display: none; }
+  /* The tabs stop stretching: six of them across 320px of paper would be 53px
+     each, which truncates "Calib & sync". They keep their natural width and
+     the strip scrolls, with the mask marking the edge. */
+  .cat-d-overlay .cat-d-tab { flex: 0 0 auto; }
+  .cat-d-overlay .cat-t-legendrow { justify-content: flex-start; }
+  /* On the collapsed poster strip there is no room for two eye labels AND the
+     "back to video" call to action; the labels are decorative (aria-hidden)
+     and the CTA is the control, so the labels go. */
+  .cat-d-overlay .cat-d-media--compact .cat-d-camlabel { display: none; }
+}
+
+/* -------------------------------------------------------- reduced motion -- */
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-d-overlay *,
+  .cat-d-overlay *::before,
+  .cat-d-overlay *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .cat-d-overlay .cat-d-shimmer {
+    animation: none !important;
+    background: var(--paper-deep);
+  }
+  /* A hover lift is a transform, which `transition-duration` alone would only
+     make instant rather than absent. */
+  .cat-d-overlay .cat-t-thumb:hover,
+  .cat-d-overlay .cat-d-close:active,
+  .cat-d-overlay .cat-d-navbtn:active,
+  .cat-d-overlay .cat-btn:active,
+  .cat-d-overlay .cat-iconbtn:active,
+  .cat-d-overlay .cat-v-btn:active,
+  .cat-d-overlay .cat-d-tab:active {
+    transform: none;
+  }
+}
