@@ -171,7 +171,14 @@ def main() -> int:
         ),
     )
 
-    files = sorted(p for p in bundle.rglob("*") if p.is_file() and not p.name.startswith("."))
+    # catalog.json LAST. It is the manifest the website reads: it is small, it uploads in
+    # milliseconds, and under a plain alphabetical walk it lands before almost all of the
+    # media it points at. For the rest of the run -- 6 GB over a link that lost 49 objects
+    # last time -- the live catalog then advertises clips whose media 403s. Publishing the
+    # index before the thing it indexes is a race with a real user on the other end, so the
+    # manifest is written only once every object it names is already in the bucket.
+    _all = [p for p in bundle.rglob("*") if p.is_file() and not p.name.startswith(".")]
+    files = sorted(_all, key=lambda p: (p.name == "catalog.json", p.as_posix()))
     if not files:
         return _fail(f"no files under {bundle}")
 
