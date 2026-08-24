@@ -505,7 +505,11 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                "pass" if pii in ("passed", "not_required") else
                ("fail" if pii == "failed" else "warn"), pii, "passed"),
         _check("annotation_present", "annotation", "pass" if ci.segments else "warn",
-               len(ci.segments), 1, "count"),
+               len(ci.segments), 1, "count",
+               "No time-segmented action labels. Every clip ships a free-text description "
+               "of the whole take, which tells a human what happens but gives a model no "
+               "boundary to learn: nothing here says when one action ends and the next "
+               "begins."),
         _check("split_assigned", "annotation", "pass" if ci.split else "warn",
                ci.split, "train|val|test", None,
                "H10: without a published split every buyer invents their own and no two "
