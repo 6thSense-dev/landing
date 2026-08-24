@@ -137,3 +137,50 @@ async def test_login_rate_limited(client, alex, monkeypatch):
         headers=HDRS,
     )
     assert res.status_code == 429
+
+
+@pytest_asyncio.fixture
+async def cross_site_client(db_session, monkeypatch):
+    """An app configured the way production is: cookie `SameSite=None; Secure`."""
+    monkeypatch.setenv("SENSEPROBE_CORS_ORIGINS", "https://app.example")
+    monkeypatch.setenv("SENSEPROBE_COOKIE_SECURE", "true")
+    monkeypatch.setenv("SENSEPROBE_COOKIE_SAMESITE", "none")
+    from app.core.limiter import limiter
+    limiter.reset()
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+        yield c
+
+
+@pytest.mark.asyncio
+async def test_stale_sid_is_cleared_with_the_attributes_it_was_set_with(
+    cross_site_client, alex
+):
+    """A dead session cookie must actually be cleared cross-site.
+
+    The 401 handler emits a `Set-Cookie` that expires `sid`. If that header
+    omits `SameSite=None; Secure` the browser rejects it outright on a
+    cross-site XHR — the clear silently no-ops and the dead sid is replayed on
+    every subsequent request. Regression test for exactly that omission.
+    """
+    res = await cross_site_client.get(
+        "/api/auth/me", cookies={"sid": "not-a-real-session-token"}
+    )
+    assert res.status_code == 401
+    set_cookie = res.headers.get("set-cookie", "")
+    assert "sid=" in set_cookie
+    assert "samesite=none" in set_cookie.lower()
+    assert "secure" in set_cookie.lower()
+
+
+@pytest.mark.asyncio
+async def test_logout_clears_with_the_attributes_it_was_set_with(
+    cross_site_client, alex
+):
+    res = await cross_site_client.post(
+        "/api/auth/logout", cookies={"sid": "not-a-real-session-token"}, headers=HDRS
+    )
+    assert res.status_code == 204
+    set_cookie = res.headers.get("set-cookie", "")
+    assert "samesite=none" in set_cookie.lower()
+    assert "secure" in set_cookie.lower()

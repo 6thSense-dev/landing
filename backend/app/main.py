@@ -79,7 +79,18 @@ def create_app() -> FastAPI:
             status_code=exc.status_code,
             content={"detail": exc.detail},
         )
-        resp.delete_cookie(COOKIE_NAME, path="/")
+        # Same attributes the cookie was SET with, for the same reason logout
+        # spells them out: a `Set-Cookie` that omits `SameSite=None; Secure` is
+        # rejected outright by the browser on a cross-site XHR, so the clear
+        # silently no-ops and the dead sid rides along on every later request.
+        _s = get_settings()
+        resp.delete_cookie(
+            COOKIE_NAME,
+            path="/",
+            httponly=True,
+            secure=_s.cookie_secure,
+            samesite=_s.cookie_samesite,
+        )
         return resp
 
     application.include_router(health.router)
