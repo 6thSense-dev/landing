@@ -54,6 +54,8 @@ async def test_happy_path_sets_cookie_and_returns_user(client, alex):
     set_cookie = res.headers.get("set-cookie", "")
     assert "sid=" in set_cookie
     assert "HttpOnly" in set_cookie
+    # Default is lax; production sets SENSEPROBE_COOKIE_SAMESITE=none because the
+    # SPA and API are on different registrable domains there.
     assert "samesite=lax" in set_cookie.lower()
 
 

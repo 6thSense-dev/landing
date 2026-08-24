@@ -169,7 +169,7 @@ async def login(
         path="/",
         httponly=True,
         secure=settings.cookie_secure,
-        samesite="lax",
+        samesite=settings.cookie_samesite,
     )
     logger.info(
         "auth_login_ok",
@@ -200,5 +200,8 @@ async def logout(
         )
         await session.commit()
     resp = Response(status_code=204)
-    resp.delete_cookie(COOKIE_NAME, path="/")
+    # Must match the attributes the cookie was SET with, or the browser keeps it.
+    _s = get_settings()
+    resp.delete_cookie(COOKIE_NAME, path="/", secure=_s.cookie_secure,
+                       httponly=True, samesite=_s.cookie_samesite)
     return resp
