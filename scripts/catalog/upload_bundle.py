@@ -37,6 +37,8 @@ from pathlib import Path
 
 try:
     import boto3
+    from boto3.s3.transfer import TransferConfig
+    from botocore.config import Config as BotoConfig
     from botocore.exceptions import ClientError
 except ImportError:  # pragma: no cover - dependency hint
     sys.exit("boto3 is required:  python3 -m pip install boto3")
@@ -91,6 +93,24 @@ def etag_matches(client, bucket: str, key: str, path: Path) -> bool:
     return digest.hexdigest() == remote
 
 
+# Tuned for a domestic uplink rather than for EC2. boto3's defaults put ten 8 MB parts in
+# flight with a 60 s socket timeout and about four attempts; uploading multi-hundred-MB
+# media over a home connection that lost 49 objects of this very bundle in one run --
+# EndpointConnectionError and RequestTimeout, across both large mp4s and small json. Fewer
+# parts in flight and a bigger chunk mean fewer sockets to time out; the retry budget is
+# what rescues a transfer that stalls mid-part.
+#
+# The failure mode this prevents is nastier than a slow upload: catalog.json is small and
+# uploads fine, so the catalog goes on advertising clips whose media 403s.
+TRANSFER = TransferConfig(
+    multipart_threshold=32 * 1024 * 1024,
+    multipart_chunksize=32 * 1024 * 1024,
+    max_concurrency=4,
+    num_download_attempts=10,
+    use_threads=True,
+)
+
+
 def upload_one(client, bucket: str, key: str, path: Path, dry_run: bool) -> str:
     if etag_matches(client, bucket, key, path):
         return "skip"
@@ -105,6 +125,7 @@ def upload_one(client, bucket: str, key: str, path: Path, dry_run: bool) -> str:
             "ContentType": CONTENT_TYPES.get(suffix, "application/octet-stream"),
             "CacheControl": CACHE_CONTROL.get(suffix, DEFAULT_CACHE_CONTROL),
         },
+        Config=TRANSFER,
     )
     return "upload"
 
@@ -140,7 +161,15 @@ def main() -> int:
     prefix = f"{prefix}/" if prefix else ""
 
     session = boto3.Session(profile_name=args.profile) if args.profile else boto3.Session()
-    client = session.client("s3", region_name=args.region)
+    client = session.client(
+        "s3",
+        region_name=args.region,
+        config=BotoConfig(
+            retries={"max_attempts": 10, "mode": "adaptive"},
+            connect_timeout=30,
+            read_timeout=180,
+        ),
+    )
 
     files = sorted(p for p in bundle.rglob("*") if p.is_file() and not p.name.startswith("."))
     if not files:
