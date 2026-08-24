@@ -39,7 +39,16 @@
 			# rename this header to `Content-Security-Policy` to enforce. style
 			# 'unsafe-inline' is required by the inline SEO <style> in index.html plus
 			# React/framer-motion style attributes.
-			Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+			#
+			# The catalog's media (posters, preview loops, the encoded mp4, the IMU
+			# and tactile sidecars) is fetched by the browser DIRECTLY from the
+			# private S3 bucket over a short-lived presigned URL — bytes never pass
+			# through the API. That origin therefore has to appear in img-src,
+			# media-src AND connect-src, or the day someone flips this header to
+			# enforcing every clip in the catalog goes blank at once. Both the
+			# regional and the legacy global virtual-hosted forms are listed because
+			# which one boto3 mints depends on how the client is configured.
+			Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; media-src 'self' https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; connect-src 'self' https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
 			-Server
 		}
 

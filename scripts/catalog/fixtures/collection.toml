@@ -1,0 +1,137 @@
+# Collection-level metadata for the fixture drop.
+#
+# generate_fixtures.py reads this and writes `takes/collection.yaml` in the shape
+# the ingest CLI expects (docs/catalog/INTAKE.md §4).  Edit this file, not the emitted
+# YAML -- the YAML is regenerated on every run.
+#
+# When the real takes land, copy this file next to them, change the four fields
+# in [collection] and the licence, and the same ingest command works unchanged.
+
+[collection]
+# lower-kebab, stable: it appears in download receipts and buyer-side cache keys.
+id = "nervous-1"
+name = "nervous-1"
+# Version of the DATA, not of the schema. Bump minor when takes are added.
+version = "0.1.0-eval"
+# THE STANDFIRST IS AUTHORED, NOT SLICED.
+#
+# The header used to promote "the first sentence or two" of `description`. That is a
+# position rule, and a position rule always promotes whatever the writer put first --
+# which is the sell. Measured on the previous paragraph it promoted exactly one
+# sentence, the only one in it with no qualification, and pushed "a capability sample
+# and not a corpus" and "no calibration into force units" behind a disclosure the
+# buyer had to open. So the promoted line is now its own field, and the rule for it is
+# ONE CLAIM AND ONE LIMIT, in that order, in the same sentence pair. If you cannot fit
+# the limit, the claim is too big.
+#
+# It is held to the same build rules as `description`: validate.py scans it for
+# frame-level sync claims and for "captured/recorded" on a synthetic corpus.
+standfirst = """
+Thirty egocentric takes, every one of them a calibrated stereo camera and two tactile
+gloves at 246.5 Hz. A capability sample and not a corpus: nineteen minutes, five
+operators, four rigs, and tactile in raw ADC counts with no calibration into force units.
+"""
+# State what the collection is and -- explicitly -- what it is not. This paragraph is
+# rendered verbatim in the catalog header's "About this collection" disclosure; the
+# promoted line is `standfirst` above, not the first sentence of this.
+# NO PRECISION CLAIM BELONGS IN THIS PARAGRAPH. The measured worst-case alignment
+# error is computed by the ingest and rendered as its own stat tile; a sentence here
+# claiming "about one video frame" was false for 20 of 29 clips and the build now
+# refuses it (validate.py, "collection copy does not overstate measured sync").
+# TWO MORE THINGS THE BUILD REFUSES, both learned the hard way:
+#   1. The grid size. Every clip's known_limitations says "quote the usable-channel
+#      count, never the 484-site grid size", and the header quoted "22x22" anyway --
+#      the marketing sentence contradicting the shipped QA record on the first line.
+#      Say "channel census", and let the measured figure come from the data.
+#   2. "captured in", on a corpus whose provenance_class is `synthetic`. The sentence
+#      sat directly above a banner saying these are not recordings. When the real
+#      takes land and provenance_class becomes `recorded`, change "modelled on" back
+#      to "captured in" -- validate.py enforces the pairing in both directions.
+description = """
+Thirty egocentric takes, every one of them a calibrated stereo camera and two tactile
+gloves at 246.5 Hz, modelled on light industrial, retail and domestic work in mainland
+China and Hong Kong. Video and both gloves are stamped on one host clock; the inertial
+stream ships with the package but is NOT placed on that timeline, and the
+collection-wide worst case of the measured alignment error is the stat tile above
+rather than a claim in this paragraph. Each clip carries its own rights, its measured
+live-and-stable channel census -- quote that census, never the readout-grid size --
+and its own measured worst-case inter-stream alignment error, which are the three an
+acceptance pipeline reads first. It is a capability sample and not a corpus: five
+operators, four rigs, and no calibration into force units. Read the duration as a
+demonstration of the delivery format, not as training volume.
+"""
+# H10: how a clip is assigned to train / val / test, stated precisely enough to audit.
+# "By capture device" is checkable from provenance.device_id; "randomly" is not.
+split_policy = """
+Assigned by capture device, so no device appears in two splits and a model cannot
+memorise a rig: 16A260 and 16A317 are train, 16B044 is val, 17C902 is test. The
+normalisation constants published alongside were fitted on the train split only.
+"""
+# One short line pinned above the grid. Set to "" to omit. Never marketing copy.
+notice = "Evaluation sample: no licence granted by default. Consent and redaction are per-clip; read each clip's rights before use."
+
+[vendor]
+name = "6thSense"
+url = "https://6thsense.dev"        # https only, or omit
+contact = "data@6thsense.dev"       # a monitored role address, never a personal one
+
+[license]
+# Collection-level licence is CONTEXT ONLY. A clip's `rights` object always wins.
+id = "6S-EVAL-NO-LICENCE"
+name = "Evaluation sample - no licence granted"
+url = "https://6thsense.dev/licence/eval"
+summary = """
+Shared for technical evaluation by the named recipient only. Per-clip rights in
+each clip's rights object override this and are authoritative: a clip whose
+rights say model_training is granted may be trained on, and a clip whose rights
+say denied may not, regardless of what this collection-level entry says.
+"""
+
+# ---------------------------------------------------------------------------
+# Task-distribution chart
+# ---------------------------------------------------------------------------
+[benchmark]
+# auto | hours | minutes | clips.  `auto` picks hours at or above a 2 h total and
+# minutes below it, from the data. Leave it on auto: a ~20 minute corpus plotted on
+# an hours axis draws bars of 0.0027, which reads as either a bug or a padded number.
+unit = "auto"
+
+# OUR series -- the one stacked from clips[]. Renaming the dataset a buyer sees in the
+# legend is this one line, never a code change. `id` defaults to the collection id,
+# `label` to the collection name, `color` to the site's --dark token.
+[benchmark.series]
+label = "nervous-1"
+color = "#14120c"
+
+# ---------------------------------------------------------------------------
+# Third-party comparison series -- DELIBERATELY EMPTY. Read this before adding one.
+#
+# The reference design stacks us against Ego4D, EgoDex, Xperience-10M and
+# Egocentric-100K. We do not hold per-task hour breakdowns for any of them, and the
+# people we are selling to do. Inventing a split for a corpus a buyer knows the real
+# shape of costs more credibility than the comparison ever buys, so until sourced
+# figures exist the chart shows our own task distribution and nothing else.
+#
+# When you do have a figure, uncomment a block. All four keys are REQUIRED: the ingest
+# REFUSES to emit a series with no `source_url`, and writes the citation into
+# `benchmark.note`, which the chart renders under the bars. A comparison ships one
+# whole-corpus total, so it is plotted as one bar of its own rather than as an invented
+# split across our task labels.
+#
+# [[benchmark.comparison]]
+# label      = "Ego4D"
+# hours      = 3670
+# source_url = "https://ego4d-data.org/docs/start-here/"
+# retrieved  = "2026-08-23"
+# color      = "#592202"                 # optional; defaults to the next brand ramp step
+
+# Defaults for generate_fixtures.py. Command-line flags override these.
+[fixtures]
+# The real drop is ~30 clips of 30-45 s, all stereo, all two-handed, all CN or HK. The
+# fixture matches it so the unit rule, the chart layout and the header totals are all
+# exercised at the delivered shape. `--with-gaps` adds the takes that exercise the UI's
+# disabled-tab and em-dash paths; it is never what `make fixtures` runs.
+clips = 30
+seed = 7
+min_seconds = 30.0
+max_seconds = 45.0

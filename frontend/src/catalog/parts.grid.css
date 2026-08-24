@@ -1,0 +1,1148 @@
+/* ============================================================================
+   parts.grid.css — FilterBar + CatalogGrid + ClipCard
+   ----------------------------------------------------------------------------
+   Every rule is scoped under .cat-root so (a) the design tokens declared there
+   in catalog.css always resolve, and (b) nothing leaks into the host site when
+   this folder is dropped into gwangju/frontend/src/catalog/.
+
+   THE TOKENS ARE catalog.css's. This sheet consumes the type system's names
+   directly — --cat-fs-*, --cat-space-*, --cat-w-*, --cat-tracking-*, --cat-lh-*,
+   --cat-elev-*, --cat-radius-*, --cat-dur-*, --cat-ease, --cat-font-sans — and
+   the .cat-label / .cat-figure utilities. It declares no ramp of its own; the
+   only custom properties it defines are the four component-local ones in the
+   block below. There is one hard-coded pair of breakpoints (720 / 1000 px) and
+   it exists to mirror catalog.css's --cat-grid-cols ladder; the comment there
+   says so.
+
+   Type: Pretendard Variable, one file, axis 45-920. Weight is the hierarchy —
+   extralight/light for large figures, 600 for labels and card titles, 500 for
+   anything clickable, 400 for prose. Every numeral that sits in a column or
+   changes on filter carries tabular figures.
+   ========================================================================== */
+
+.cat-root {
+  /* Card corner. One step softer than a chip, one harder than the modal. */
+  --cat-r-card: var(--cat-radius-lg, 16px);
+
+  /* --cat-ink-2 (secondary READ text, 7.6:1 on paper) is a catalog.css token
+     now, not a grid-local one: the modal and the header need the same colour
+     for the same rank of copy, and while it lived here they used --muted at
+     6.25:1 instead. The role split is documented at the declaration. */
+
+  /* Reveal timing for the first row of cards. 40ms apart, capped to one row. */
+  --cat-reveal-dur: var(--cat-dur-slow, 320ms);
+  --cat-reveal-step: 40ms;
+}
+
+/* ============================================================ filter bar =========== */
+
+.cat-root .cat-fb__sentinel {
+  height: 1px;
+  margin-bottom: -1px;
+  pointer-events: none;
+}
+
+/*
+ * The bar pins from 60rem up ONLY.
+ *
+ * Below that the facet block stacks one group per row: seven labelled rows plus
+ * the search line is over a third of a phone viewport, and pinning that would
+ * trade the grid — the thing the buyer came for — for a control panel they use
+ * once. Sticky positioning is also constrained to its containing block, so the
+ * facets cannot be collapsed out of the pinned bar without the whole section
+ * jumping under the reader's thumb. It scrolls away instead.
+ */
+.cat-root .cat-fb {
+  display: grid;
+  gap: var(--cat-space-sm);
+  padding: var(--cat-space-sm) 0 var(--cat-space-sm);
+  background: var(--cat-surface, var(--paper, #ebe6d8));
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--cat-dur-normal, 200ms) linear,
+    box-shadow var(--cat-dur-normal, 200ms) linear;
+}
+
+@media (min-width: 60rem) {
+  .cat-root .cat-fb {
+    position: sticky;
+    /* the host sets --cat-sticky-top to its fixed-nav height (parts.header.css
+       sets it from --cat-topbar-h) */
+    top: var(--cat-sticky-top, 0px);
+    /* Deliberately low: the top bar (30) and the clip modal (900) both win. */
+    z-index: 20;
+  }
+}
+
+.cat-root .cat-fb.is-stuck {
+  border-bottom-color: var(--line, rgba(38, 35, 18, 0.12));
+  box-shadow: var(--cat-elev-2);
+}
+
+/* --- top row: search | sort | count ---------------------------------------- */
+
+.cat-root .cat-fb__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cat-space-xs) var(--cat-space-sm);
+}
+
+.cat-root .cat-fb__search {
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-2xs);
+  flex: 1 1 16rem;
+  /* A 1000px-wide search field on a 1180px page is a target, not a control. */
+  max-width: 32rem;
+  min-width: 10rem;
+  padding: 0.34rem 0.4rem 0.34rem 0.7rem;
+  background: var(--paper-2, #f3efe6);
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-radius-pill, 999px);
+  transition: border-color var(--cat-dur-fast, 140ms) linear,
+    box-shadow var(--cat-dur-fast, 140ms) linear;
+}
+
+.cat-root .cat-fb__search:focus-within {
+  border-color: var(--accent-muted, #a69a60);
+  box-shadow: 0 0 0 3px rgba(166, 154, 96, 0.22);
+}
+
+.cat-root .cat-fb__searchicon {
+  flex: none;
+  color: var(--muted, #5a5236);
+}
+
+.cat-root .cat-fb__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  color: var(--ink, #262312);
+}
+
+.cat-root .cat-fb__input::placeholder {
+  color: var(--cat-ink-2);
+  opacity: 0.7;
+}
+
+/* the native affordance duplicates our own clear button */
+.cat-root .cat-fb__input::-webkit-search-cancel-button,
+.cat-root .cat-fb__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* The "/" shortcut, shown as a key cap rather than buried in the placeholder,
+   where it read as part of the prompt text. Swapped for the clear button the
+   moment there is a query. */
+.cat-root .cat-fb__kbd {
+  flex: none;
+  padding: 0.05rem 0.36rem;
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-radius-sm, 6px);
+  background: var(--paper, #ebe6d8);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  line-height: 1.5;
+  color: var(--cat-ink-2);
+}
+
+.cat-root .cat-fb__clearq {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cat-radius-pill, 999px);
+  background: var(--paper-deep, #ddd8cb);
+  color: var(--ink, #262312);
+  cursor: pointer;
+  transition: background-color var(--cat-dur-fast, 140ms) linear,
+    color var(--cat-dur-fast, 140ms) linear;
+}
+
+.cat-root .cat-fb__clearq:hover {
+  background: var(--ink, #262312);
+  color: var(--paper-2, #f3efe6);
+}
+
+/* --- sort ------------------------------------------------------------------ */
+
+.cat-root .cat-fb__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2xs);
+  flex: none;
+}
+
+.cat-root .cat-fb__select {
+  appearance: none;
+  padding: 0.34rem 1.6rem 0.34rem 0.7rem;
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-radius-pill, 999px);
+  background-color: var(--paper-2, #f3efe6);
+  /* chevron drawn inline so the sheet stays dependency-free */
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235a5236' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  color: var(--ink, #262312);
+  cursor: pointer;
+}
+
+/* --- result count ---------------------------------------------------------- */
+
+/* The one place in the bar that uses the figure/unit pairing: the number a
+   buyer is actually watching while they click chips. Light and large next to a
+   semibold unit, tabular so the digits do not dance as it counts down. */
+.cat-root .cat-fb__count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex: none;
+  margin: 0 0 0 auto;
+  padding-left: var(--cat-space-2xs);
+  white-space: nowrap;
+}
+
+.cat-root .cat-fb__count-n {
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-light);
+  line-height: var(--cat-lh-none, 1);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink, #262312);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.cat-root .cat-fb__count-u,
+.cat-root .cat-fb__count-h {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--muted, #5a5236);
+  font-variant-numeric: tabular-nums;
+}
+
+.cat-root .cat-fb__count-h::before {
+  content: "·";
+  margin-right: 0.3rem;
+  opacity: 0.6;
+}
+
+/* --- facet groups ---------------------------------------------------------- */
+
+/* Seven stacked label+chips rows was a wall of text at the top of the page.
+   Category keeps the full width — it is the grid's primary grouping, and it is
+   the one facet row that reads at card weight. Everything else, country
+   included, is a qualifier, and those are packed into balanced COLUMNS.
+   Columns, not a wrapping row: in a wrapping row every group inherits the
+   height of the tallest one on its line, so a Rights facet with four two-word
+   buckets left a hand's-width of dead paper under Country. */
+.cat-root .cat-fb__facets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-sm);
+}
+
+/* The lead column holds the primary-tone groups. One today (Category); it is a
+   flex column rather than a bare block so a second one could never butt straight
+   against the first with no gap. */
+.cat-root .cat-fb__facets-lead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-sm);
+}
+
+/* A WRAPPING ROW, top-aligned. Third layout, and the last one, so the reasoning
+ * for discarding the other two is here rather than in the git log.
+ *
+ * `columns: 4 15rem` (multicol) balances by HEIGHT: Rights took a column to
+ * itself, Country / QA grade / Split shared the next, and the fourth came out
+ * empty -- 250px of dead paper.
+ *
+ * `repeat(auto-fit, minmax(15rem, 1fr))` (grid) made four ~270px tracks at 1440,
+ * and Rights' longest chip ("Redistribution: denied 24") is wider than 270px, so
+ * all six of its chips stacked one per line while the three short groups took one
+ * line each. The panel came out 380px tall with roughly 60% of it empty -- the
+ * exact defect the masthead was rebuilt to remove, 400px further down the page.
+ * Measured in docs/catalog/screenshots/filters-1440.png before this change.
+ *
+ * The real fault was never the packer: it was putting a SIX-bucket group in a
+ * quarter-width track. FilterBar now promotes any group with more than four
+ * buckets into the full-width lead block (see WIDE_AT there), so what reaches
+ * this row is only ever short groups. For those a wrapping flex row is right:
+ * each group takes its natural width, nothing is padded out to a track, and
+ * `align-items: flex-start` is what stops a group inheriting a taller
+ * neighbour's height -- the one thing multicol was chosen for in the first
+ * place. It reflows to one column on a phone with no breakpoint of ours. */
+.cat-root .cat-fb__facets-rest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--cat-space-sm) var(--cat-space-lg);
+}
+
+.cat-root .cat-fb__facets-rest > .cat-fb__group {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.cat-root .cat-fb__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  /* a label must never be orphaned from the chips it names */
+  -webkit-column-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* (The multicol-era `margin-bottom` on each group is gone: grid has a real row
+   gap, and keeping both double-spaced the wrapped rows at narrow widths.) */
+
+.cat-root .cat-fb__glabel {
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug, 1.3);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--muted, #5a5236);
+}
+
+.cat-root .cat-fb__group--primary .cat-fb__glabel {
+  color: var(--ink, #262312);
+}
+
+.cat-root .cat-fb__chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+/* --- chips ----------------------------------------------------------------- */
+
+/* One chip system, shared with the card's QA flags: hairline border, pill
+   radius, paper-2 fill, 500 because it is clickable. */
+.cat-root .cat-fb__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.26rem 0.6rem;
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-radius-pill, 999px);
+  background: var(--paper-2, #f3efe6);
+  color: var(--ink, #262312);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color var(--cat-dur-fast, 140ms) linear,
+    color var(--cat-dur-fast, 140ms) linear,
+    border-color var(--cat-dur-fast, 140ms) linear;
+}
+
+.cat-root .cat-fb__group--primary .cat-fb__chip {
+  padding: 0.32rem 0.7rem;
+  font-size: var(--cat-fs-sm);
+}
+
+.cat-root .cat-fb__chip:hover {
+  background: var(--paper-deep, #ddd8cb);
+  border-color: var(--line-strong, rgba(38, 35, 18, 0.24));
+}
+
+.cat-root .cat-fb__chip.is-on {
+  background: var(--ink, #262312);
+  border-color: var(--ink, #262312);
+  color: var(--paper-2, #f3efe6);
+}
+
+/* --dark-2, not --ink: a selected chip must still change under the pointer,
+   and it must never repaint its label in its own background colour. */
+.cat-root .cat-fb__chip.is-on:hover {
+  background: var(--dark-2, #1f1d14);
+  border-color: var(--dark-2, #1f1d14);
+  color: var(--paper-2, #f3efe6);
+}
+
+/* labels like "Commercial use: on request" must not break across two lines */
+.cat-root .cat-fb__chip-t {
+  white-space: nowrap;
+}
+
+.cat-root .cat-fb__chip-n {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-medium);
+  color: var(--cat-ink-2);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* The licensed DURATION, on the rights chips only. A count answers "how many
+   clips", and rights are the one facet where that is not the question a buyer is
+   asking. Set one step below the count and separated by a hairline dot so the
+   chip still reads count-first. */
+.cat-root .cat-fb__chip-h {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-regular);
+  color: var(--cat-ink-2);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+
+.cat-root .cat-fb__chip-h::before {
+  content: "";
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.cat-root .cat-fb__chip.is-on .cat-fb__chip-h,
+.cat-root .cat-fb__chip.is-on .cat-fb__chip-n {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.cat-root .cat-fb__more {
+  padding: 0.26rem 0.4rem;
+  border: 0;
+  border-radius: var(--cat-radius-pill, 999px);
+  background: transparent;
+  color: var(--accent, #592202);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.cat-root .cat-fb__more:hover {
+  background: var(--accent-soft, rgba(89, 34, 2, 0.12));
+}
+
+/* --- active filters -------------------------------------------------------- */
+
+/* The summary row. Every constraint currently narrowing the grid, each one
+   removable on its own — including `capture` and `subcategory`, which have no
+   chip group and would otherwise arrive from a URL with no way out. */
+.cat-root .cat-fb__active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cat-space-2xs) var(--cat-space-sm);
+  padding-top: var(--cat-space-2xs);
+  border-top: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+}
+
+.cat-root .cat-fb__glabel--active {
+  flex: none;
+}
+
+.cat-root .cat-fb__pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cat-root .cat-fb__apill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  padding: 0.22rem 0.5rem 0.22rem 0.6rem;
+  border: 1px solid rgba(89, 34, 2, 0.26);
+  border-radius: var(--cat-radius-pill, 999px);
+  background: var(--accent-soft, rgba(89, 34, 2, 0.12));
+  color: var(--accent, #592202);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color var(--cat-dur-fast, 140ms) linear,
+    color var(--cat-dur-fast, 140ms) linear,
+    border-color var(--cat-dur-fast, 140ms) linear;
+}
+
+.cat-root .cat-fb__apill:hover {
+  background: var(--accent, #592202);
+  border-color: var(--accent, #592202);
+  color: var(--paper-2, #f3efe6);
+}
+
+.cat-root .cat-fb__apill-g {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.cat-root .cat-fb__apill-t {
+  white-space: nowrap;
+}
+
+.cat-root .cat-fb__apill-x {
+  flex: none;
+  margin-right: -0.08rem;
+  opacity: 0.8;
+}
+
+.cat-root .cat-fb__clearall {
+  margin-left: auto;
+  padding: 0.22rem 0.6rem;
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-radius-pill, 999px);
+  background: transparent;
+  color: var(--cat-ink-2);
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--cat-dur-fast, 140ms) linear,
+    color var(--cat-dur-fast, 140ms) linear,
+    border-color var(--cat-dur-fast, 140ms) linear;
+}
+
+.cat-root .cat-fb__clearall:hover {
+  background: var(--ink, #262312);
+  border-color: var(--ink, #262312);
+  color: var(--paper-2, #f3efe6);
+}
+
+/* ================================================================= grid =========== */
+
+.cat-root .cat-grid {
+  display: grid;
+  gap: var(--cat-space-lg);
+  /* Column count is catalog.css's call — it documents --cat-grid-cols as "owned
+     there, consumed here" and ships the 1 / 2 / 3 ladder at 720px and 1000px.
+     stretch (the default) is deliberate: a two-line title must not make one
+     card in a row shorter than its neighbours. */
+  grid-template-columns: repeat(var(--cat-grid-cols, 3), minmax(0, 1fr));
+}
+
+.cat-root .cat-grid__cell {
+  min-width: 0;
+}
+
+/* --- staggered reveal, first row only -------------------------------------- */
+
+@keyframes cat-cell-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Three is the widest the grid ever gets, so at most three cells carry a
+ * --cat-cell-i from CatalogGrid and at most three can animate. The two queries
+ * below then narrow the cap to the ACTUAL first row at each step of the
+ * --cat-grid-cols ladder. The 720/1000 boundaries are catalog.css's; they are
+ * repeated here because a media query cannot read a custom property, and if
+ * that ladder ever moves the only cost is one extra card fading in.
+ */
+.cat-root .cat-grid__cell:nth-child(-n + 3) {
+  animation: cat-cell-in var(--cat-reveal-dur) var(--cat-ease, ease-out) both;
+  animation-delay: calc(var(--cat-cell-i, 0) * var(--cat-reveal-step));
+}
+
+@media (max-width: 999.98px) {
+  .cat-root .cat-grid__cell:nth-child(3) {
+    animation: none;
+  }
+}
+
+@media (max-width: 719.98px) {
+  .cat-root .cat-grid__cell:nth-child(n + 2):nth-child(-n + 3) {
+    animation: none;
+  }
+}
+
+/* --- loading skeleton ------------------------------------------------------ */
+
+/* The generic .cat-skeleton--thumb is 16/9. Every clip in this corpus is stereo
+   and its poster is an already-composited [left | right] pair, so the card's
+   thumb is 16/5 — a skeleton at 16/9 would reserve nearly twice the height and
+   turn the load into exactly the layout shift the skeleton exists to prevent.
+   Scoped to the grid's own skeleton so the modal's stays 16/9. */
+.cat-root .cat-card-skeleton .cat-skeleton--thumb {
+  aspect-ratio: 16 / 5;
+  border-radius: var(--cat-r-card);
+}
+
+/* ================================================================= card =========== */
+
+.cat-root .cat-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font-family: var(--cat-font-sans);
+  color: var(--ink, #262312);
+  background: var(--paper-2, #f3efe6);
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-r-card);
+  box-shadow: var(--cat-elev-1);
+  overflow: hidden;
+  height: 100%;
+  cursor: pointer;
+  transition: transform var(--cat-dur-normal, 200ms) var(--cat-ease, ease-out),
+    box-shadow var(--cat-dur-normal, 200ms) linear,
+    border-color var(--cat-dur-normal, 200ms) linear;
+
+  /* Keeps 1000 cards off the layout/paint budget without virtualisation.
+     contain-intrinsic-size is the measured height of a card at ~370px wide:
+     116px of 16:5 thumb plus ~184px of body. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
+}
+
+/* One elevation step and 2px, nothing else. */
+.cat-root .cat-card:hover,
+.cat-root .cat-card:focus-visible {
+  border-color: var(--line-strong, rgba(38, 35, 18, 0.24));
+  box-shadow: var(--cat-elev-2);
+  transform: translateY(-2px);
+}
+
+.cat-root .cat-card:active {
+  transform: translateY(-1px) scale(0.98);
+  box-shadow: var(--cat-elev-1);
+  transition-duration: var(--cat-dur-fast, 140ms);
+}
+
+.cat-root .cat-card:focus-visible {
+  outline: 2px solid var(--accent, #592202);
+  outline-offset: 3px;
+}
+
+/* --- thumbnail ------------------------------------------------------------- */
+
+/* ONE geometry. A poster is an already-composited [left | right] pair, so it is
+   16:5, and every clip in this collection is that pair — the `--mono` 16:9
+   modifier is gone with the Mono badge that drove it. A record that is not a
+   stereo pair keeps this box (object-fit: cover) and is called out by the
+   thumbnail mark instead of quietly breaking the grid's row rhythm. */
+.cat-root .cat-card__thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 5;
+  overflow: hidden;
+  background: var(--paper-deep, #ddd8cb);
+  border-bottom: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+}
+
+/* hairline split between the two eyes */
+.cat-root .cat-card__thumb--stereo::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgba(236, 232, 220, 0.62);
+  box-shadow: -1px 0 0 rgba(20, 18, 12, 0.18);
+  pointer-events: none;
+}
+
+.cat-root .cat-card__poster,
+.cat-root .cat-card__preview {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cat-root .cat-card__preview {
+  opacity: 0;
+  transition: opacity var(--cat-dur-slow, 320ms) linear;
+}
+
+.cat-root .cat-card__preview.is-ready {
+  opacity: 1;
+}
+
+.cat-root .cat-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  color: var(--cat-ink-2);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--paper-deep, #ddd8cb),
+    var(--paper-deep, #ddd8cb) 8px,
+    var(--paper, #ebe6d8) 8px,
+    var(--paper, #ebe6d8) 16px
+  );
+}
+
+.cat-root .cat-card__placeholder-t {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+}
+
+/* THE PRODUCT, ON EVERY CARD.
+ *
+ * This slot used to hold a `Mono` badge and nothing else: a marker driven by
+ * absence, on the reasoning that a uniform marker distinguishes nothing. True
+ * of a filter, false of a claim — egocentric stereo plus tactile is the whole
+ * offer, and the grid never said it once. It is set on a dark scrim rather than
+ * on paper because it sits over a photograph, and at 2xs/600 with label
+ * tracking so it reads as a stamp rather than as a caption competing with the
+ * frame. Bottom-right: the poster's own overlays live top-left and bottom-left.
+ */
+.cat-root .cat-card__mark {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+  padding: 0.16rem 0.44rem;
+  border-radius: var(--cat-radius-pill, 999px);
+  background: rgba(20, 18, 12, 0.72);
+  color: var(--dark-ink, #ece8dc);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  line-height: 1.4;
+  backdrop-filter: saturate(1.1);
+}
+
+/* The same slot, not quiet. A clip that is not stereo-plus-tactile is a data
+   fault in this collection, so it is coloured like one. */
+.cat-root .cat-card__mark--alert {
+  background: var(--accent, #592202);
+  color: #fff;
+}
+
+.cat-root .cat-card__mark-t {
+  line-height: 1;
+}
+
+/* The play affordance appears on hover or keyboard focus, not always. A
+   permanent button over every poster is 29 pieces of chrome competing with the
+   frames they sit on. Touch devices have no hover, so there it stays on. */
+.cat-root .cat-card__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding-left: 2px; /* optical centring of the triangle */
+  border-radius: var(--cat-radius-pill, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(243, 239, 230, 0.86);
+  color: var(--dark, #14120c);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: opacity var(--cat-dur-normal, 200ms) linear,
+    transform var(--cat-dur-normal, 200ms) var(--cat-ease, ease-out);
+}
+
+.cat-root .cat-card:hover .cat-card__play,
+.cat-root .cat-card:focus-visible .cat-card__play {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+@media (hover: none) {
+  .cat-root .cat-card__play {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* --- body ------------------------------------------------------------------ */
+
+.cat-root .cat-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  padding: var(--cat-space-md);
+}
+
+.cat-root .cat-card__head,
+.cat-root .cat-card__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-xs);
+}
+
+.cat-root .cat-card__meta {
+  margin-top: 0.15rem;
+}
+
+.cat-root .cat-card__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 0;
+  /* TWO LINES, RESERVED. The clamp caps the maximum; this makes it the minimum
+     too, so a one-line title and a two-line title produce the same body
+     geometry. Without it the subcategory/duration row, the hairline and the
+     signal strip below a short title sat ~22px above the same rows on its
+     neighbours, on every row of a thirty-clip grid — the bottom strip is pinned
+     with margin-top:auto, so only the middle drifted, which reads as sloppiness
+     rather than as variation. It also removes a source of CLS as titles arrive. */
+  min-height: calc(2 * var(--cat-fs-base) * var(--cat-lh-snug, 1.3));
+  font-size: var(--cat-fs-base);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug, 1.3);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink, #262312);
+}
+
+/* A country is a NAME — "China", "Hong Kong" — never the alpha-2 code, and
+   therefore never uppercased into a machine token either. */
+.cat-root .cat-card__country {
+  flex: none;
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-medium);
+  color: var(--cat-ink-2);
+  white-space: nowrap;
+}
+
+.cat-root .cat-card__sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  color: var(--cat-ink-2);
+}
+
+.cat-root .cat-card__dur {
+  flex: none;
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-regular);
+  color: var(--cat-ink-2);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* --- the signal strip ------------------------------------------------------ */
+
+/*
+ * What replaced the modality chips. VIDEO · IMU · TACTILE · SEGCAP was
+ * identical on every card once the corpus became uniformly stereo + tactile;
+ * these two cells are the ones that differ clip to clip and that a buyer
+ * discounts the price by. Pinned to the bottom of the card (margin-top: auto)
+ * so the strips line up across a row even when one title wraps to two lines.
+ */
+.cat-root .cat-card__specs {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cat-space-sm);
+  margin-top: auto;
+  padding-top: var(--cat-space-xs);
+  border-top: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+}
+
+/* `margin-top: auto` alone would let the strip sit flush against the meta row
+   in the tallest card of a row, where there is no slack left to distribute.
+   The floor lives on the meta row instead, where it costs nothing. */
+.cat-root .cat-card__meta {
+  margin-bottom: var(--cat-space-sm);
+}
+
+.cat-root .cat-card__spec {
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.cat-root .cat-card__spec--tactile {
+  flex: 1 1 auto;
+}
+
+.cat-root .cat-card__spec--qa {
+  flex: none;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.cat-root .cat-card__spec-l {
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: var(--cat-lh-snug, 1.3);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: var(--muted, #5a5236);
+  white-space: nowrap;
+}
+
+.cat-root .cat-card__spec-v {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+/* THE CENSUS ALWAYS TAKES ITS OWN LINE.
+ *
+ * It used to sit inline beside the figure and wrap only when it did not fit —
+ * and what it has to fit beside is the QA cell, whose width is data-dependent
+ * ("B · 2 warns" against "C · 5 warns · unvalidated"). So the census wrapped on
+ * some cards in a row and not others, the strip grew a line on those, and
+ * because the strip is bottom-pinned the whole strip started 30px higher on one
+ * card than its neighbours. Same defect as the unreserved title, one row lower.
+ * Stacking unconditionally costs one line on every card and buys one baseline
+ * across the grid. */
+.cat-root .cat-card__spec--tactile .cat-card__spec-v {
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 0.22rem;
+}
+
+/* The QA chips stay on ONE line for the same reason: a second row of chips
+   would move this card's strip up relative to its neighbours'. They are short
+   (a grade letter, "5 warns", "unvalidated") and the tactile cell yields the
+   width, so nothing is clipped down to the single-column breakpoint. */
+.cat-root .cat-card__spec--qa .cat-card__spec-v {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+/* Weight as hierarchy: the one figure on the card that a buyer compares across
+   the grid is the largest thing in the body and the lightest. */
+.cat-root .cat-card__figure {
+  font-size: var(--cat-fs-lg);
+  font-weight: var(--cat-w-light);
+  line-height: var(--cat-lh-none, 1);
+  letter-spacing: var(--cat-tracking-snug);
+  color: var(--ink, #262312);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+
+.cat-root .cat-card__census {
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-regular);
+  color: var(--cat-ink-2);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+
+/* Worst-hand tactile coverage, drawn. Two pixels of information: no gradient,
+   no label inside the bar, no animation — it is a reading, not a progress bar. */
+.cat-root .cat-card__meter {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  margin-top: 0.3rem;
+  border-radius: 2px;
+  background: var(--paper-deep, #ddd8cb);
+  overflow: hidden;
+}
+
+.cat-root .cat-card__meter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--cat-meter-fill, 0%);
+  background: var(--accent, #592202);
+  border-radius: inherit;
+}
+
+.cat-root .cat-card__meter.is-empty {
+  background: transparent;
+  border-top: 1px dashed var(--line, rgba(38, 35, 18, 0.12));
+  height: 1px;
+}
+
+/* --- QA ------------------------------------------------------------------- */
+
+.cat-root .cat-card__grade {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.34rem;
+  border: 1px solid var(--line-strong, rgba(38, 35, 18, 0.24));
+  border-radius: var(--cat-radius-pill, 999px);
+  font-size: var(--cat-fs-xs);
+  font-weight: var(--cat-w-bold);
+  line-height: 1.45;
+  color: var(--ink, #262312);
+}
+
+/* A clean delivery is the one grade worth marking; B and C read as themselves. */
+.cat-root .cat-card__grade[data-grade="A"] {
+  border-color: var(--ink, #262312);
+  background: var(--ink, #262312);
+  color: var(--paper-2, #f3efe6);
+}
+
+.cat-root .cat-card__flag {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid rgba(89, 34, 2, 0.28);
+  border-radius: var(--cat-radius-pill, 999px);
+  background: var(--accent-soft, rgba(89, 34, 2, 0.12));
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  line-height: 1.6;
+  color: var(--accent, #592202);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cat-root .cat-card__flag--fail {
+  background: var(--accent, #592202);
+  border-color: var(--accent, #592202);
+  color: var(--paper-2, #f3efe6);
+}
+
+.cat-root .cat-card__flag--clean {
+  background: transparent;
+  border-color: var(--line, rgba(38, 35, 18, 0.12));
+  color: var(--cat-ink-2);
+  font-weight: var(--cat-w-medium);
+  text-transform: lowercase;
+}
+
+/* `qa.sync_validated === false`: nothing physical corroborates this clip's
+   alignment. Not an accent flag — it is not a check that missed a bound, it is
+   the absence of evidence for the ones that passed — so it takes the outline
+   treatment with a dotted edge, which reads as "unconfirmed" rather than "bad". */
+.cat-root .cat-card__flag--unvalidated {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--line-strong, rgba(38, 35, 18, 0.24));
+  color: var(--cat-ink-2);
+  font-weight: var(--cat-w-medium);
+  text-transform: lowercase;
+}
+
+/* ============================================================ touch targets ======= */
+
+/* 44px is a FINGER measurement, so it is applied on coarse pointers only —
+   forcing every facet chip to 44px on a desktop would triple the height of the
+   filter bar to solve a problem a mouse does not have. */
+@media (pointer: coarse) {
+  .cat-root .cat-fb__chip,
+  .cat-root .cat-fb__apill,
+  .cat-root .cat-fb__more,
+  .cat-root .cat-fb__clearall,
+  .cat-root .cat-fb__select,
+  .cat-root .cat-fb__search {
+    min-height: 44px;
+  }
+
+  .cat-root .cat-fb__clearq {
+    width: 2.5rem;
+    height: 2.5rem;
+    background: transparent;
+  }
+}
+
+/* ============================================================ reduced motion ====== */
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-root .cat-fb,
+  .cat-root .cat-fb__search,
+  .cat-root .cat-fb__chip,
+  .cat-root .cat-fb__apill,
+  .cat-root .cat-fb__clearall,
+  .cat-root .cat-fb__clearq,
+  .cat-root .cat-card,
+  .cat-root .cat-card__play,
+  .cat-root .cat-card__preview {
+    transition: none !important;
+  }
+
+  .cat-root .cat-grid__cell,
+  .cat-root .cat-grid__cell:nth-child(-n + 3) {
+    animation: none !important;
+  }
+
+  .cat-root .cat-card:hover,
+  .cat-root .cat-card:focus-visible,
+  .cat-root .cat-card:active {
+    transform: none;
+  }
+
+  .cat-root .cat-card:hover .cat-card__play,
+  .cat-root .cat-card:focus-visible .cat-card__play {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ============================================================ narrow viewports ==== */
+
+@media (max-width: 40rem) {
+  .cat-root .cat-fb__facets {
+    gap: var(--cat-space-sm);
+  }
+
+  /* the count keeps its own line rather than being squeezed against the sort */
+  .cat-root .cat-fb__count {
+    margin-left: auto;
+  }
+
+  /* Clear all drops below the pills instead of being pushed off the row */
+  .cat-root .cat-fb__clearall {
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,602 @@
+/* Task distribution chart.
+ *
+ * Tokens (--cat-font-sans, --cat-fs-*, --cat-w-*, --cat-space-*, --cat-elev-*,
+ * --ink, --line, …) are defined by `.cat-root` in catalog.css. This file defines
+ * no design token of its own; the two `--cat-chart-*` custom properties on
+ * `.cat-chart` are component plumbing — one is the card's own surface colour,
+ * needed twice (once as CSS background, once as an SVG `fill`), the other is the
+ * per-bar stagger index set from JSX.
+ *
+ * Type: Pretendard throughout, weight as the hierarchy —
+ *   200/300  nothing here (the big-figure weights live in the stat tiles)
+ *   400      body: the source note, tooltip series names, table cells
+ *   500      UI: legend labels, x-axis task labels, value labels on the bars
+ *   600      labels and totals: .cat-label axis title, column headers, the
+ *            hovered task label, tooltip title and total
+ * Every numeral in the chart — ticks, value labels, table columns, tooltip
+ * values — is tabular, so digits sit on a shared vertical rhythm and do not
+ * jitter when a series is toggled.
+ */
+
+.cat-chart {
+  --cat-chart-surface: var(--paper-2, #f3efe6);
+  --cat-chart-type: var(--cat-font-sans, "Pretendard Variable", Pretendard, system-ui, sans-serif);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-md, 1rem);
+  container-type: inline-size;
+}
+
+/* ── heading row ────────────────────────────────────────────────────────── */
+
+.cat-chart-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--cat-space-md, 1rem) var(--cat-space-lg, 1.5rem);
+  flex-wrap: wrap;
+}
+
+.cat-chart-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cat-space-2xs, 0.3rem);
+  min-width: 0;
+}
+
+.cat-chart-eyebrow {
+  margin: 0;
+}
+
+.cat-chart-title {
+  margin: 0;
+}
+
+.cat-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-xs, 0.5rem);
+  flex-wrap: wrap;
+}
+
+/* The pill is a shared component (catalog.css). Its 36px box is the page's
+ * decision and is not overridden here — but a 36px box is under the 44px touch
+ * target, so the hit area is extended invisibly instead. No pixel moves. */
+.cat-chart-seg .cat-pill {
+  position: relative;
+}
+.cat-chart-seg .cat-pill::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
+}
+
+/* ── the card ───────────────────────────────────────────────────────────── */
+
+.cat-chart-card {
+  background: var(--cat-chart-surface);
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  border-radius: var(--cat-radius-lg, 16px);
+  box-shadow: var(--cat-elev-1, 0 1px 2px rgba(38, 35, 18, 0.05));
+  padding: var(--cat-space-lg, 1.5rem);
+}
+
+@container (max-width: 460px) {
+  .cat-chart-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cat-chart-controls {
+    justify-content: flex-start;
+  }
+}
+
+@container (max-width: 560px) {
+  .cat-chart-card {
+    padding: var(--cat-space-md, 1rem) var(--cat-space-sm, 0.75rem);
+  }
+}
+
+/* ── toolbar: legend left, shape right ──────────────────────────────────── */
+
+.cat-chart-toolbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-sm, 0.75rem) var(--cat-space-md, 1rem);
+  flex-wrap: wrap;
+  margin-bottom: var(--cat-space-md, 1rem);
+  padding-bottom: var(--cat-space-sm, 0.75rem);
+  border-bottom: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+}
+
+.cat-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cat-space-2xs, 0.3rem) var(--cat-space-md, 1rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cat-chart-legend > li {
+  display: inline-flex;
+}
+
+.cat-chart-legend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-xs, 0.45rem);
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0.2rem 0.1rem;
+  margin: 0;
+  min-height: 32px;
+  cursor: pointer;
+  border-radius: var(--cat-radius-sm, 6px);
+  transition: opacity var(--cat-dur-fast, 140ms) var(--cat-ease, ease);
+}
+
+/* Touch. The legend is a secondary control, so it stays compact where there is
+   a mouse and grows to the full target only where a finger is the pointer. */
+@media (pointer: coarse) {
+  .cat-chart-legend-btn {
+    min-height: 44px;
+  }
+}
+
+.cat-chart-legend-btn:hover {
+  opacity: 0.72;
+}
+
+/* Typography lives on the inner span, not the <button>. catalog.css resets
+ * buttons with `:where(.cat-root) :where(button,...) { font: inherit }`, which
+ * is (0,0,0) as authored but is lowered to `.cat-root button` — (0,2,0) — by
+ * any build whose CSS target predates :where() (Vite's default target includes
+ * Safari 14). At that specificity the reset beats a single class, so font-size
+ * and font-family set on the button itself are silently dropped. A span is not
+ * a button and cannot be reached by that reset. */
+.cat-chart-legend-label,
+.cat-chart-legend-static {
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-sm, 0.8125rem);
+  font-weight: var(--cat-w-medium, 500);
+  line-height: var(--cat-lh-snug, 1.3);
+  letter-spacing: var(--cat-tracking-normal, 0);
+  color: var(--ink, #262312);
+}
+
+.cat-chart-legend-btn.is-off .cat-chart-legend-label {
+  color: var(--muted, #5a5236);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  opacity: 0.75;
+}
+
+.cat-chart-legend-btn.is-off .cat-chart-dot {
+  opacity: 0.3;
+}
+
+.cat-chart-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+
+/* A one-series legend is a swatch, not a switch — there is nothing to isolate
+   it from, and the only action a toggle would offer is blanking the chart. */
+.cat-chart-legend-static {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-xs, 0.4rem);
+  color: var(--muted, #5a5236);
+}
+
+/* "10 categories · 29 clips" — the shape of the chart, stated rather than
+   counted off the bars. Numerals semibold and tabular, words regular. */
+.cat-chart-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  margin: 0;
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-sm, 0.8125rem);
+  color: var(--muted, #5a5236);
+  white-space: nowrap;
+}
+
+.cat-chart-count-n {
+  font-weight: var(--cat-w-semibold, 600);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink, #262312);
+}
+
+.cat-chart-count-w {
+  font-weight: var(--cat-w-regular, 400);
+}
+
+.cat-chart-count-sep {
+  width: 3px;
+  height: 3px;
+  align-self: center;
+  border-radius: 50%;
+  background: var(--line-strong, rgba(38, 35, 18, 0.24));
+  margin-inline: 0.25em;
+}
+
+/* ── plot ───────────────────────────────────────────────────────────────── */
+
+.cat-chart-plotwrap {
+  position: relative;
+}
+
+.cat-chart-plotwrap.is-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-bottom: var(--cat-space-2xs, 0.3rem);
+}
+
+/* Sized to the data and centred, never stretched to the container: capping the
+   bar pitch while the plot kept the full container width is what parked the
+   bars in the left fifth of the card with a void to their right. */
+.cat-chart-frame {
+  display: flex;
+  align-items: flex-start;
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.cat-chart-plotwrap.is-scroll .cat-chart-frame {
+  max-width: none;
+}
+
+/* The y axis is its own SVG so it can stay put while the bar strip scrolls
+   under it at 360px. An axis that scrolls out of view takes the only key to the
+   bar heights with it. */
+.cat-chart-axis {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: none;
+}
+
+.cat-chart-axisbg {
+  fill: var(--cat-chart-surface);
+}
+
+.cat-chart-canvas {
+  position: relative;
+  flex: none;
+}
+
+.cat-chart-svg {
+  display: block;
+  overflow: visible;
+}
+
+.cat-chart-skeleton {
+  width: 100%;
+}
+
+.cat-chart-gridline {
+  stroke: var(--line, rgba(38, 35, 18, 0.12));
+  stroke-width: 1;
+}
+
+.cat-chart-baseline {
+  stroke: var(--line-strong, rgba(38, 35, 18, 0.24));
+  stroke-width: 1;
+}
+
+.cat-chart-tick {
+  fill: var(--muted, #5a5236);
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-xs, 0.6875rem);
+  font-weight: var(--cat-w-regular, 400);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-anchor: end;
+}
+
+/* `.cat-label` supplies the family, size, weight and tracking; SVG text needs
+   `fill` rather than `color`, and the anchor is geometry, not type. */
+.cat-chart-svg .cat-chart-axistitle,
+.cat-chart-axis .cat-chart-axistitle {
+  fill: var(--muted, #5a5236);
+  text-anchor: middle;
+  text-transform: uppercase;
+}
+
+.cat-chart-xlabel {
+  fill: var(--muted, #5a5236);
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-xs, 0.6875rem);
+  /* 500, not 400: a hairline stem loses to the antialiasing at 45 degrees. */
+  font-weight: var(--cat-w-medium, 500);
+  text-anchor: end;
+  transition: fill var(--cat-dur-fast, 140ms) var(--cat-ease, ease);
+}
+
+.cat-chart-xlabel.is-active {
+  fill: var(--ink, #262312);
+  font-weight: var(--cat-w-semibold, 600);
+}
+
+.cat-chart-value {
+  /* Knocked out of whatever it sits over: at the top of the tallest bar the
+     label lands on a gridline, and a numeral with a rule through it reads as
+     a rendering fault. */
+  paint-order: stroke fill;
+  stroke: var(--cat-chart-surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  fill: var(--ink, #262312);
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-xs, 0.6875rem);
+  font-weight: var(--cat-w-medium, 500);
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: var(--cat-tracking-normal, 0);
+  text-anchor: middle;
+}
+
+.cat-chart-empty {
+  fill: var(--muted, #5a5236);
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-sm, 0.8125rem);
+  text-anchor: middle;
+}
+
+/* ── bars ───────────────────────────────────────────────────────────────── */
+
+.cat-chart-bar {
+  outline-offset: 1px;
+}
+
+.cat-chart-hit {
+  fill: transparent;
+  transition: fill var(--cat-dur-fast, 140ms) var(--cat-ease, ease);
+}
+
+/* One reveal, on mount and on a change of grouping — the two moments the bars
+   are genuinely new. Capped at 12 steps so a 24-bar strip does not spend
+   600ms arriving. */
+.cat-chart-stack {
+  animation: cat-chart-rise var(--cat-dur-slow, 320ms) var(--cat-ease, ease) backwards;
+  animation-delay: calc(var(--cat-bar-i, 0) * 26ms);
+  transition: opacity var(--cat-dur-fast, 140ms) var(--cat-ease, ease);
+}
+
+@keyframes cat-chart-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Probing one bar dims the rest. This is the only reason to dim anything: it
+   answers "which one am I reading", and it ends the moment the pointer leaves. */
+.cat-chart-bars.is-probing .cat-chart-bar:not(.is-active) .cat-chart-stack {
+  opacity: 0.4;
+}
+
+.cat-chart-bar.is-active .cat-chart-hit {
+  fill: color-mix(in srgb, var(--ink, #262312) 5%, transparent);
+}
+
+/* ── tooltip ────────────────────────────────────────────────────────────── */
+
+.cat-chart-tip {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  min-width: 172px;
+  /* 288 is TIP_MAX_W in TaskDistribution.jsx, which anchors the box against it;
+     the percentage stops it outgrowing the plot on a 360px strip. */
+  max-width: min(288px, 100%);
+  padding: var(--cat-space-sm, 0.6rem) var(--cat-space-md, 0.75rem);
+  border-radius: var(--cat-radius-md, 10px);
+  border: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  background: var(--paper, #ebe6d8);
+  box-shadow: var(--cat-elev-3, 0 12px 28px rgba(38, 35, 18, 0.1));
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-sm, 0.8125rem);
+  line-height: var(--cat-lh-snug, 1.3);
+  color: var(--ink, #262312);
+}
+
+.cat-chart-tip-title {
+  margin: 0 0 var(--cat-space-xs, 0.4rem);
+  font-weight: var(--cat-w-semibold, 600);
+  letter-spacing: var(--cat-tracking-snug, -0.01em);
+  line-height: var(--cat-lh-snug, 1.3);
+}
+
+.cat-chart-tip-rows {
+  margin: 0;
+  padding: 0 0 var(--cat-space-xs, 0.4rem);
+  display: grid;
+  gap: 0.18rem;
+}
+
+.cat-chart-tip-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-md, 0.8rem);
+}
+
+.cat-chart-tip-rows dt {
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-2xs, 0.35rem);
+  min-width: 0;
+  font-weight: var(--cat-w-regular, 400);
+  color: var(--muted, #5a5236);
+}
+
+/* the label needs to be its own box: `text-overflow` does not apply to the
+ * anonymous text of a flex container */
+.cat-chart-tip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-chart-tip-rows dd {
+  margin: 0;
+  flex: none;
+  font-size: var(--cat-fs-xs, 0.75rem);
+  font-weight: var(--cat-w-medium, 500);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.cat-chart-tip-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-md, 0.8rem);
+  margin: 0;
+  padding-top: var(--cat-space-xs, 0.4rem);
+  border-top: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  font-weight: var(--cat-w-semibold, 600);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* No breakdown above it means no rule under nothing. */
+.cat-chart-tip-total.is-only {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.cat-chart-tip-total > span:first-child {
+  font-weight: var(--cat-w-regular, 400);
+  color: var(--muted, #5a5236);
+}
+
+/* ── count table (list mode) ────────────────────────────────────────────
+   Rendered instead of the bars when there are fewer than two clips per bar.
+   Deliberately plain: the point is that there is nothing to see in the shape,
+   only in the counts. A real table, because three aligned columns of data is
+   what it is.
+   ------------------------------------------------------------------------- */
+
+.cat-chart-tablewrap {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.cat-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--cat-chart-type);
+}
+
+.cat-chart-table thead th {
+  padding: 0 0 var(--cat-space-xs, 0.45rem);
+  text-align: right;
+  border-bottom: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  white-space: nowrap;
+}
+
+.cat-chart-table thead th:first-child {
+  text-align: left;
+}
+
+.cat-chart-table tbody th,
+.cat-chart-table tbody td {
+  padding: var(--cat-space-xs, 0.45rem) 0;
+  border-bottom: 1px solid var(--line, rgba(38, 35, 18, 0.12));
+  vertical-align: baseline;
+}
+
+.cat-chart-table tbody tr:last-child th,
+.cat-chart-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cat-chart-table-label {
+  max-width: 0; /* lets the ellipsis engage inside a table cell */
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: var(--cat-fs-sm, 0.875rem);
+  font-weight: var(--cat-w-regular, 400);
+  color: var(--ink, #262312);
+}
+
+/* Column gap, set on the adjacency rather than on the cell class, so it beats
+   the padding shorthand above on specificity + order instead of !important. */
+.cat-chart-table :is(th, td) + :is(th, td) {
+  padding-left: var(--cat-space-lg, 1.5rem);
+}
+
+.cat-chart-table-num {
+  text-align: right;
+  white-space: nowrap;
+  font-size: var(--cat-fs-sm, 0.875rem);
+  font-weight: var(--cat-w-regular, 400);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--muted, #5a5236);
+}
+
+.cat-chart-table-num.is-strong {
+  font-weight: var(--cat-w-medium, 500);
+  color: var(--ink, #262312);
+}
+
+/* ── footnote ───────────────────────────────────────────────────────────── */
+
+.cat-chart-note {
+  margin: var(--cat-space-md, 1rem) 0 0;
+  max-width: var(--cat-measure-prose, 68ch);
+  font-family: var(--cat-chart-type);
+  font-size: var(--cat-fs-xs, 0.75rem);
+  font-weight: var(--cat-w-regular, 400);
+  line-height: var(--cat-lh-normal, 1.5);
+  color: var(--muted, #5a5236);
+  text-wrap: pretty;
+}
+
+/* ── screen-reader summary ──────────────────────────────────────────────── */
+
+.cat-chart-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── reduced motion ─────────────────────────────────────────────────────
+   catalog.css already flattens every duration under the media query; this
+   removes the reveal outright so nothing starts from opacity 0. */
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-chart-stack {
+    animation: none;
+    transition: none;
+  }
+  .cat-chart-legend-btn,
+  .cat-chart-hit,
+  .cat-chart-xlabel {
+    transition: none;
+  }
+}

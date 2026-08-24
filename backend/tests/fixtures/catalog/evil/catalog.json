@@ -1,0 +1,169 @@
+{
+  "schema": "6s-catalog/1.0",
+  "generated_utc": "2026-08-01T00:00:00Z",
+  "collection": {
+    "id": "test-collection",
+    "name": "Test collection",
+    "version": "0.0.1",
+    "description": "Two synthetic clips. Fixture for backend/tests only.",
+    "notice": "Original collection notice.",
+    "vendor": {
+      "name": "6thSense",
+      "url": "https://6thsense.dev",
+      "contact": "data@6thsense.dev"
+    },
+    "license": {
+      "id": "6S-EVAL",
+      "name": "Evaluation sample",
+      "url": "https://6thsense.dev/licence/eval",
+      "summary": "Per-clip rights win."
+    },
+    "totals": {
+      "clips": 2,
+      "hours": 0.018,
+      "tactile_hours": 0.018,
+      "tactile_usable_hours": 0.011,
+      "subjects": 1,
+      "sessions": null,
+      "bytes": 4845858,
+      "countries": [
+        "KR"
+      ],
+      "categories": [
+        "assembly_fastening"
+      ],
+      "date_range": [
+        "2026-03",
+        "2026-03"
+      ]
+    },
+    "paths": {
+      "detail": "clips/{id}.json",
+      "poster": "posters/{id}.jpg",
+      "preview": "previews/{id}.mp4"
+    },
+    "splits": {
+      "train": 2,
+      "val": 0,
+      "test": 0
+    },
+    "sample_archive": {
+      "clip_id": "clip-one",
+      "url": "archives/clip-one.tar.gz",
+      "format": "tar.gz",
+      "bytes": 12,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "facets": {},
+  "benchmark": null,
+  "clips": [
+    {
+      "id": "clip-one",
+      "slug": "clip-one",
+      "title": "Clip clip-one",
+      "description_short": "A short synthetic take used only by the test suite.",
+      "category": "assembly_fastening",
+      "subcategory": "snap_fit",
+      "country": "KR",
+      "recorded_month": "2026-03",
+      "capture": "stereo_egocentric",
+      "duration_s": 32.5,
+      "resolution": [
+        1920,
+        600
+      ],
+      "fps": 30.0,
+      "modalities": [
+        "calibration",
+        "imu",
+        "segcap",
+        "tactile",
+        "video"
+      ],
+      "hands": [
+        "left",
+        "right"
+      ],
+      "subjects": 1,
+      "bytes": 2422929,
+      "split": "train",
+      "rights": {
+        "model_training": "on_request",
+        "commercial_use": "on_request",
+        "redistribution": "denied",
+        "derived_model": "on_request"
+      },
+      "privacy": {
+        "faces_redacted": false,
+        "consent_on_file": true,
+        "pii_review": "pending"
+      },
+      "qa": {
+        "grade": "C",
+        "video_frames_dropped": 0,
+        "tactile_crc_pass_rate": 1.0,
+        "usable_channels": {
+          "left": 289,
+          "right": 300
+        },
+        "tactile_coverage": 0.597
+      },
+      "poster": "../../../../etc/passwd"
+    },
+    {
+      "id": "clip-two",
+      "slug": "clip-two",
+      "title": "Clip clip-two",
+      "description_short": "A short synthetic take used only by the test suite.",
+      "category": "assembly_fastening",
+      "subcategory": "snap_fit",
+      "country": "KR",
+      "recorded_month": "2026-03",
+      "capture": "stereo_egocentric",
+      "duration_s": 32.5,
+      "resolution": [
+        1920,
+        600
+      ],
+      "fps": 30.0,
+      "modalities": [
+        "calibration",
+        "imu",
+        "segcap",
+        "tactile",
+        "video"
+      ],
+      "hands": [
+        "left",
+        "right"
+      ],
+      "subjects": 1,
+      "bytes": 2422929,
+      "split": "train",
+      "rights": {
+        "model_training": "on_request",
+        "commercial_use": "on_request",
+        "redistribution": "denied",
+        "derived_model": "on_request"
+      },
+      "privacy": {
+        "faces_redacted": false,
+        "consent_on_file": true,
+        "pii_review": "pending"
+      },
+      "qa": {
+        "grade": "C",
+        "video_frames_dropped": 0,
+        "tactile_crc_pass_rate": 1.0,
+        "usable_channels": {
+          "left": 289,
+          "right": 300
+        },
+        "tactile_coverage": 0.597
+      },
+      "poster": null,
+      "preview": null
+    }
+  ]
+}

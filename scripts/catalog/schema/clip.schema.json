@@ -1,0 +1,4052 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://6thsense.dev/schema/6s-catalog/1.0/clip.schema.json",
+  "title": "6thSense clip record (6s-catalog/1.0)",
+  "description": "One clip, in full. Fetched on demand when a buyer opens a clip, and validated standalone -- it carries no external $ref, so a buyer's engineer can run it through any draft 2020-12 validator without a registry. It is a strict SUPERSET of the ClipSummary in catalog.schema.json: every summary field appears here with identical name, type and meaning, so the modal can render from either source without a translation layer. Three rules hold throughout. (1) Every asset URL is RELATIVE to the catalog root -- the directory containing catalog.json, NOT the directory containing this file -- so a bundle works unchanged on localhost, behind a signed-URL CDN and behind the portal proxy; the only exception is an outward link to a third party, typed as ExternalUrl. (2) `null` always means 'the ingest could not determine this'. It never means zero, never means false, never means 'none', and the UI must render it as an em-dash, not as 0 and not as an empty cell. Where 'none' is a real, determined answer the schema uses an empty array or an explicit enum value instead. (3) Every object is closed (additionalProperties:false) except `metadata`, which is an intentional verbatim passthrough of whatever the source pipeline emitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "slug",
+    "title",
+    "description_short",
+    "description",
+    "category",
+    "subcategory",
+    "country",
+    "recorded_month",
+    "capture",
+    "duration_s",
+    "resolution",
+    "fps",
+    "modalities",
+    "hands",
+    "subjects",
+    "bytes",
+    "split",
+    "poster",
+    "preview",
+    "rights",
+    "privacy",
+    "qa",
+    "media",
+    "imu_preview",
+    "tactile_preview",
+    "segments",
+    "package_contents",
+    "sync",
+    "calibration",
+    "provenance",
+    "metadata",
+    "known_limitations"
+  ],
+  "properties": {
+    "schema": {
+      "title": "Schema identifier",
+      "description": "Constant discriminator so a consumer can refuse an unknown major version before parsing anything else.",
+      "type": "string",
+      "const": "6s-clip/1.0"
+    },
+    "id": {
+      "$ref": "#/$defs/ClipId"
+    },
+    "slug": {
+      "$ref": "#/$defs/Slug"
+    },
+    "split": {
+      "$ref": "#/$defs/Split"
+    },
+    "title": {
+      "title": "Clip title",
+      "description": "Short human title, sentence case. Identical to the summary's title. Describes the ACTIVITY, not the equipment.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "examples": [
+        "Bimanual industrial bin-picking"
+      ]
+    },
+    "description_short": {
+      "title": "One-line description",
+      "description": "A single sentence, identical to the summary's. null when none was written.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "description": {
+      "title": "Long description",
+      "description": "Several paragraphs of plain prose for the Metadata tab: what the operator did, in what environment, why the clip is useful and what it cannot be used for. Markdown is NOT parsed by the UI -- it renders as preformatted paragraphs split on blank lines -- so do not rely on syntax. null when no prose exists.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "category": {
+      "title": "Primary category",
+      "description": "Top-level taxonomy bucket, lower_snake_case, matching a value in the manifest's facets.category. Required and non-null.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 48,
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "examples": [
+        "manipulation"
+      ]
+    },
+    "subcategory": {
+      "title": "Secondary category",
+      "description": "Finer bucket within the category, lower_snake_case. null when the category has no meaningful subdivision.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 48,
+      "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+      "examples": [
+        "bin_picking"
+      ]
+    },
+    "country": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CountryCode"
+        },
+        {
+          "type": "null",
+          "title": "Country unknown",
+          "description": "Recording country was not supplied. Render an em-dash."
+        }
+      ]
+    },
+    "recorded_month": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/YearMonth"
+        },
+        {
+          "type": "null",
+          "title": "Recording month unknown",
+          "description": "No trustworthy recording date. Render an em-dash."
+        }
+      ]
+    },
+    "capture": {
+      "$ref": "#/$defs/Capture"
+    },
+    "duration_s": {
+      "title": "Duration in seconds",
+      "description": "Wall-clock length as a float in seconds, derived from the media. Never a preformatted 'M:SS' string -- the UI formats it, and a string cannot be summed, sorted or converted.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "examples": [
+        84.6
+      ]
+    },
+    "resolution": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Resolution"
+        },
+        {
+          "type": "null",
+          "title": "Resolution unknown",
+          "description": "No video stream, or the container did not report dimensions."
+        }
+      ]
+    },
+    "fps": {
+      "title": "Delivered frame rate",
+      "description": "Measured frames per second of the delivered video as a float -- 30.06, not 30. null when there is no video stream.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "exclusiveMinimum": 0,
+      "examples": [
+        30.06
+      ]
+    },
+    "modalities": {
+      "title": "Modalities present",
+      "description": "Sorted, duplicate-free list of the streams this clip actually delivers. Only list a modality whose file ships and carries data: an IMU that is present in hardware but emits nothing is NOT an imu modality.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/Modality"
+      }
+    },
+    "hands": {
+      "title": "Instrumented hands",
+      "description": "Which gloves were worn and produced data. [] means none, which is legal and is not the same as null.",
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/Hand"
+      }
+    },
+    "subjects": {
+      "title": "Number of subjects",
+      "description": "Count of distinct people recorded in this clip. null when not established.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "bytes": {
+      "title": "Delivered package size in bytes",
+      "description": "Total size of everything the buyer receives for this clip, as an integer count of bytes. MUST equal the sum of package_contents[].bytes when that list is complete. Always named `bytes`; never `size`, never a megabyte string.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "examples": [
+        159312184
+      ]
+    },
+    "poster": {
+      "title": "Poster still",
+      "description": "Still image for the card and the modal's paused state. Unlike the summary, this key is REQUIRED here: the detail record is fetched standalone and must not depend on the manifest's templates. null means no poster exists and the UI draws its placeholder tile. Accessible name is derived from the title.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AssetUrl"
+        },
+        {
+          "type": "null",
+          "title": "No poster",
+          "description": "No poster image exists for this clip."
+        }
+      ]
+    },
+    "preview": {
+      "title": "Hover preview loop",
+      "description": "Short, silent, looping video for card hover or focus. Required here and nullable. The UI must not autoplay it when prefers-reduced-motion is set.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AssetUrl"
+        },
+        {
+          "type": "null",
+          "title": "No preview",
+          "description": "No preview loop exists for this clip."
+        }
+      ]
+    },
+    "detail": {
+      "title": "Self URL",
+      "description": "Optional. The catalog-root-relative URL of THIS document. Useful for cache validation and for a record that has been copied out of its bundle; harmless to omit.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AssetUrl"
+        },
+        {
+          "type": "null",
+          "title": "Not recorded",
+          "description": "Producer did not embed the self URL."
+        }
+      ]
+    },
+    "rights": {
+      "$ref": "#/$defs/Rights"
+    },
+    "privacy": {
+      "$ref": "#/$defs/Privacy"
+    },
+    "qa": {
+      "$ref": "#/$defs/Qa"
+    },
+    "media": {
+      "$ref": "#/$defs/Media"
+    },
+    "imu_preview": {
+      "title": "IMU chart payload",
+      "description": "Everything the IMU tab needs to draw every reading. null when the clip has no IMU stream, in which case the UI must DISABLE the IMU tab rather than render an empty axis.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ImuPreview"
+        },
+        {
+          "type": "null",
+          "title": "No IMU",
+          "description": "This clip carries no inertial data."
+        }
+      ]
+    },
+    "tactile_preview": {
+      "title": "Tactile chart payload",
+      "description": "Grid geometry, channel census and force traces for the tactile view. null when no glove was worn.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TactilePreview"
+        },
+        {
+          "type": "null",
+          "title": "No tactile",
+          "description": "This clip carries no tactile data."
+        }
+      ]
+    },
+    "segments": {
+      "title": "Time segments (Segcap tab)",
+      "description": "Temporal annotation of the clip, in ascending t0_s order. An EMPTY array is a determined answer meaning 'this clip is not annotated' -- and when it is empty, known_limitations MUST say so in words. The UI disables the Segcap tab on an empty array.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Segment"
+      }
+    },
+    "package_contents": {
+      "title": "Delivered file manifest (H2)",
+      "description": "Every file in the buyer's package, with its byte count and SHA-256, so integrity is checkable without downloading a second manifest. This is the same information as the package's checksums.sha256, restated in machine form. An empty array means the package has not been assembled yet.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PackageEntry"
+      }
+    },
+    "sync": {
+      "title": "Synchronisation report (H1, H3)",
+      "description": "Measured, per-clip synchronisation numbers. null only when the clip has a single stream and synchronisation is vacuous; any multi-stream clip MUST populate it. `synced: true` is explicitly not an acceptable substitute and this schema offers no such field.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Sync"
+        },
+        {
+          "type": "null",
+          "title": "Single stream",
+          "description": "Only one stream; nothing to synchronise."
+        }
+      ]
+    },
+    "calibration": {
+      "title": "Sensor calibration (H7)",
+      "description": "Camera intrinsics, camera-IMU extrinsics and time offset, IMU noise characteristics and tactile geometry. null when nothing has been calibrated -- which for a wide-FoV rig is a hard rejection, so it should be rare and loud.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Calibration"
+        },
+        {
+          "type": "null",
+          "title": "Uncalibrated",
+          "description": "No calibration exists for this clip."
+        }
+      ]
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "metadata": {
+      "title": "Source metadata, verbatim",
+      "description": "The upstream pipeline's own metadata document, copied in BYTE-FOR-BYTE with no key renaming, no unit conversion, no pruning and no reordering of meaning. This is the ONLY object in the contract with additionalProperties:true, and that is deliberate: it guarantees the catalog is lossless with respect to whatever the capture pipeline knew, so a buyer's engineer can always recover the original. Everything the buyer-facing grid needs is LIFTED to the top level of this record precisely so that nothing ever has to parse this blob at render time. Set to null only when the source produced no metadata document at all.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "schema": {
+          "title": "Source schema tag",
+          "description": "The source pipeline's own schema identifier, e.g. 'egotac-1.0'. Strongly recommended so a consumer can dispatch on it, but not required, because we do not control what upstream emits.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "known_limitations": {
+      "title": "Known limitations",
+      "description": "Plain-language statements of what this clip cannot support, one per entry, written for a buyer's engineer rather than for marketing. Shown verbatim in the Metadata tab. An EMPTY array is an affirmative claim that there are none, and is almost never true: if a limitation has not been looked for, that absence is itself a limitation and belongs in this list. Anything that would embarrass us if a buyer found it first goes here.",
+      "type": "array",
+      "items": {
+        "title": "Limitation",
+        "description": "One limitation, stated as a fact rather than a hedge.",
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000
+      }
+    }
+  },
+  "$defs": {
+    "AssetUrl": {
+      "title": "Relative asset URL",
+      "description": "A path to a file inside this catalog bundle, resolved against the CATALOG ROOT (the directory containing catalog.json), not against this record's own location. MUST be relative: no scheme, no protocol-relative '//host', no leading '/', no leading './' or '../', no embedded '/../', no whitespace. Identical definition to catalog.schema.json#/$defs/AssetUrl.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!//)(?!/)(?!\\.\\.?/)(?!.*/\\.\\./)[^\\s]+$",
+      "examples": [
+        "media/ego-20260823-000821-16a260/video/stereo_upright.mp4"
+      ]
+    },
+    "ExternalUrl": {
+      "title": "Absolute third-party URL",
+      "description": "An absolute https URL pointing outside the bundle: a licence deed, a vendor page, a citation. The only legal exception to the relative-URL rule. Plain http is rejected because the catalog is served over TLS and mixed content is blocked.",
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^https://[^\\s]+$",
+      "examples": [
+        "https://creativecommons.org/licenses/by/4.0/"
+      ]
+    },
+    "LicenseUrl": {
+      "title": "Licence location",
+      "description": "Either a licence file shipped inside the bundle (relative asset URL) or a public licence deed (absolute https URL).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AssetUrl"
+        },
+        {
+          "$ref": "#/$defs/ExternalUrl"
+        }
+      ]
+    },
+    "ClipId": {
+      "title": "Stable clip identifier",
+      "description": "Permanent machine key, derived from the source take id by lowercasing and collapsing every run of non-alphanumeric characters to a single hyphen. Stable for the life of the clip. Identical definition to catalog.schema.json#/$defs/ClipId.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "examples": [
+        "ego-20260823-000821-16a260"
+      ]
+    },
+    "Slug": {
+      "title": "URL path segment",
+      "description": "Human-readable URL form derived from the title, unique within the collection, falling back to the id when no usable title exists.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "examples": [
+        "bimanual-bin-picking-16a260"
+      ]
+    },
+    "CountryCode": {
+      "title": "ISO 3166-1 alpha-2 country code",
+      "description": "Upper-case two-letter code for where the clip was RECORDED. Cannot be inferred from a UTC offset and is null when it was not supplied by hand. This collection is captured in two places only: `CN` (mainland China) and `HK` (Hong Kong SAR), which are two separate alpha-2 codes and not one with a subdivision.",
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "examples": [
+        "CN",
+        "HK"
+      ]
+    },
+    "YearMonth": {
+      "title": "Year-month",
+      "description": "Recording month as YYYY-MM. Deliberately coarser than a date so the catalog does not publish a per-clip timeline of an identifiable operator's movements.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "examples": [
+        "2026-08"
+      ]
+    },
+    "Instant": {
+      "title": "UTC instant",
+      "description": "RFC 3339 timestamp in UTC with a literal trailing Z. Local-time strings with an offset belong in provenance.recorded_local, which is typed separately and documented as such.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$",
+      "examples": [
+        "2026-08-23T09:26:23Z"
+      ]
+    },
+    "Sha256": {
+      "title": "SHA-256 digest",
+      "description": "Lower-case hex SHA-256 of a file's bytes, 64 characters. Upper case is rejected so string comparison against `sha256sum` output is exact.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Split": {
+      "title": "Evaluation split assignment",
+      "description": "Which of the published train / val / test partitions this clip belongs to (H10). Identical name, type and meaning to catalog.schema.json#/$defs/Split. null means unassigned, which the UI renders as an em-dash; a buyer must then assume nothing and fit their own partition.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "train",
+        "val",
+        "test",
+        null
+      ]
+    },
+    "Capture": {
+      "title": "Capture rig class",
+      "description": "Which camera rig produced the clip. Drives the Stereo/Mono toggle and whether the detail view renders one pane or the side-by-side pair with LEFT CAMERA / RIGHT CAMERA labels. Closed enum: adding a rig class is a minor version bump.",
+      "type": "string",
+      "enum": [
+        "stereo_egocentric",
+        "mono_egocentric"
+      ]
+    },
+    "Modality": {
+      "title": "Data modality",
+      "description": "One kind of stream present in the delivered package. 'segcap' is time-segmented captions/labels. 'calibration' means a machine-readable calibration file ships, not that the data is in physical units. Every value in this enum has a file pointer in `media` and a quality block that describes it; a modality with nowhere to point cannot be listed, because a chip on the card that resolves to no file and no quality metadata is an overstatement. `audio`, `hand_pose` and `depth` were removed in 1.1 for exactly that reason and return only when `media` gains a slot for them.",
+      "type": "string",
+      "enum": [
+        "video",
+        "tactile",
+        "imu",
+        "segcap",
+        "calibration"
+      ]
+    },
+    "Hand": {
+      "title": "Instrumented hand",
+      "description": "A hand for which tactile data was recorded.",
+      "type": "string",
+      "enum": [
+        "left",
+        "right"
+      ]
+    },
+    "Resolution": {
+      "title": "Pixel dimensions",
+      "description": "Exactly [width, height] in pixels. For a side-by-side stereo pane this is the composite width: a 960x600 pair is [1920, 600].",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "examples": [
+        [
+          1920,
+          600
+        ]
+      ]
+    },
+    "Grade": {
+      "title": "Buyer-facing quality grade",
+      "description": "Single-letter delivery quality, computed by the published deterministic rule in CONTRACT.md and overridable downward, never upward. A: no check result is 'warn' or 'fail', zero dropped video frames, tactile CRC pass >= 0.9999, usable channels >= 60% of readout sites on every instrumented hand, measured max alignment error <= 33 ms. B: within H2 tolerance -- dropout <= 1%, CRC >= 0.999, usable >= 40%. C: accepted with a named caveat spelled out in known_limitations. Clips not dispositioned 'accepted' never reach the catalog.",
+      "type": "string",
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "Permission": {
+      "title": "Rights permission value",
+      "description": "'granted' = the buyer may do this today under the stated licence. 'denied' = they may not, and no negotiation is currently possible. 'on_request' = not granted by default but obtainable by agreement. There is deliberately no null and no 'unknown': if the rights review has not happened, the correct and only honest value is 'denied'.",
+      "type": "string",
+      "enum": [
+        "granted",
+        "denied",
+        "on_request"
+      ]
+    },
+    "Rights": {
+      "title": "Per-clip rights (H5)",
+      "description": "Four independent, per-clip permissions plus the paperwork that backs them. Never collapsed into a single licence label: licence, not content, is what disqualifies most corpora for a commercial buyer. The four key names are the short form; the EGXO equivalents are model_training_permission, commercial_use_permission, redistribution_permission and derived_model_permission. The four permission keys and their values are byte-identical to the summary's rights object in catalog.schema.json.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_training",
+        "commercial_use",
+        "redistribution",
+        "derived_model",
+        "license_id",
+        "license_name",
+        "license_url",
+        "restrictions",
+        "attribution_required",
+        "holder",
+        "determined_utc"
+      ],
+      "properties": {
+        "model_training": {
+          "title": "Model training permission",
+          "description": "May the buyer train or fine-tune a model on this clip? EGXO: model_training_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "commercial_use": {
+          "title": "Commercial use permission",
+          "description": "May the resulting work be used commercially, including in a shipped product? EGXO: commercial_use_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "redistribution": {
+          "title": "Redistribution permission",
+          "description": "May the buyer pass the raw clip to a third party, including a subsidiary or a compute provider? EGXO: redistribution_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "derived_model": {
+          "title": "Derived model permission",
+          "description": "May a model whose weights were influenced by this clip be released or sold? Separate from model_training because consent to train is routinely given without consent to publish weights. EGXO: derived_model_permission.",
+          "$ref": "#/$defs/Permission"
+        },
+        "license_id": {
+          "title": "Licence identifier",
+          "description": "SPDX identifier where one applies, or a vendor token for a bespoke agreement. null when no licence has been settled for this clip.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 64,
+          "examples": [
+            "CC-BY-4.0"
+          ]
+        },
+        "license_name": {
+          "title": "Licence name",
+          "description": "Display name of the clip's licence.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "license_url": {
+          "title": "Licence text",
+          "description": "Bundled licence file (relative) or public deed (absolute https). null when no text exists.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LicenseUrl"
+            },
+            {
+              "type": "null",
+              "title": "No licence text",
+              "description": "No licence document exists for this clip."
+            }
+          ]
+        },
+        "restrictions": {
+          "title": "Named restrictions",
+          "description": "Specific, actionable conditions beyond the four permissions -- 'named recipient only', 'no publication of frames containing the operator', 'territory limited to EEA'. Each entry is one restriction in plain language. [] means there are none beyond the licence, and is a determined answer.",
+          "type": "array",
+          "items": {
+            "title": "Restriction",
+            "description": "One restriction, stated so a buyer can comply with it without asking.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "attribution_required": {
+          "title": "Attribution required",
+          "description": "true if downstream use must credit the vendor. null when not determined.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "holder": {
+          "title": "Rights holder",
+          "description": "Legal entity that owns or controls the rights being granted. A buyer's counsel needs a named counterparty. null when unresolved.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "determined_utc": {
+          "title": "Rights determination time",
+          "description": "When this rights record was last reviewed by a human. null means never reviewed, in which case all four permissions must read 'denied'.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null",
+              "title": "Never reviewed",
+              "description": "No human rights review has taken place."
+            }
+          ]
+        },
+        "notes": {
+          "title": "Rights notes",
+          "description": "Optional free text for anything the structured fields cannot carry. Never the place to state a permission -- only the enums are authoritative.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        }
+      }
+    },
+    "Privacy": {
+      "title": "Privacy record (H6)",
+      "description": "Notice, consent, redaction, review and retention for the people captured in this clip. A strict superset of the summary's privacy object: faces_redacted, consent_on_file and pii_review carry identical names, types and meaning.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "faces_redacted",
+        "consent_on_file",
+        "pii_review",
+        "notice_given",
+        "identifiable_persons",
+        "identifiable_premises",
+        "redaction",
+        "retention",
+        "consent",
+        "reidentification_prohibited"
+      ],
+      "properties": {
+        "faces_redacted": {
+          "title": "Faces redacted",
+          "description": "true if every identifiable face has been blurred or masked. false means identifiable faces are visible. null means no assessment -- materially worse than false, and the UI must show an em-dash, never 'No'.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "consent_on_file": {
+          "title": "Subject consent on file",
+          "description": "true if a signed release from every recorded person covers the permissions asserted in `rights`. false means it does not exist or does not cover them.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "pii_review": {
+          "title": "PII review disposition",
+          "description": "Outcome of the human PII review. 'not_required' is only legal when the footage provably contains no identifiable person, premises, screen, document or plate.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "passed",
+            "pending",
+            "failed",
+            "not_required",
+            null
+          ]
+        },
+        "notice_given": {
+          "title": "Notice to captured persons",
+          "description": "true if everyone appearing in the footage, including bystanders, was told they were being recorded and for what purpose. Required by H6 independently of consent.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "identifiable_persons": {
+          "title": "Identifiable persons in frame",
+          "description": "How many distinct people are identifiable in the delivered media AFTER redaction. 0 is a determined answer and differs from null.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "identifiable_premises": {
+          "title": "Identifiable premises",
+          "description": "true if the location -- a named workshop, a visible address, a distinctive interior -- can be identified from the footage.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "redaction": {
+          "title": "Redaction record",
+          "description": "What was redacted, under which policy version, by whom, and when. H6 requires the record, not just the outcome. null means no redaction pass has been run.",
+          "oneOf": [
+            {
+              "title": "Redaction pass",
+              "description": "A completed redaction pass.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "policy_version",
+                "targets",
+                "method",
+                "reviewer",
+                "reviewed_utc",
+                "items_redacted"
+              ],
+              "properties": {
+                "policy_version": {
+                  "title": "Policy version",
+                  "description": "Version string of the written redaction policy applied. Without it the record is unauditable.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 64
+                },
+                "targets": {
+                  "title": "Redaction targets",
+                  "description": "Categories the pass looked for. Listing a target asserts it was searched for, not that instances were found.",
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "title": "Target",
+                    "description": "A category of personally identifying content.",
+                    "type": "string",
+                    "enum": [
+                      "faces",
+                      "license_plates",
+                      "screens",
+                      "documents",
+                      "voices",
+                      "tattoos",
+                      "badges"
+                    ]
+                  }
+                },
+                "method": {
+                  "title": "Redaction method",
+                  "description": "How targets were obscured. 'none' means the pass ran and found nothing to redact.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "blur",
+                    "mask",
+                    "pixelate",
+                    "crop",
+                    "mute",
+                    "none",
+                    null
+                  ]
+                },
+                "reviewer": {
+                  "title": "Human reviewer",
+                  "description": "Pseudonymous id of the person who verified the pass. Never a real name -- the reviewer is a data subject too.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 64,
+                  "examples": [
+                    "rev-02"
+                  ]
+                },
+                "reviewed_utc": {
+                  "title": "Review time",
+                  "description": "When the human review completed.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Instant"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not reviewed",
+                      "description": "Automated pass only; no human sign-off."
+                    }
+                  ]
+                },
+                "items_redacted": {
+                  "title": "Items redacted",
+                  "description": "Count of distinct instances obscured. 0 with a completed pass means nothing needed redacting.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "record_url": {
+                  "title": "Redaction log",
+                  "description": "Optional relative URL of the per-instance redaction log shipped with the clip.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "No log",
+                      "description": "No machine-readable redaction log ships."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No redaction pass",
+              "description": "No redaction has been performed on this clip."
+            }
+          ]
+        },
+        "retention": {
+          "title": "Retention and deletion",
+          "description": "How long the source material is kept and how a subject exercises deletion. H6 requires a stated policy, not an implied one. null means none exists, which should block release.",
+          "oneOf": [
+            {
+              "title": "Retention policy",
+              "description": "The clip's retention and deletion terms.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "policy",
+                "delete_after_utc",
+                "deletion_request_contact"
+              ],
+              "properties": {
+                "policy": {
+                  "title": "Policy summary",
+                  "description": "One or two sentences a subject can understand about how long material is kept and why.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "delete_after_utc": {
+                  "title": "Scheduled deletion",
+                  "description": "Instant after which the source material will be destroyed. null when retention is open-ended, which must then be stated in `policy`.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Instant"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Open ended",
+                      "description": "No scheduled deletion date."
+                    }
+                  ]
+                },
+                "deletion_request_contact": {
+                  "title": "Deletion request contact",
+                  "description": "Monitored address a subject or buyer uses to request deletion.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 254
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No policy",
+              "description": "No retention or deletion policy exists for this clip."
+            }
+          ]
+        },
+        "consent": {
+          "title": "Consent detail",
+          "description": "What the signed releases actually cover. A release that permits recording but not model training is a common and expensive surprise, so the two are recorded separately. null when no consent process exists.",
+          "oneOf": [
+            {
+              "title": "Consent record",
+              "description": "Scope of the consent obtained.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "subjects_consented",
+                "covers_model_training",
+                "covers_redistribution",
+                "document_ref"
+              ],
+              "properties": {
+                "subjects_consented": {
+                  "title": "Subjects who consented",
+                  "description": "How many of the clip's subjects have signed. Must equal the clip's `subjects` before consent_on_file may be true.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "covers_model_training": {
+                  "title": "Consent covers model training",
+                  "description": "true if the signed release explicitly permits training. If false or null, rights.model_training must not be 'granted'.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "covers_redistribution": {
+                  "title": "Consent covers redistribution",
+                  "description": "true if the signed release explicitly permits onward distribution. If false or null, rights.redistribution must not be 'granted'.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "document_ref": {
+                  "title": "Consent document reference",
+                  "description": "Internal reference to the signed document. Never the document itself and never a subject's name -- consent forms are not published in the catalog.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 128
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No consent record",
+              "description": "No consent has been obtained or recorded."
+            }
+          ]
+        },
+        "reidentification_prohibited": {
+          "title": "Re-identification prohibited",
+          "description": "Asserts the licence forbids any attempt to re-identify a subject, a premises or a device from this data. Required by H6; false is a legal position we do not take, so in practice this is always true.",
+          "type": "boolean"
+        },
+        "notes": {
+          "title": "Privacy notes",
+          "description": "Optional free text for anything the structured fields cannot carry.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        }
+      }
+    },
+    "QaCheck": {
+      "title": "QA check (H4)",
+      "description": "One acceptance check, carrying its measured value AND the threshold it was measured against. H4 requires both: a result without a measurement is an assertion, and a measurement without a threshold cannot be re-derived. The governing rule is that a warning is never converted into acceptance because a volume target is at risk.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_id",
+        "category",
+        "result",
+        "measured_value",
+        "threshold"
+      ],
+      "properties": {
+        "check_id": {
+          "title": "Check identifier",
+          "description": "Stable lower_snake_case id, unique within this clip, e.g. sync_max_skew_ms or video_frame_timestamp_parity. Stability matters: buyers diff these across deliveries.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+        },
+        "category": {
+          "title": "Check category",
+          "description": "Which class of defect the check guards against. Closed enum so a buyer can roll up results across a delivery.",
+          "type": "string",
+          "enum": [
+            "sync",
+            "integrity",
+            "coverage",
+            "calibration",
+            "privacy",
+            "rights",
+            "media",
+            "tactile",
+            "annotation"
+          ]
+        },
+        "result": {
+          "title": "Check result",
+          "description": "'pass' = within threshold. 'warn' = outside the preferred bound but inside the acceptance bound; it must be reflected in the grade and in known_limitations. 'fail' = outside the acceptance bound; a clip with any fail cannot be dispositioned 'accepted'. 'not_run' = the check was not executed, which is never evidence of passing.",
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "not_run"
+          ]
+        },
+        "measured_value": {
+          "title": "Measured value",
+          "description": "What was actually observed. A number for numeric checks, a string for enum-valued ones, a boolean for structural ones. null is legal ONLY when result is 'not_run'.",
+          "type": [
+            "number",
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "threshold": {
+          "title": "Threshold",
+          "description": "The bound the measurement was compared against, in the same units. null is legal only for structural checks whose bound is 'must be true', which must then be stated in `note`.",
+          "type": [
+            "number",
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "units": {
+          "title": "Units",
+          "description": "Machine-readable unit for measured_value and threshold, e.g. 'ms', 'px', 'fraction', 'count'. Omit for non-numeric checks.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 32
+        },
+        "note": {
+          "title": "Note",
+          "description": "One line explaining a warn or fail, or naming the method for a check whose bound is not a number.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        }
+      }
+    },
+    "Qa": {
+      "title": "QA record (H2, H4)",
+      "description": "The full quality record. A strict superset of the summary's qa object: grade, video_frames_dropped, tactile_crc_pass_rate and usable_channels carry identical names, types and meaning. H4 requires exactly one disposition per clip, and every check must carry check_id, category, result, measured_value and threshold.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grade",
+        "disposition",
+        "video_frames_dropped",
+        "tactile_crc_pass_rate",
+        "usable_channels",
+        "tactile_coverage",
+        "video_frames_delivered",
+        "video_timestamps",
+        "frame_count_matches_timestamps",
+        "checksums_verified",
+        "checks",
+        "checks_warn",
+        "checks_fail",
+        "sync_validated"
+      ],
+      "properties": {
+        "grade": {
+          "$ref": "#/$defs/Grade"
+        },
+        "tactile_coverage": {
+          "title": "Tactile channel coverage (worst hand)",
+          "description": "usable_channels on the WORST instrumented hand over that hand's readout sites, in [0,1]. Identical to the summary field. null when no hand was instrumented, which is not 0.0.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sync_validated": {
+          "title": "Alignment independently validated",
+          "description": "true when a common-mode physical event corroborated this clip's stream alignment; false when nothing did and the alignment rests on the shared host clock; null when the clip ships no `sync` record. Promoted into the summary because a QA grade shown without it lets a card imply a quality the sync record does not support -- the fact was previously legible only by opening the Calib & sync tab and reading its tail.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disposition": {
+          "title": "QA disposition (H4)",
+          "description": "Exactly one disposition per clip. Only 'accepted' clips appear in the catalog manifest at all; the other three exist so an internal build can carry the full set and the publish step can filter on one field. Never convert a warning into acceptance because a volume target is at risk.",
+          "type": "string",
+          "enum": [
+            "accepted",
+            "needs_rework",
+            "quarantined",
+            "rejected"
+          ]
+        },
+        "video_frames_dropped": {
+          "title": "Video frames dropped",
+          "description": "Absolute count of frames the capture pipeline lost, not a rate. 0 is a real value and is not null. H2 alerts above 1% of delivered frames.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "video_frames_delivered": {
+          "title": "Video frames delivered",
+          "description": "Number of frames actually present in the delivered container. H2 requires this to equal video_timestamps exactly.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "video_timestamps": {
+          "title": "Video timestamp count",
+          "description": "Number of rows in the per-frame timestamp file. H2: delivered frame count MUST equal timestamp count. Reporting both separately is what makes the equality checkable rather than asserted.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "frame_count_matches_timestamps": {
+          "title": "Frame/timestamp parity (H2)",
+          "description": "true when video_frames_delivered equals video_timestamps. Stored rather than derived so a consumer sees the verdict even when either count is null.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "tactile_crc_pass_rate": {
+          "title": "Tactile CRC pass rate (worst hand)",
+          "description": "Fraction in [0,1] of tactile frames whose on-wire CRC verified, taken as the MINIMUM across instrumented hands so the headline never flatters a clip with one good glove. Identical to the summary field.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tactile_crc_pass_rate_by_hand": {
+          "title": "Tactile CRC pass rate per hand",
+          "description": "Per-hand CRC pass fractions. Omit or null when there is no tactile stream.",
+          "oneOf": [
+            {
+              "title": "Per-hand rates",
+              "description": "CRC pass fraction for each instrumented hand.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "left",
+                "right"
+              ],
+              "properties": {
+                "left": {
+                  "title": "Left CRC pass rate",
+                  "description": "Fraction in [0,1]; null when the hand was not instrumented.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "right": {
+                  "title": "Right CRC pass rate",
+                  "description": "Fraction in [0,1]; null when the hand was not instrumented.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No tactile",
+              "description": "No tactile stream on this clip."
+            }
+          ]
+        },
+        "tactile_frames_lost": {
+          "title": "Tactile frames lost per hand",
+          "description": "Absolute count of tactile frames missing from each hand's stream, proven by sequence-number gaps rather than inferred. Loss must be provable, not asserted.",
+          "oneOf": [
+            {
+              "title": "Per-hand loss",
+              "description": "Lost frame count for each instrumented hand.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "left",
+                "right"
+              ],
+              "properties": {
+                "left": {
+                  "title": "Left frames lost",
+                  "description": "Count; null when the hand was not instrumented.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "right": {
+                  "title": "Right frames lost",
+                  "description": "Count; null when the hand was not instrumented.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No tactile",
+              "description": "No tactile stream on this clip."
+            }
+          ]
+        },
+        "usable_channels": {
+          "title": "Usable tactile channels per hand",
+          "description": "Channels that are both live AND stable, per hand. Quote this, never the size of the readout grid. Identical to the summary field.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "left",
+            "right"
+          ],
+          "properties": {
+            "left": {
+              "title": "Usable channels, left hand",
+              "description": "Live-and-stable count; null when the hand was not instrumented.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "right": {
+              "title": "Usable channels, right hand",
+              "description": "Live-and-stable count; null when the hand was not instrumented.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "checksums_verified": {
+          "title": "Checksums verified",
+          "description": "true when every entry in package_contents was re-hashed at package time and matched. H2 requires the SHA-256 manifest to match. null means the check was not run, which is not evidence of a match.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "checks": {
+          "title": "Acceptance checks (H4)",
+          "description": "Every check that was run, each with its measured value and threshold. An EMPTY array asserts that no automated check was run at all, which cannot support a grade of A and must be reflected in known_limitations.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QaCheck"
+          }
+        },
+        "notes": {
+          "title": "QA notes",
+          "description": "Optional free text. Never the place to state a result -- only `checks` and `disposition` are authoritative.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "checks_warn": {
+          "title": "Checks that missed their preferred bound",
+          "description": "Count of `checks` entries whose `result` is `warn`. Derived from `checks` and published so the card can say 'accepted, 3 warns' rather than 'accepted'. A disposition with its warnings dropped is the H4 failure mode this field exists to make impossible.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_fail": {
+          "title": "Checks outside the acceptance bound",
+          "description": "Count of `checks` entries whose `result` is `fail`. Any fail forces disposition `quarantined`, so this is 0 in every published record -- published anyway so the invariant is checkable rather than trusted.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Media": {
+      "title": "Delivered media locations",
+      "description": "Where every stream lives, as catalog-root-relative URLs. This object carries FILE POINTERS and facts that are properties of a file (its codec, its layout); scalar facts about the clip as a whole -- duration, resolution, fps -- live at the top level and are not repeated here, so there is exactly one source of truth for each. Every member is required and nullable; null means that stream is not delivered.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "video",
+        "imu",
+        "tactile",
+        "segcap",
+        "calibration",
+        "docs",
+        "archive"
+      ],
+      "properties": {
+        "video": {
+          "title": "Video files",
+          "description": "The delivered video and its per-frame timing index. null when the clip has no video.",
+          "oneOf": [
+            {
+              "title": "Video",
+              "description": "Video file pointers and per-file facts.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "stereo_sbs",
+                "left",
+                "right",
+                "mono",
+                "frame_times",
+                "layout",
+                "codec",
+                "source_resolution",
+                "frames"
+              ],
+              "properties": {
+                "stereo_sbs": {
+                  "title": "Side-by-side stereo file",
+                  "description": "Single file holding both eyes in one frame. This is the primary asset for a stereo clip and is what the detail view's dark video panel plays, splitting it in CSS with a hairline down the middle and the LEFT CAMERA / RIGHT CAMERA corner labels.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No composite stereo file."
+                    }
+                  ]
+                },
+                "left": {
+                  "title": "Left eye file",
+                  "description": "Separately encoded left eye, when one ships. Optional even for stereo clips: most consumers prefer the composite.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No separate left-eye file."
+                    }
+                  ]
+                },
+                "right": {
+                  "title": "Right eye file",
+                  "description": "Separately encoded right eye, when one ships.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No separate right-eye file."
+                    }
+                  ]
+                },
+                "mono": {
+                  "title": "Monocular file",
+                  "description": "The single video for a mono_egocentric clip. Exactly one of `mono` and `stereo_sbs` is normally non-null, matching the clip's `capture` value.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No monocular file."
+                    }
+                  ]
+                },
+                "overview": {
+                  "title": "Tactile overlay render",
+                  "description": "A rendered composite of this clip: the camera frame with the tactile stream drawn over it -- both modelled palms, the 22x22 raw taxel grid and the per-finger force bars, all advancing with the video. It is the only asset that lets a reader watch the tactile stream and the video move together in a browser, without a loader and without the withheld arrays, so the detail view offers it as the default view. Pre-composed: it plays whole, and must never be split down the middle the way `stereo_sbs` is. It is a render OF the delivered files and never a stand-in for them -- the clip's duration, resolution and fps describe the camera feed, not this.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not rendered",
+                      "description": "No overlay render ships for this take."
+                    }
+                  ]
+                },
+                "closeup": {
+                  "title": "Force transient close-up",
+                  "description": "One named taxel through one real contact, slowed 16x, so the shape of a press -- onset, peak, release -- is legible as motion rather than only as a line on the peak-series chart. Secondary to `overview`: it evidences a single channel, not the whole synchronised stream.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not rendered",
+                      "description": "No force close-up ships for this take."
+                    }
+                  ]
+                },
+                "frame_times": {
+                  "title": "Per-frame timestamp index",
+                  "description": "CSV with a header row and columns frame_idx,host_us giving each frame's true arrival time on the reference clock. Indispensable whenever the container is constant-frame-rate but arrival was variable: a consumer must index by frame_idx and look the time up here, and must NEVER seek the container by timestamp. null means no per-frame timing ships, which fails H2's frame-count-equals-timestamp-count rule.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No per-frame timing index ships."
+                    }
+                  ]
+                },
+                "layout": {
+                  "title": "Eye layout",
+                  "description": "How the two eyes are arranged inside a composite frame. 'side_by_side_lr' is [left | right]. Get this wrong and every disparity flips sign, so it is verified by measurement, not by a label on the rig.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "side_by_side_lr",
+                    "side_by_side_rl",
+                    "top_bottom_lr",
+                    "top_bottom_rl",
+                    "single",
+                    null
+                  ]
+                },
+                "codec": {
+                  "title": "Codec",
+                  "description": "Delivered codec, plus the transcode history if the file is not the original -- e.g. 'h264 (from sensor MJPEG, one re-encode)'. A buyer needs to know how many generations they are from the sensor.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                },
+                "source_resolution": {
+                  "title": "Source resolution",
+                  "description": "Raw sensor dimensions before cropping or scaling, when they differ from the delivered `resolution` at the top level. null when the delivery is the source.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Resolution"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Same as delivered",
+                      "description": "No rescaling was applied."
+                    }
+                  ]
+                },
+                "frames": {
+                  "title": "Frame count",
+                  "description": "Number of frames in the delivered container. Must equal qa.video_frames_delivered.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "constant_frame_rate": {
+                  "title": "Container is CFR",
+                  "description": "true when the container is encoded at a constant frame rate. If true while real arrival times were variable, container PTS diverges from true time and `timing_note` must quantify the divergence.",
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "timing_note": {
+                  "title": "Timing caveat",
+                  "description": "One paragraph quantifying any divergence between container timestamps and true arrival times, with measured mean and worst-case values. Omit only when the container timing is exact.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "orientation_note": {
+                  "title": "Orientation caveat",
+                  "description": "How the delivered frames relate to the raw sensor output -- rotations, per-eye crops, and whether the mount inverts which sensor is physically left. This is where an inverted rig gets disclosed rather than silently corrected.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1500
+                },
+                "master_note": {
+                  "title": "Archival master",
+                  "description": "Where the untouched original lives and how to request it, when the delivered file is a re-encode.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No video",
+              "description": "This clip has no video stream."
+            }
+          ]
+        },
+        "imu": {
+          "title": "IMU files",
+          "description": "Full-rate inertial data as delivered to the buyer. Distinct from imu_preview, which is the render-ready payload for the chart; the two MAY point at the same sidecar. null when there is no IMU stream.",
+          "oneOf": [
+            {
+              "title": "IMU",
+              "description": "Inertial file pointers.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "csv",
+                "f32"
+              ],
+              "properties": {
+                "csv": {
+                  "title": "IMU CSV",
+                  "description": "Human-readable full-rate stream with a header row: t_s,ax,ay,az,gx,gy,gz. The analysis form.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No CSV form ships."
+                    }
+                  ]
+                },
+                "f32": {
+                  "title": "IMU binary",
+                  "description": "Little-endian float32 sidecar, headerless, channel-interleaved. The render form; see ImuPreview.sidecar for its exact layout.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No binary form ships."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No IMU",
+              "description": "This clip has no inertial stream."
+            }
+          ]
+        },
+        "tactile": {
+          "title": "Tactile files",
+          "description": "Per-hand tactile arrays, their geometry sidecar and any rendered stills. null when no glove was worn.",
+          "oneOf": [
+            {
+              "title": "Tactile",
+              "description": "Tactile file pointers.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "left",
+                "right",
+                "preview_png",
+                "layout"
+              ],
+              "properties": {
+                "left": {
+                  "title": "Left glove array",
+                  "description": "Compressed array file holding raw counts, per-frame timestamps, sequence numbers, CRC flags, the per-taxel baseline and all three channel masks. null when the left hand was not instrumented.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not instrumented",
+                      "description": "No left glove on this clip."
+                    }
+                  ]
+                },
+                "right": {
+                  "title": "Right glove array",
+                  "description": "Same structure as `left`, for the right hand.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not instrumented",
+                      "description": "No right glove on this clip."
+                    }
+                  ]
+                },
+                "preview_png": {
+                  "title": "Rendered stills",
+                  "description": "Pre-rendered heatmap stills, sampled ACROSS the force distribution rather than at the peak, so the buyer sees typical frames and not just the best one. [] when none were rendered.",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/AssetUrl"
+                  }
+                },
+                "layout": {
+                  "title": "Per-taxel geometry sidecar",
+                  "description": "JSON giving each taxel's grid position, anatomical region and hand-model coordinate, plus the index rule that maps array position to grid cell. Almost no published tactile dataset ships one, and without it a consumer cannot tell a zero-reading taxel from a nonexistent one.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No geometry sidecar ships."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No tactile",
+              "description": "This clip has no tactile stream."
+            }
+          ]
+        },
+        "segcap": {
+          "title": "Segment/caption files",
+          "description": "The temporal annotation as delivered. null when the clip is unannotated.",
+          "oneOf": [
+            {
+              "title": "Segcap",
+              "description": "Annotation file pointers.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "title": "Segments file",
+                  "description": "JSON array of the same segments carried inline in `segments`, shipped as a file so a consumer can use them without the catalog.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "Segments ship inline only."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No annotation",
+              "description": "This clip carries no temporal annotation."
+            }
+          ]
+        },
+        "calibration": {
+          "title": "Calibration files",
+          "description": "Machine-readable calibration as shipped. The VALUES a consumer needs to render or reason are lifted into the top-level `calibration` object; these are the files themselves.",
+          "oneOf": [
+            {
+              "title": "Calibration files",
+              "description": "Calibration file pointers.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "raw",
+                "delivered"
+              ],
+              "properties": {
+                "raw": {
+                  "title": "Raw solve",
+                  "description": "The calibration exactly as solved, at full sensor resolution and in the original orientation. Ships for provenance; usually NOT the file to apply.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No raw solve ships."
+                    }
+                  ]
+                },
+                "delivered": {
+                  "title": "Calibration for the delivered media",
+                  "description": "The calibration already transformed for the delivered panes -- rescaled, de-rotated, eyes in the delivered order. This is the file a consumer should apply. Shipping only the raw solve and a prose note about how to transform it is how a rig ends up with tens of pixels of rectification error.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not delivered",
+                      "description": "No pre-transformed calibration ships."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No calibration files",
+              "description": "No calibration files ship with this clip."
+            }
+          ]
+        },
+        "docs": {
+          "title": "Documentation files",
+          "description": "The written deliverables that ship inside the package. Every member is required and nullable.",
+          "oneOf": [
+            {
+              "title": "Docs",
+              "description": "Documentation file pointers.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "readme",
+                "datasheet",
+                "license",
+                "sync_protocol",
+                "checksums"
+              ],
+              "properties": {
+                "readme": {
+                  "title": "README",
+                  "description": "Orientation document: what is in the package and what to read first.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Absent",
+                      "description": "No README ships."
+                    }
+                  ]
+                },
+                "datasheet": {
+                  "title": "Datasheet",
+                  "description": "Datasheets-for-Datasets style document: motivation, composition, collection, preprocessing, uses, distribution, limitations.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Absent",
+                      "description": "No datasheet ships."
+                    }
+                  ]
+                },
+                "license": {
+                  "title": "Licence file",
+                  "description": "The licence or the explicit statement that no licence is granted.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Absent",
+                      "description": "No licence file ships."
+                    }
+                  ]
+                },
+                "sync_protocol": {
+                  "title": "Sync protocol",
+                  "description": "How the streams were synchronised, what was measured, and what the residual weakness is.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Absent",
+                      "description": "No sync document ships."
+                    }
+                  ]
+                },
+                "checksums": {
+                  "title": "Checksum manifest",
+                  "description": "sha256sum-format file covering every delivered file, mirrored in machine form by package_contents.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Absent",
+                      "description": "No checksum manifest ships."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No docs",
+              "description": "No documentation ships with this clip."
+            }
+          ]
+        },
+        "archive": {
+          "title": "Single-file download",
+          "description": "The whole package as one downloadable artefact, when one exists. null when the package is only served as a directory tree.",
+          "oneOf": [
+            {
+              "title": "Archive",
+              "description": "The packaged download.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url",
+                "format",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "url": {
+                  "title": "Archive URL",
+                  "description": "Relative URL of the archive. Behind a signed-URL CDN the host rewrites the base; the manifest still holds a relative path.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/AssetUrl"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not published",
+                      "description": "Archive exists but is not published at a fixed path."
+                    }
+                  ]
+                },
+                "format": {
+                  "title": "Archive format",
+                  "description": "Container format of the download.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "zip",
+                    "tar",
+                    "tar.gz",
+                    "tar.zst",
+                    null
+                  ]
+                },
+                "bytes": {
+                  "title": "Archive size",
+                  "description": "Size of the archive file itself in bytes, which differs from the clip's uncompressed `bytes`.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "sha256": {
+                  "title": "Archive digest",
+                  "description": "SHA-256 of the archive file.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Sha256"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not computed",
+                      "description": "No digest was computed."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No archive",
+              "description": "No single-file download exists."
+            }
+          ]
+        }
+      }
+    },
+    "ImuPreview": {
+      "title": "IMU chart payload",
+      "description": "The IMU tab renders EVERY reading -- it is horizontally scrollable and explicitly not a decimation -- so this object must make the full series reachable in one predictable fetch. Two encodings exist and the client selects on the `encoding` field ALONE; it must never sniff, guess or fall back. 'inline_f32' embeds the samples in this document and is used when n_readings <= 2000 (about 96 KB of JSON, which is acceptable inside a record fetched on demand). 'sidecar_f32le' points at a headerless little-endian float32 binary and is used for anything larger; the reference 29,507-reading stream is 708 KB as f32 versus about 1.4 MB as JSON numbers, and it parses in one pass with no allocation per sample. The threshold is fixed at 2000 by the contract so producer and consumer cannot disagree.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_readings",
+        "rate_hz",
+        "t0_s",
+        "dt_s",
+        "encoding",
+        "units",
+        "channels",
+        "sidecar",
+        "range"
+      ],
+      "properties": {
+        "n_readings": {
+          "title": "Reading count",
+          "description": "Total number of samples in the series. The chart's x extent is exactly this many points; every one is drawn. When encoding is inline, each channel array has exactly this length; when it is a sidecar, the file is exactly n_readings * stride_bytes long, and a consumer should treat any other length as a corrupt download.",
+          "type": "integer",
+          "minimum": 0,
+          "examples": [
+            29507
+          ]
+        },
+        "rate_hz": {
+          "title": "Nominal sample rate",
+          "description": "Nominal samples per second, used for the mono time ticks along the axis. null when sampling is non-uniform, in which case a 't' channel must be present.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "t0_s": {
+          "title": "First sample time",
+          "description": "Time of sample 0 in seconds, relative to the START OF THE CLIP -- not an absolute epoch. Usually 0 or a small positive number when the IMU started after the video. The axis label for sample i is t0_s + i*dt_s.",
+          "type": "number"
+        },
+        "dt_s": {
+          "title": "Sample period",
+          "description": "Seconds between consecutive samples, for uniform series. null means sampling is non-uniform and the per-sample time must be read from the 't' channel instead. Carried explicitly rather than derived from rate_hz so the axis is exact at 29,507 points, where a rounded rate accumulates visible error.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "encoding": {
+          "title": "Payload encoding",
+          "description": "How the samples are carried, and the ONLY thing the client dispatches on. 'inline_f32' -> read `channels`; `sidecar` is null. 'sidecar_f32le' -> read `sidecar`; `channels` is null. Producer rule: inline if and only if n_readings <= 2000.",
+          "type": "string",
+          "enum": [
+            "inline_f32",
+            "sidecar_f32le"
+          ]
+        },
+        "units": {
+          "title": "Units",
+          "description": "Machine-readable units for each channel group, so the axis label is data and not a hardcoded string. Required by H9: quoting a physical range in prose while shipping bare numbers is the field's most common defect.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accel",
+            "gyro"
+          ],
+          "properties": {
+            "accel": {
+              "title": "Accelerometer units",
+              "description": "Units of the ax/ay/az channels. null when there is no accelerometer.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "m/s^2",
+                "g",
+                null
+              ]
+            },
+            "gyro": {
+              "title": "Gyroscope units",
+              "description": "Units of the gx/gy/gz channels. null when there is no gyroscope.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "rad/s",
+                "deg/s",
+                null
+              ]
+            }
+          }
+        },
+        "channels": {
+          "title": "Inline samples",
+          "description": "The full series, embedded. Non-null if and only if encoding is 'inline_f32'. Each present array has exactly n_readings entries, in sample order, with no nulls and no gaps -- a dropped sample is represented by its real value or the series is declared non-uniform, never by a hole in the array.",
+          "oneOf": [
+            {
+              "title": "Inline channels",
+              "description": "Per-axis sample arrays.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "accel",
+                "gyro"
+              ],
+              "properties": {
+                "accel": {
+                  "title": "Accelerometer channels",
+                  "description": "The three accelerometer axes, drawn as the X (dark), Y (teal) and Z (gold) polylines. null when there is no accelerometer.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Xyz"
+                    },
+                    {
+                      "type": "null",
+                      "title": "No accelerometer",
+                      "description": "No accelerometer data."
+                    }
+                  ]
+                },
+                "gyro": {
+                  "title": "Gyroscope channels",
+                  "description": "The three gyroscope axes, shown when the Accelerometer/Gyroscope pill is switched. null when there is no gyroscope.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Xyz"
+                    },
+                    {
+                      "type": "null",
+                      "title": "No gyroscope",
+                      "description": "No gyroscope data."
+                    }
+                  ]
+                },
+                "t": {
+                  "title": "Per-sample times",
+                  "description": "Seconds from clip start for each sample. Present only when dt_s is null (non-uniform sampling); omit it entirely for uniform series rather than duplicating a derivable axis.",
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "Sidecar encoding",
+              "description": "Samples are in the sidecar file; this must be null when encoding is 'sidecar_f32le'."
+            }
+          ]
+        },
+        "sidecar": {
+          "title": "Binary sidecar",
+          "description": "Location and exact layout of the binary series. Non-null if and only if encoding is 'sidecar_f32le'. Client read path: fetch the URL as an ArrayBuffer, then `new Float32Array(buf)` -- every target platform is little-endian, and a consumer on a big-endian host must read through a DataView with littleEndian=true rather than assume. Sample i, channel c is at float index i*order.length + c.",
+          "oneOf": [
+            {
+              "title": "Sidecar",
+              "description": "A headerless little-endian float32 file.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url",
+                "dtype",
+                "byte_order",
+                "layout",
+                "order",
+                "stride_bytes",
+                "n_readings",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "url": {
+                  "title": "Sidecar URL",
+                  "description": "Relative URL of the binary, conventionally named imu.f32.",
+                  "$ref": "#/$defs/AssetUrl"
+                },
+                "dtype": {
+                  "title": "Element type",
+                  "description": "Element type of every value in the file. Fixed at float32: it halves the transfer against float64 and is well beyond the precision of any consumer IMU.",
+                  "type": "string",
+                  "const": "float32"
+                },
+                "byte_order": {
+                  "title": "Byte order",
+                  "description": "Endianness of every element. Fixed at little so a client can use a typed-array view directly on the common case.",
+                  "type": "string",
+                  "const": "little"
+                },
+                "layout": {
+                  "title": "Memory layout",
+                  "description": "Fixed at interleaved: all channels of sample i are contiguous, then all channels of sample i+1. Interleaved beats planar here because the chart walks samples in order and touches every channel at each step.",
+                  "type": "string",
+                  "const": "interleaved"
+                },
+                "order": {
+                  "title": "Channel order",
+                  "description": "The channels present, in the order they appear within each sample record. This is what makes the file self-describing: a uniform 6-axis stream is ['ax','ay','az','gx','gy','gz'], and a non-uniform one prepends 't'.",
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "title": "Channel",
+                    "description": "One channel key.",
+                    "type": "string",
+                    "enum": [
+                      "t",
+                      "ax",
+                      "ay",
+                      "az",
+                      "gx",
+                      "gy",
+                      "gz"
+                    ]
+                  }
+                },
+                "stride_bytes": {
+                  "title": "Record stride",
+                  "description": "Bytes per sample record. MUST equal 4 * order.length; carried explicitly so a consumer can assert it and fail loudly on a mismatched file.",
+                  "type": "integer",
+                  "minimum": 4,
+                  "examples": [
+                    24,
+                    28
+                  ]
+                },
+                "n_readings": {
+                  "title": "Sidecar reading count",
+                  "description": "Number of records in the file. MUST equal the parent n_readings; the duplication is a cheap consistency check on a file that could be swapped independently.",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes": {
+                  "title": "Sidecar size",
+                  "description": "Exact file size, which must equal n_readings * stride_bytes. A short read is then detectable without parsing.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "sha256": {
+                  "title": "Sidecar digest",
+                  "description": "SHA-256 of the sidecar file.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Sha256"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not computed",
+                      "description": "No digest was computed."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "Inline encoding",
+              "description": "Samples are inline; this must be null when encoding is 'inline_f32'."
+            }
+          ]
+        },
+        "range": {
+          "title": "Value ranges",
+          "description": "Per-group minimum and maximum across the whole series, so the chart can fix its y scale and dashed gridlines before -- or without -- reading 29,507 samples. Null members mean that group is absent.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accel",
+            "gyro"
+          ],
+          "properties": {
+            "accel": {
+              "title": "Accelerometer range",
+              "description": "Extremes over ax, ay and az combined, in `units.accel`.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MinMax"
+                },
+                {
+                  "type": "null",
+                  "title": "No accelerometer",
+                  "description": "No accelerometer data."
+                }
+              ]
+            },
+            "gyro": {
+              "title": "Gyroscope range",
+              "description": "Extremes over gx, gy and gz combined, in `units.gyro`.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MinMax"
+                },
+                {
+                  "type": "null",
+                  "title": "No gyroscope",
+                  "description": "No gyroscope data."
+                }
+              ]
+            }
+          }
+        },
+        "frame": {
+          "title": "Reference frame",
+          "description": "The body frame the axes are expressed in, e.g. 'imu' or 'camera'. Without it, sign conventions are guesswork. null when undocumented.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "note": {
+          "title": "Note",
+          "description": "One line for anything a consumer must know before trusting the trace -- a known bias, a saturated axis, a device that resets periodically.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        }
+      }
+    },
+    "Xyz": {
+      "title": "Three-axis sample arrays",
+      "description": "One array per axis, each exactly n_readings long, in sample order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "x": {
+          "title": "X axis",
+          "description": "X samples in order.",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "y": {
+          "title": "Y axis",
+          "description": "Y samples in order.",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "z": {
+          "title": "Z axis",
+          "description": "Z samples in order.",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "MinMax": {
+      "title": "Value extremes",
+      "description": "Observed minimum and maximum, used to fix a chart axis without scanning the series.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min",
+        "max"
+      ],
+      "properties": {
+        "min": {
+          "title": "Minimum",
+          "description": "Smallest observed value.",
+          "type": "number"
+        },
+        "max": {
+          "title": "Maximum",
+          "description": "Largest observed value.",
+          "type": "number"
+        }
+      }
+    },
+    "TactilePreview": {
+      "title": "Tactile chart payload",
+      "description": "Grid geometry, the channel census a buyer must read before quoting any coverage number, the unit declaration required by H9, and the force traces the UI draws. The census is here rather than buried in `metadata` because 'how many channels actually work' is the first question a buyer asks and the easiest one to answer misleadingly.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grid",
+        "readout_sites",
+        "usable_channels",
+        "units",
+        "adc_bits",
+        "ceiling_counts",
+        "display_full_scale_counts",
+        "census",
+        "peak_series",
+        "frames"
+      ],
+      "properties": {
+        "grid": {
+          "title": "Readout grid shape",
+          "description": "Exactly [rows, cols] of the per-hand readout matrix. This is the shape of the array, NOT a count of working sensors.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "examples": [
+            [
+              22,
+              22
+            ]
+          ]
+        },
+        "readout_sites": {
+          "title": "Readout sites per hand",
+          "description": "Product of the grid dimensions: the number of addressable positions, per hand. Never quote this as a sensor count -- a 484-site glove can have 278 working channels, and the difference is the whole story.",
+          "type": "integer",
+          "minimum": 1,
+          "examples": [
+            484
+          ]
+        },
+        "usable_channels": {
+          "title": "Usable channels per hand",
+          "description": "Live AND stable channels per hand. Identical to qa.usable_channels; repeated here so the tactile view is self-contained.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "left",
+            "right"
+          ],
+          "properties": {
+            "left": {
+              "title": "Left usable",
+              "description": "Live-and-stable count; null when not instrumented.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "right": {
+              "title": "Right usable",
+              "description": "Live-and-stable count; null when not instrumented.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "units": {
+          "title": "Value units (H9)",
+          "description": "Machine-readable units of the stored values. 'raw_adc_counts' is an honest and acceptable answer PROVIDED adc_bits, the observed pedestal and the observed ceiling ship alongside; quoting a physical range in prose while shipping bare integers is not.",
+          "type": "string",
+          "enum": [
+            "raw_adc_counts",
+            "N",
+            "kPa"
+          ]
+        },
+        "adc_bits": {
+          "title": "ADC bit depth",
+          "description": "Bit depth of the converter behind the raw counts. Required by H9 whenever units are raw counts. null for calibrated units.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "pedestal_counts": {
+          "title": "Observed pedestal",
+          "description": "Typical unloaded resting value in counts -- the offset a consumer must subtract before anything means force. null when not measured.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ceiling_counts": {
+          "title": "Physical ceiling",
+          "description": "The largest value a real human press produces on this hardware. Values above it are a channel fault, not a load, and the gap between the two populations is what makes a rejection rule unambiguous.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "examples": [
+            600
+          ]
+        },
+        "display_full_scale_counts": {
+          "title": "Display full scale",
+          "description": "Upper bound of the colour ramp the UI should use for spatial heatmaps. Deliberately lower than the physical ceiling when typical peaks are far below it: scaling a heatmap to a ceiling nobody reaches renders every real contact as a faint smudge.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "examples": [
+            300
+          ]
+        },
+        "census": {
+          "title": "Channel census per hand",
+          "description": "The full breakdown behind the usable-channel count, per hand. null when the hand was not instrumented.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "left",
+            "right"
+          ],
+          "properties": {
+            "left": {
+              "title": "Left census",
+              "description": "Channel census for the left glove.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/ChannelCensus"
+                },
+                {
+                  "type": "null",
+                  "title": "Not instrumented",
+                  "description": "No left glove."
+                }
+              ]
+            },
+            "right": {
+              "title": "Right census",
+              "description": "Channel census for the right glove.",
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/ChannelCensus"
+                },
+                {
+                  "type": "null",
+                  "title": "Not instrumented",
+                  "description": "No right glove."
+                }
+              ]
+            }
+          }
+        },
+        "peak_series": {
+          "title": "Peak force trace",
+          "description": "Per-hand peak-over-taxels through time, the trace the tactile view draws. It is an ENVELOPE, not a sensor: the argmax channel can change between adjacent samples, so an apparent rise in this trace may be two different taxels and must never be quoted as a rise time. Encoding follows the same rule as the IMU payload -- inline when n_readings <= 2000, otherwise a sidecar. null when no trace was computed.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PeakSeries"
+            },
+            {
+              "type": "null",
+              "title": "No trace",
+              "description": "No peak series was computed."
+            }
+          ]
+        },
+        "frames": {
+          "title": "Rendered still frames",
+          "description": "Pre-rendered heatmap stills with the metadata needed to caption them. Sample these ACROSS the force distribution -- p50, p75, p90, p95, p99, max -- not at the peak, so a buyer sees a typical frame and not only the best one. [] when none were rendered.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TactileFrame"
+          }
+        },
+        "index_rule": {
+          "title": "Array-to-grid index rule",
+          "description": "How an array position maps to a (row, col) grid cell, stated as a formula. Hand-dependent permutations are common and undocumented ones are the single most reliable way to render a glove mirrored. null when the mapping is the obvious row-major one.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300,
+          "examples": [
+            "i = row*22 + P[col], P per hand in the layout sidecar"
+          ]
+        },
+        "derive_delta": {
+          "title": "Delta derivation snippet",
+          "description": "The exact expression a consumer should use to turn stored counts into a baseline-subtracted delta, including which channel mask to apply. Shipping the snippet rather than prose removes the most common consumer-side error.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "note": {
+          "title": "Note",
+          "description": "One line for anything a consumer must know before trusting the tactile view.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        }
+      }
+    },
+    "ChannelCensus": {
+      "title": "Channel census",
+      "description": "The breakdown of a hand's readout sites into working and faulty populations, with each fault mode counted separately. Three independent fault modes exist and each needs its own rule: silent channels never report at all, over-ceiling channels are pinned above any physical press, and intermittent channels jump implausibly between adjacent samples. A census that reports only 'working' hides the third, which is the one that corrupts time-axis analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readout_sites",
+        "silent",
+        "over_ceiling",
+        "intermittent",
+        "live",
+        "stable"
+      ],
+      "properties": {
+        "readout_sites": {
+          "title": "Readout sites",
+          "description": "Addressable positions on this hand.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "silent": {
+          "title": "Silent channels",
+          "description": "Channels whose value never changed across the entire clip -- they never reported anything. Distinct from a channel that reported zero load.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "over_ceiling": {
+          "title": "Over-ceiling channels",
+          "description": "Channels whose value exceeded the physical ceiling somewhere in the clip. A real press cannot do that, so the channel is faulty, not loaded.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "intermittent": {
+          "title": "Intermittent channels",
+          "description": "Live channels that fail a slew-rate rule -- an implausible jump between adjacent samples. Skin and sensor compliance cannot produce these, so the channel is switching, not measuring.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "live": {
+          "title": "Live channels",
+          "description": "Channels that are neither silent nor over-ceiling. Do NOT quote this as the usable count: it still includes intermittent channels.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stable": {
+          "title": "Live and stable channels",
+          "description": "Live channels that also pass the intermittency rule. THIS is the number to quote, and the one to use for any analysis that depends on the time axis.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rules": {
+          "title": "Census rules",
+          "description": "The exact rule behind each fault population, so a consumer can re-derive the census rather than trust it. Omit only when the rules ship in the package documentation instead.",
+          "oneOf": [
+            {
+              "title": "Rules",
+              "description": "Rule text per fault mode.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "silent",
+                "over_ceiling",
+                "intermittent"
+              ],
+              "properties": {
+                "silent": {
+                  "title": "Silent rule",
+                  "description": "Rule identifying a silent channel.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                },
+                "over_ceiling": {
+                  "title": "Ceiling rule",
+                  "description": "Rule identifying an over-ceiling channel, including the threshold and why it is unambiguous.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                },
+                "intermittent": {
+                  "title": "Intermittency rule",
+                  "description": "Rule identifying an intermittent channel, including the slew threshold and the fraction-of-samples tolerance.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "Rules not restated",
+              "description": "Rules ship in the package documentation only."
+            }
+          ]
+        },
+        "damage_note": {
+          "title": "Damage description",
+          "description": "Where the faults are, stated ANATOMICALLY rather than as index lists: 'ten of forty thumb taxels rejected in a contiguous run at a grid edge' tells a buyer this is a connector fault that will progress. A bare count does not.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1500
+        }
+      }
+    },
+    "PeakSeries": {
+      "title": "Peak force series",
+      "description": "Per-hand peak-over-taxels through time. Same two-encoding rule as the IMU payload: inline when n_readings <= 2000, otherwise a little-endian float32 sidecar, selected by `encoding` alone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encoding",
+        "n_readings",
+        "rate_hz",
+        "t0_s",
+        "units",
+        "full_scale",
+        "left",
+        "right",
+        "sidecar"
+      ],
+      "properties": {
+        "encoding": {
+          "title": "Payload encoding",
+          "description": "'inline_f32' -> read `left`/`right`; 'sidecar_f32le' -> read `sidecar`. The client dispatches on this alone.",
+          "type": "string",
+          "enum": [
+            "inline_f32",
+            "sidecar_f32le"
+          ]
+        },
+        "n_readings": {
+          "title": "Reading count",
+          "description": "Samples per hand. Both hands share one time base, so both arrays are this long.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "rate_hz": {
+          "title": "Sample rate",
+          "description": "Samples per second of the trace, which may be a downsample of the raw tactile rate.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "t0_s": {
+          "title": "First sample time",
+          "description": "Time of sample 0 in seconds from the start of the clip.",
+          "type": "number"
+        },
+        "units": {
+          "title": "Units (H9)",
+          "description": "Units of the peak values, matching the parent's `units`.",
+          "type": "string",
+          "enum": [
+            "raw_adc_counts",
+            "N",
+            "kPa"
+          ]
+        },
+        "full_scale": {
+          "title": "Trace full scale",
+          "description": "Suggested y-axis maximum for the trace. Use the physical ceiling here, not the heatmap display scale: a peak trace should show a maximal press without clipping.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "left": {
+          "title": "Left inline samples",
+          "description": "Peak values for the left hand, in order. Non-null only for inline encoding and only when the hand was instrumented.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "right": {
+          "title": "Right inline samples",
+          "description": "Peak values for the right hand, in order. Non-null only for inline encoding and only when the hand was instrumented.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          }
+        },
+        "sidecar": {
+          "title": "Binary sidecar",
+          "description": "Headerless little-endian float32 file, interleaved by hand. Non-null only for sidecar encoding.",
+          "oneOf": [
+            {
+              "title": "Peak sidecar",
+              "description": "Binary peak-series file.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "url",
+                "dtype",
+                "byte_order",
+                "layout",
+                "order",
+                "stride_bytes",
+                "n_readings"
+              ],
+              "properties": {
+                "url": {
+                  "title": "Sidecar URL",
+                  "description": "Relative URL of the binary, conventionally named peak.f32.",
+                  "$ref": "#/$defs/AssetUrl"
+                },
+                "dtype": {
+                  "title": "Element type",
+                  "description": "Fixed at float32.",
+                  "type": "string",
+                  "const": "float32"
+                },
+                "byte_order": {
+                  "title": "Byte order",
+                  "description": "Fixed at little.",
+                  "type": "string",
+                  "const": "little"
+                },
+                "layout": {
+                  "title": "Memory layout",
+                  "description": "Fixed at interleaved: both hands of sample i are contiguous.",
+                  "type": "string",
+                  "const": "interleaved"
+                },
+                "order": {
+                  "title": "Channel order",
+                  "description": "Hands present, in record order. A one-handed clip has a single entry and a stride of 4.",
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "title": "Hand channel",
+                    "description": "One hand.",
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "right"
+                    ]
+                  }
+                },
+                "stride_bytes": {
+                  "title": "Record stride",
+                  "description": "Bytes per sample record; MUST equal 4 * order.length.",
+                  "type": "integer",
+                  "minimum": 4
+                },
+                "n_readings": {
+                  "title": "Sidecar reading count",
+                  "description": "Records in the file; MUST equal the parent n_readings.",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes": {
+                  "title": "Sidecar size",
+                  "description": "Exact file size in bytes; must equal n_readings * stride_bytes.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "sha256": {
+                  "title": "Sidecar digest",
+                  "description": "SHA-256 of the sidecar file.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Sha256"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Not computed",
+                      "description": "No digest was computed."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "Inline encoding",
+              "description": "Samples are inline."
+            }
+          ]
+        }
+      }
+    },
+    "TactileFrame": {
+      "title": "Rendered tactile still",
+      "description": "One pre-rendered heatmap image with enough context for the UI to caption it honestly.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "t_s",
+        "hand",
+        "peak_counts",
+        "png"
+      ],
+      "properties": {
+        "t_s": {
+          "title": "Frame time",
+          "description": "Seconds from the start of the clip.",
+          "type": "number",
+          "minimum": 0
+        },
+        "hand": {
+          "title": "Hand",
+          "description": "Which glove the still shows. Use 'both' for a composite image of the pair.",
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "both"
+          ]
+        },
+        "peak_counts": {
+          "title": "Peak value in frame",
+          "description": "Largest single-taxel value in this frame, in the parent's units. Lets the caption say what the buyer is looking at.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "png": {
+          "title": "Image URL",
+          "description": "Relative URL of the rendered still.",
+          "$ref": "#/$defs/AssetUrl"
+        },
+        "label": {
+          "title": "Sampling label",
+          "description": "Why this frame was chosen -- 'p50', 'p95', 'max'. Naming the percentile is what stops a preview reel from being a highlight reel.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 32
+        }
+      }
+    },
+    "Segment": {
+      "title": "Time segment",
+      "description": "One labelled interval of the clip, rendered as a row in the Segcap tab and as a marker on the scrub bar. Segments are ordered by t0_s and may overlap only when they come from different sources.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "t0_s",
+        "t1_s",
+        "label",
+        "description",
+        "verb",
+        "objects"
+      ],
+      "properties": {
+        "index": {
+          "title": "Segment index",
+          "description": "Zero-based position in the ordered list, carried explicitly so a UI can key rows without relying on array position after a filter.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "t0_s": {
+          "title": "Start time",
+          "description": "Seconds from the start of the clip, inclusive.",
+          "type": "number",
+          "minimum": 0
+        },
+        "t1_s": {
+          "title": "End time",
+          "description": "Seconds from the start of the clip, exclusive. Must be greater than t0_s.",
+          "type": "number",
+          "minimum": 0
+        },
+        "label": {
+          "title": "Short label",
+          "description": "A few words shown in the segment row and on the scrub marker, e.g. 'reach for tray'.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "title": "Long description",
+          "description": "A sentence or two of detail. null when only a short label was written.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "verb": {
+          "title": "Action verb",
+          "description": "The single canonical verb for the action, lower case, for machine grouping across clips -- 'grasp', 'transfer', 'release'. null when the annotation is not verb-structured.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 48
+        },
+        "objects": {
+          "title": "Objects involved",
+          "description": "Object nouns the action touches. [] is a determined answer meaning none were annotated for this segment.",
+          "type": "array",
+          "items": {
+            "title": "Object",
+            "description": "One object noun.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "source": {
+          "title": "Annotation source",
+          "description": "Who or what produced this segment. Buyers price human annotation and model output very differently, so conflating them is not an option.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "human",
+            "model",
+            "heuristic",
+            null
+          ]
+        },
+        "confidence": {
+          "title": "Confidence",
+          "description": "Annotator or model confidence in [0,1]. null for human annotation without a confidence scale.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "PackageEntry": {
+      "title": "Package file entry (H2)",
+      "description": "One file in the delivered package, with the byte count and digest that make integrity checkable.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "role"
+      ],
+      "properties": {
+        "path": {
+          "title": "Path inside the package",
+          "description": "The file's path relative to the PACKAGE root, byte-identical to how it appears in the package's checksums file. This is deliberately NOT a catalog URL: it describes the archive a buyer downloads, whose internal layout is independent of how the catalog serves previews. Use `url` for the browsable location.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "examples": [
+            "video/stereo_upright.mp4"
+          ]
+        },
+        "url": {
+          "title": "Browsable location",
+          "description": "Catalog-root-relative URL where this file can be fetched directly, when it is published. null for files that only exist inside the archive.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AssetUrl"
+            },
+            {
+              "type": "null",
+              "title": "Archive only",
+              "description": "Not individually published."
+            }
+          ]
+        },
+        "bytes": {
+          "title": "File size",
+          "description": "Exact size in bytes.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "sha256": {
+          "title": "File digest",
+          "description": "SHA-256 of the file's bytes, lower-case hex. null means it was not computed, which fails the H2 manifest requirement.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Sha256"
+            },
+            {
+              "type": "null",
+              "title": "Not computed",
+              "description": "No digest was computed for this file."
+            }
+          ]
+        },
+        "role": {
+          "title": "File role",
+          "description": "What the file is for, so the Metadata tab's PACKAGE CONTENTS list can group and count without pattern-matching filenames. 'export' covers alternative container formats built from the primary data.",
+          "type": "string",
+          "enum": [
+            "video",
+            "video_index",
+            "tactile",
+            "imu",
+            "calibration",
+            "layout",
+            "annotation",
+            "doc",
+            "license",
+            "checksums",
+            "script",
+            "preview",
+            "export",
+            "other"
+          ]
+        }
+      }
+    },
+    "SyncStream": {
+      "title": "Per-stream sync record (H3)",
+      "description": "One stream's relationship to the reference clock, stated as measurements. Required fields exist because 'synced: true' is explicitly insufficient: a buyer needs the clock ids, the signed offset, the drift and the worst-case alignment error.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id",
+        "clock_id",
+        "offset_ns",
+        "estimated_drift_ppm",
+        "interpolation_policy",
+        "maximum_alignment_error_ms"
+      ],
+      "properties": {
+        "stream_id": {
+          "title": "Stream identifier",
+          "description": "Stable id of the stream, e.g. 'video', 'tactile_left', 'imu'.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$"
+        },
+        "clock_id": {
+          "title": "Stream clock",
+          "description": "Identifier of the clock this stream's raw timestamps come from, before any mapping to the reference. Naming it is what makes an offset meaningful.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "offset_ns": {
+          "title": "Signed offset",
+          "description": "Signed offset from the reference clock in nanoseconds, using the convention stated in the parent's offset_sign_convention. An unsigned offset, or a signed one with no stated convention, is unusable.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "estimated_drift_ppm": {
+          "title": "Estimated drift",
+          "description": "Relative rate error against the reference clock in parts per million, signed. Small numbers still matter over a long take.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interpolation_policy": {
+          "title": "Interpolation policy",
+          "description": "How a consumer should obtain a value at a time between samples. 'none' means do not interpolate -- index the nearest raw sample and accept the quantisation.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "nearest",
+            "previous",
+            "next",
+            "linear",
+            "none",
+            null
+          ]
+        },
+        "maximum_alignment_error_ms": {
+          "title": "Maximum alignment error",
+          "description": "Worst-case, MEASURED misalignment between this stream and the reference, in milliseconds. Report the measured maximum, not a design target: inter-stream skew above one camera frame is the single most common rejection cause on a new rig.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "Sync": {
+      "title": "Synchronisation report (H1, H3)",
+      "description": "Measured, per-clip synchronisation. Every field here exists because a buyer's acceptance pipeline reads it: the reference clock, each stream's clock and signed offset with the sign convention stated, the drift, the interpolation policy, the worst-case alignment error, and how that error was validated. There is deliberately no boolean 'synced' field, because it cannot be checked and is therefore worthless.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_clock_id",
+        "offset_sign_convention",
+        "streams",
+        "maximum_alignment_error_ms",
+        "validation_method",
+        "validation_result"
+      ],
+      "properties": {
+        "reference_clock_id": {
+          "title": "Reference clock",
+          "description": "The clock every other stream is expressed against, named precisely enough to reason about -- including whether it is monotonic and whether it was stepped during the take. 'Unix wall-clock epoch microseconds, CLOCK_REALTIME, not monotonic, no NTP step during the take' is the standard of precision required.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "offset_sign_convention": {
+          "title": "Offset sign convention",
+          "description": "The sentence that makes every offset_ns interpretable, e.g. 'offset_ns = t_reference - t_stream; positive means the stream is EARLY relative to the reference'. H3 requires the convention to be stated, not implied, because half of all sign errors originate here.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "streams": {
+          "title": "Per-stream records",
+          "description": "One entry per stream, including the reference stream itself (whose offset is 0).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SyncStream"
+          }
+        },
+        "maximum_alignment_error_ms": {
+          "title": "Worst-case alignment error (H1)",
+          "description": "The measured maximum misalignment between ANY two streams, in milliseconds, and therefore >= every non-null `streams[].maximum_alignment_error_ms`. A consumer may and should check that inequality; a producer that reports a headline smaller than a bound derivable from its own per-stream numbers has reported a fit residual, not an alignment error. It is composed as the maximum over (a) the clock-mapping fit residual, (b) each stream's relative rate error carried over the take -- |estimated_drift_ppm| * 1e-6 * duration_s * 1000 ms -- and (c) the divergence between a constant-rate container timeline and the real per-frame arrival times. This is the number a buyer's pipeline thresholds on: above one camera frame, 33 ms at 30 fps, the clip is auto-flagged. Report what was measured, never a design target.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "validation_method": {
+          "title": "Validation method",
+          "description": "How the alignment error was established: a filmed wall-clock sequence, a common-mode physical event such as a bimanual clap visible in video and sharp on both gloves, or an audio transient. Naming the method is what lets a buyer judge whether the number is independent evidence or merely a restatement of the clock arithmetic. null means no validation was performed.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        },
+        "validation_result": {
+          "title": "Validation result",
+          "description": "Outcome of the validation. 'not_validated' is an honest and common answer when streams share one host clock but no independent common-mode event exists; it is far better than claiming a pass that was never measured.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "pass",
+            "fail",
+            "not_validated",
+            null
+          ]
+        },
+        "clock_fit_residual_ms": {
+          "title": "Clock-mapping fit residual",
+          "description": "Residual of the linear fit that maps a device clock onto the reference clock, in milliseconds. It is an INPUT to `maximum_alignment_error_ms`, never a substitute for it: a fit residual says how well a straight line described the anchors, and says nothing about relative rate error accumulated over the take or about a container timeline that diverges from arrival times. Shipped separately so a buyer can see which component dominates. null when no anchor fit was performed.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "cross_hand_offset_ms": {
+          "title": "Cross-hand start offset",
+          "description": "Signed millisecond offset between the two gloves' first samples. A start offset is not drift: two streams of different lengths trivially differ at the end, and reporting that difference as drift overstates the error by orders of magnitude.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cross_hand_drift_ppm": {
+          "title": "Cross-hand relative rate error",
+          "description": "Relative rate error between the two gloves in parts per million, signed, measured on the reference clock.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "samples_per_video_frame": {
+          "title": "Tactile samples per video frame",
+          "description": "How many tactile samples fall inside one video frame interval. Sets the realistic ceiling on temporal precision when joining the two.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "join_recipe": {
+          "title": "How to join the streams",
+          "description": "The exact procedure, ideally as a code snippet, for pairing a video frame with a tactile sample -- including the clamp needed when one stream ends first. Prose alone reliably produces off-by-one errors at the tail.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "notes": {
+          "title": "Sync caveats",
+          "description": "Each remaining weakness in the synchronisation, one per entry, in plain language: burst-quantised arrival stamps, container timestamps that diverge from arrival times, the absence of an independent sync event. [] asserts there are none.",
+          "type": "array",
+          "items": {
+            "title": "Caveat",
+            "description": "One synchronisation caveat.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      }
+    },
+    "Calibration": {
+      "title": "Calibration values (H7)",
+      "description": "Everything H7 requires for a wide-FoV rig: a fisheye intrinsics model rather than pinhole plus radial-tangential, camera-IMU extrinsics and time offset, IMU noise density and random walk, image readout time for rolling-shutter compensation, and the tactile geometry. Values, not files: the files are in media.calibration.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "camera",
+        "imu",
+        "cam_imu",
+        "tactile"
+      ],
+      "properties": {
+        "camera": {
+          "title": "Camera calibration",
+          "description": "Intrinsics for each camera plus the stereo relationship. null when no camera calibration exists.",
+          "oneOf": [
+            {
+              "title": "Camera",
+              "description": "Camera intrinsics and stereo extrinsics.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "model",
+                "image_size",
+                "cameras",
+                "stereo",
+                "shutter",
+                "readout_time_ms"
+              ],
+              "properties": {
+                "model": {
+                  "title": "Distortion model (H7)",
+                  "description": "The projection/distortion model the coefficients belong to. A wide-FoV camera MUST ship a fisheye model -- kannala_brandt with k1..k4 at minimum, or fisheye624 for Aria parity. pinhole_radtan is listed only so a narrow-FoV rig can be described honestly; using it for a fisheye lens is a rejection.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "kannala_brandt",
+                    "fisheye624",
+                    "opencv_fisheye",
+                    "pinhole_radtan",
+                    null
+                  ]
+                },
+                "image_size": {
+                  "title": "Calibrated image size",
+                  "description": "The [width, height] the intrinsics apply to. If this differs from the delivered resolution, the intrinsics have NOT been transformed for the delivered media and a consumer must use the pre-transformed file instead.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Resolution"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Unknown",
+                      "description": "Calibrated size not recorded."
+                    }
+                  ]
+                },
+                "cameras": {
+                  "title": "Per-camera intrinsics",
+                  "description": "One entry per physical camera, in sensor index order.",
+                  "type": "array",
+                  "items": {
+                    "title": "Camera intrinsics",
+                    "description": "Intrinsics for one camera.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "id",
+                      "role",
+                      "fx",
+                      "fy",
+                      "cx",
+                      "cy",
+                      "distortion"
+                    ],
+                    "properties": {
+                      "id": {
+                        "title": "Sensor id",
+                        "description": "Hardware index of the sensor, e.g. 'cam0'.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      },
+                      "role": {
+                        "title": "Eye role",
+                        "description": "Which eye this sensor IS on the assembled rig, verified by measurement rather than by the label in a pre-assembly solve. An inverted mount swaps which sensor is physically left, and a wrong role flips the sign of every disparity.",
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "left",
+                          "right",
+                          "mono",
+                          null
+                        ]
+                      },
+                      "fx": {
+                        "title": "Focal length x",
+                        "description": "Focal length in pixels along x.",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "fy": {
+                        "title": "Focal length y",
+                        "description": "Focal length in pixels along y.",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "cx": {
+                        "title": "Principal point x",
+                        "description": "Principal point x in pixels.",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "cy": {
+                        "title": "Principal point y",
+                        "description": "Principal point y in pixels.",
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "distortion": {
+                        "title": "Distortion coefficients",
+                        "description": "Coefficients in the order the named model expects -- k1..k4 for kannala_brandt. Order is model-defined and must not be permuted.",
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                },
+                "stereo": {
+                  "title": "Stereo extrinsics",
+                  "description": "Rigid transform from the first camera to the second. null for a monocular rig.",
+                  "oneOf": [
+                    {
+                      "title": "Stereo transform",
+                      "description": "Rotation, translation and baseline between the two cameras.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "R",
+                        "T",
+                        "baseline_m"
+                      ],
+                      "properties": {
+                        "R": {
+                          "title": "Rotation",
+                          "description": "3x3 rotation matrix, row major.",
+                          "oneOf": [
+                            {
+                              "$ref": "#/$defs/Mat3"
+                            },
+                            {
+                              "type": "null",
+                              "title": "Unknown",
+                              "description": "Rotation not recorded."
+                            }
+                          ]
+                        },
+                        "T": {
+                          "title": "Translation",
+                          "description": "3-vector translation in metres.",
+                          "oneOf": [
+                            {
+                              "$ref": "#/$defs/Vec3"
+                            },
+                            {
+                              "type": "null",
+                              "title": "Unknown",
+                              "description": "Translation not recorded."
+                            }
+                          ]
+                        },
+                        "baseline_m": {
+                          "title": "Baseline",
+                          "description": "Inter-camera distance in metres.",
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "exclusiveMinimum": 0
+                        }
+                      }
+                    },
+                    {
+                      "type": "null",
+                      "title": "Monocular",
+                      "description": "Single camera; no stereo extrinsics."
+                    }
+                  ]
+                },
+                "rms_reprojection_px": {
+                  "title": "Solve residual",
+                  "description": "RMS reprojection error of the calibration solve, in pixels. The de-facto bar is well under a pixel; a figure above about 1 px means the solve should be redone before anyone depends on the geometry.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "rectification_residual_px": {
+                  "title": "Measured rectification residual",
+                  "description": "Median absolute vertical disparity, in pixels, after rectifying a REAL delivered frame with the calibration a consumer is told to apply. This is a stronger claim than the solve residual because it is measured end to end on the delivered media, and it is the number that catches an untransformed calibration.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "shutter": {
+                  "title": "Shutter type",
+                  "description": "Global or rolling. A rolling shutter without a readout time cannot be motion-compensated, which matters on a head-mounted camera.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "global",
+                    "rolling",
+                    null
+                  ]
+                },
+                "readout_time_ms": {
+                  "title": "Image readout time (H7)",
+                  "description": "Time in milliseconds for the sensor to read out a full frame, top row to bottom row. Required by H7 for rolling-shutter compensation. null on a global-shutter sensor, or unknown on a rolling one -- which is a gap worth naming in known_limitations.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "note": {
+                  "title": "Calibration caveat",
+                  "description": "Anything a consumer must do before applying these numbers -- a required rescale, a de-rotation, an eye-order correction. If applying the wrong file costs measurable error, quantify both cases here.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1500
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No camera calibration",
+              "description": "No camera calibration exists for this clip."
+            }
+          ]
+        },
+        "imu": {
+          "title": "IMU characterisation (H7)",
+          "description": "The inertial noise parameters a VIO or fusion pipeline needs. An IMU that is present in hardware but non-functional MUST be declared here with status 'failed' rather than omitted, so a buyer discovers it in the schema and not after integration.",
+          "oneOf": [
+            {
+              "title": "IMU parameters",
+              "description": "Inertial device and noise characterisation.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "model",
+                "status",
+                "rate_hz",
+                "accel_noise_density",
+                "accel_random_walk",
+                "gyro_noise_density",
+                "gyro_random_walk"
+              ],
+              "properties": {
+                "model": {
+                  "title": "Device model",
+                  "description": "Part number of the inertial device.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 64
+                },
+                "status": {
+                  "title": "Device status",
+                  "description": "'operational' = producing valid data. 'failed' = present but not producing usable data -- declare it, do not omit it. 'absent' = no IMU on the rig. 'unverified' = never characterised.",
+                  "type": "string",
+                  "enum": [
+                    "operational",
+                    "failed",
+                    "absent",
+                    "unverified"
+                  ]
+                },
+                "rate_hz": {
+                  "title": "Sample rate",
+                  "description": "Nominal inertial sample rate in Hz.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
+                },
+                "accel_range_g": {
+                  "title": "Accelerometer range",
+                  "description": "Full-scale accelerometer range in g. Board-dependent on many modules and worth stating: a gate written for one range is silently dead on another.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
+                },
+                "gyro_range_dps": {
+                  "title": "Gyroscope range",
+                  "description": "Full-scale gyroscope range in degrees per second.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
+                },
+                "accel_noise_density": {
+                  "title": "Accelerometer noise density",
+                  "description": "Velocity random walk, in m/s^2/sqrt(Hz). Required by H7.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "accel_random_walk": {
+                  "title": "Accelerometer random walk",
+                  "description": "Accelerometer bias instability random walk, in m/s^3/sqrt(Hz). Required by H7.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "gyro_noise_density": {
+                  "title": "Gyroscope noise density",
+                  "description": "Angular random walk, in rad/s/sqrt(Hz). Required by H7.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "gyro_random_walk": {
+                  "title": "Gyroscope random walk",
+                  "description": "Gyroscope bias instability random walk, in rad/s^2/sqrt(Hz). Required by H7.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "units_note": {
+                  "title": "Units statement",
+                  "description": "Explicit restatement of the units above, for a reader who lands here without the schema. Units are machine-readable by convention in this object; this field is the human mirror.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 300
+                },
+                "axes": {
+                  "title": "Axis count",
+                  "description": "Degrees of freedom actually delivered: 6 for accel+gyro, 9 with a magnetometer. Stating 9 when the magnetometer is unused is a misrepresentation.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No IMU characterisation",
+              "description": "No inertial characterisation exists for this clip."
+            }
+          ]
+        },
+        "cam_imu": {
+          "title": "Camera-IMU relationship (H7)",
+          "description": "The extrinsics and time offset between the camera and the IMU. Both are required by H7 and neither is derivable from the other calibrations.",
+          "oneOf": [
+            {
+              "title": "Camera-IMU",
+              "description": "Spatial and temporal relationship between camera and IMU.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "R",
+                "T",
+                "time_offset_s",
+                "time_offset_convention"
+              ],
+              "properties": {
+                "R": {
+                  "title": "Rotation",
+                  "description": "3x3 rotation from the IMU frame to the camera frame, row major.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Mat3"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Unknown",
+                      "description": "Rotation not solved."
+                    }
+                  ]
+                },
+                "T": {
+                  "title": "Translation",
+                  "description": "3-vector translation from IMU to camera, in metres.",
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Vec3"
+                    },
+                    {
+                      "type": "null",
+                      "title": "Unknown",
+                      "description": "Translation not solved."
+                    }
+                  ]
+                },
+                "time_offset_s": {
+                  "title": "Time offset",
+                  "description": "Signed offset in seconds between the camera and IMU time bases, per the stated convention.",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "time_offset_convention": {
+                  "title": "Offset convention",
+                  "description": "The sentence that makes time_offset_s interpretable, e.g. 't_imu = t_camera + time_offset_s'. Without it the sign is a coin flip.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 300
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No cam-IMU solve",
+              "description": "Camera-IMU relationship has not been calibrated."
+            }
+          ]
+        },
+        "tactile": {
+          "title": "Tactile geometry and force calibration",
+          "description": "Where each taxel sits and whether its values mean anything physical.",
+          "oneOf": [
+            {
+              "title": "Tactile calibration",
+              "description": "Tactile geometry and force calibration state.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "grid",
+                "index_rule",
+                "force_calibration"
+              ],
+              "properties": {
+                "grid": {
+                  "title": "Grid shape",
+                  "description": "[rows, cols] of the readout matrix per hand.",
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "index_rule": {
+                  "title": "Index rule",
+                  "description": "Formula mapping array position to grid cell, including any per-hand permutation.",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 300
+                },
+                "taxel_pitch_mm": {
+                  "title": "Taxel pitch",
+                  "description": "Centre-to-centre spacing between adjacent taxels, in millimetres. Sets what the sensor can and cannot resolve, and is the honest answer to 'can this do texture?'.",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "exclusiveMinimum": 0
+                },
+                "force_calibration": {
+                  "title": "Force calibration",
+                  "description": "The mapping from stored values to physical force. null is the honest value when there is none, and it must be paired with units of 'raw_adc_counts' and a matching entry in known_limitations. Never imply a physical range in prose while shipping bare integers.",
+                  "oneOf": [
+                    {
+                      "title": "Force calibration record",
+                      "description": "A fitted mapping to physical units.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "units",
+                        "procedure",
+                        "fit"
+                      ],
+                      "properties": {
+                        "units": {
+                          "title": "Physical units",
+                          "description": "Units the calibration maps to.",
+                          "type": "string",
+                          "enum": [
+                            "N",
+                            "kPa"
+                          ]
+                        },
+                        "procedure": {
+                          "title": "Procedure",
+                          "description": "The calibrate-equilibrate-tare procedure actually followed, including whether the sensor was pre-conditioned by cycling and whether the tare was taken in the use posture rather than flat.",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 2000
+                        },
+                        "fit": {
+                          "title": "Fit",
+                          "description": "The functional form and its parameters, or a reference to the shipped coefficients.",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 1000
+                        },
+                        "per_taxel": {
+                          "title": "Per-taxel fit",
+                          "description": "true when every taxel has its own coefficients; false when one global fit is applied to all of them, which is materially weaker.",
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null",
+                      "title": "Uncalibrated",
+                      "description": "Values are raw counts with no mapping to physical units."
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "null",
+              "title": "No tactile calibration",
+              "description": "No tactile geometry or force calibration exists."
+            }
+          ]
+        }
+      }
+    },
+    "Mat3": {
+      "title": "3x3 matrix",
+      "description": "Row-major 3x3 matrix: three rows of three numbers.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    "Vec3": {
+      "title": "3-vector",
+      "description": "Three numbers, in x, y, z order.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "Provenance": {
+      "title": "Provenance",
+      "description": "Where this clip came from and what produced it. Everything here must be reproducible from the capture pipeline rather than typed by hand, with the exception of `operator`, which is a pseudonym by policy.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "take_id",
+        "device_id",
+        "firmware",
+        "operator",
+        "recorded_local",
+        "packaged_utc",
+        "pipeline_version",
+        "media_class"
+      ],
+      "properties": {
+        "take_id": {
+          "title": "Source take identifier",
+          "description": "The capture pipeline's own id for this take, unmodified. The clip `id` is derived from it, and keeping both makes the derivation auditable.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128,
+          "examples": [
+            "ego_20260823_000821_16A260"
+          ]
+        },
+        "device_id": {
+          "title": "Capture device",
+          "description": "Identifier of the rig that recorded the take. Lets a buyer correlate a defect across every clip from the same unit.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "firmware": {
+          "title": "Firmware version",
+          "description": "Firmware running on the capture device. A version that exists in no source tree should be named as such rather than left blank.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "operator": {
+          "title": "Operator pseudonym",
+          "description": "Pseudonymous id of the person who performed the take, e.g. 'op-03'. MUST NOT be a real name, an email or an initials pair: the operator is a data subject, and H6 does not stop at the video. null when not tracked.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "examples": [
+            "op-03"
+          ]
+        },
+        "recorded_local": {
+          "title": "Local recording time",
+          "description": "The device's wall-clock time WITH its UTC offset, exactly as recorded. Typed separately from UTC instants because the offset is itself information -- it tells a buyer the local time of day, which is a real covariate for lighting. Note in `note` whether the clock was NTP-stepped during the take.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64,
+          "examples": [
+            "2026-08-23T00:08:21.770883+08:00"
+          ]
+        },
+        "packaged_utc": {
+          "title": "Package build time",
+          "description": "When the deliverable package was assembled, in UTC.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Instant"
+            },
+            {
+              "type": "null",
+              "title": "Unknown",
+              "description": "Package build time not recorded."
+            }
+          ]
+        },
+        "pipeline_version": {
+          "title": "Pipeline version",
+          "description": "Version of the packaging pipeline that produced this record, so a defect can be scoped to the clips it touched.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "session_id": {
+          "title": "Session identifier",
+          "description": "Groups clips recorded in one continuous rig setup. null when sessions were not tracked.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "environment": {
+          "title": "Environment",
+          "description": "Short description of the physical setting, e.g. 'indoor workshop / parts-staging area'. Environment diversity is what buyers actually pay for, so it is structured rather than buried in prose.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "media_class": {
+          "title": "Recorded or generated",
+          "description": "`recorded` = these frames and sensor samples came off real hardware in a real workspace. `synthetic` = they were generated (fixtures, simulation, rendered test patterns). There is no third answer and no default of convenience: a take whose metadata does not say reads `recorded`, so a generator that forgets to declare itself is a bug in the generator, not a silent reclassification of its output. The collection folds this into `collection.provenance_class`, which the catalog renders as a banner above the grid.",
+          "enum": [
+            "recorded",
+            "synthetic"
+          ]
+        },
+        "note": {
+          "title": "Provenance note",
+          "description": "Anything else about how the take was produced that a buyer should know, including clock-discipline caveats.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        }
+      }
+    }
+  }
+}

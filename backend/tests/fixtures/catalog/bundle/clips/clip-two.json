@@ -1,0 +1,223 @@
+{
+  "schema": "6s-clip/1.0",
+  "id": "clip-two",
+  "slug": "clip-two",
+  "title": "Clip clip-two",
+  "description_short": "A short synthetic take used only by the test suite.",
+  "description": "Long description.",
+  "category": "assembly_fastening",
+  "subcategory": "snap_fit",
+  "country": "KR",
+  "recorded_month": "2026-03",
+  "capture": "stereo_egocentric",
+  "duration_s": 32.5,
+  "resolution": [
+    1920,
+    600
+  ],
+  "fps": 30.0,
+  "modalities": [
+    "calibration",
+    "imu",
+    "segcap",
+    "tactile",
+    "video"
+  ],
+  "hands": [
+    "left",
+    "right"
+  ],
+  "subjects": 1,
+  "bytes": 2422929,
+  "split": "train",
+  "poster": "posters/clip-two.jpg",
+  "preview": "previews/clip-two.mp4",
+  "detail": "clips/clip-two.json",
+  "rights": {
+    "model_training": "on_request",
+    "commercial_use": "on_request",
+    "redistribution": "denied",
+    "derived_model": "on_request"
+  },
+  "privacy": {
+    "faces_redacted": false,
+    "consent_on_file": true,
+    "pii_review": "pending",
+    "redaction": {
+      "method": "none",
+      "record_url": "media/clip-two/privacy/redaction.json"
+    }
+  },
+  "qa": {
+    "grade": "C",
+    "video_frames_dropped": 0,
+    "tactile_crc_pass_rate": 1.0,
+    "usable_channels": {
+      "left": 289,
+      "right": 300
+    },
+    "tactile_coverage": 0.597
+  },
+  "media": {
+    "video": {
+      "stereo_sbs": "media/clip-two/video/stereo.mp4",
+      "left": null,
+      "right": null,
+      "mono": null,
+      "frame_times": "media/clip-two/video/frame_times.csv",
+      "layout": "side_by_side_lr",
+      "codec": "h264",
+      "source_resolution": [
+        4000,
+        1200
+      ],
+      "frames": 975,
+      "constant_frame_rate": true,
+      "timing_note": "Index by frame_idx.",
+      "orientation_note": "Inverted mount, per-eye de-rotation.",
+      "master_note": "The archival master is the untouched on-device capture; available on request."
+    },
+    "imu": {
+      "csv": "media/clip-two/imu/imu.csv",
+      "f32": "media/clip-two/imu/imu.f32"
+    },
+    "tactile": {
+      "left": "media/clip-two/tactile/left.npz",
+      "right": "media/clip-two/tactile/right.npz",
+      "preview_png": [
+        "media/clip-two/preview/p50.png"
+      ],
+      "layout": "media/clip-two/sensor_layout.json"
+    },
+    "segcap": {
+      "json": "media/clip-two/segcap/segments.csv"
+    },
+    "calibration": {
+      "raw": "media/clip-two/calibration/calibration.json",
+      "delivered": "media/clip-two/calibration/calibration_delivered.json"
+    },
+    "docs": {
+      "readme": "media/clip-two/docs/README.md",
+      "datasheet": "media/clip-two/docs/DATASHEET.md",
+      "license": "media/clip-two/docs/LICENSE.txt",
+      "sync_protocol": "media/clip-two/docs/SYNC_PROTOCOL.md",
+      "checksums": "media/clip-two/docs/checksums.sha256"
+    },
+    "archive": {
+      "url": "archives/clip-two.tar.gz",
+      "format": "tar.gz",
+      "bytes": 12,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "package_contents": [
+    {
+      "path": "video/stereo.mp4",
+      "url": "media/clip-two/video/stereo.mp4",
+      "bytes": 1024,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "role": "video"
+    },
+    {
+      "path": "docs/README.md",
+      "url": "media/clip-two/docs/README.md",
+      "bytes": 12,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "role": "doc"
+    }
+  ],
+  "imu_preview": {
+    "n_readings": 4,
+    "rate_hz": 200.0,
+    "t0_s": 0.0,
+    "dt_s": 0.005,
+    "encoding": "sidecar_f32le",
+    "units": {
+      "accel": "m/s^2",
+      "gyro": "rad/s"
+    },
+    "sidecar": {
+      "url": "imu/clip-two.f32",
+      "dtype": "float32",
+      "byte_order": "little",
+      "n_readings": 4,
+      "bytes": 96,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  },
+  "tactile_preview": {
+    "grid": [
+      22,
+      22
+    ],
+    "readout_sites": 484,
+    "units": "raw_adc_counts",
+    "peak_series": {
+      "encoding": "sidecar_f32le",
+      "n_readings": 4,
+      "rate_hz": 245.9,
+      "t0_s": 0.0,
+      "units": "raw_adc_counts",
+      "full_scale": 600.0,
+      "left": null,
+      "right": null,
+      "sidecar": {
+        "url": "tactile/clip-two.peak.f32",
+        "dtype": "float32",
+        "byte_order": "little",
+        "n_readings": 4,
+        "bytes": 32,
+        "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+      }
+    },
+    "frames": [
+      {
+        "png": "stills/clip-two/p50.png",
+        "frame": 1,
+        "t_s": 0.0,
+        "peak": 96,
+        "percentile": "p50"
+      }
+    ]
+  },
+  "segments": [
+    {
+      "index": 0,
+      "t0_s": 0.0,
+      "t1_s": 32.5,
+      "label": "grasp",
+      "description": "d",
+      "verb": "grasp",
+      "source": "human",
+      "objects": [
+        "clip"
+      ]
+    }
+  ],
+  "calibration": {
+    "camera": {
+      "model": "kannala_brandt",
+      "rms_reprojection_px": 0.69
+    }
+  },
+  "sync": {
+    "maximum_alignment_error_ms": 37.3
+  },
+  "provenance": {
+    "take_id": "ego_test",
+    "device_id": "16A260",
+    "operator": "op-04"
+  },
+  "known_limitations": [
+    "Raw ADC counts, not newtons."
+  ],
+  "metadata": {
+    "schema": "egotac-1.0",
+    "take_id": "ego_test",
+    "modalities": {
+      "video": {
+        "file": "video/stereo.mp4"
+      }
+    }
+  }
+}
