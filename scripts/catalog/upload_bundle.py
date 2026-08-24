@@ -68,12 +68,37 @@ CACHE_CONTROL = {
 DEFAULT_CACHE_CONTROL = "public, max-age=31536000, immutable"
 
 
+def _multipart_etag(path: Path, chunk: int) -> str:
+    """S3's ETag for a multipart upload of `path` at `chunk` bytes per part.
+
+    Not a plain MD5 of the file: S3 hashes each part, concatenates those digests
+    and hashes THAT, then appends the part count. Reproducible only because we
+    pin the chunk size in TRANSFER below -- boto3's default differs, so an object
+    someone else uploaded may legitimately not match.
+    """
+    parts = []
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(chunk), b""):
+            parts.append(hashlib.md5(block).digest())  # noqa: S324 - matching an ETag
+    if not parts:                                  # a zero-byte file is never multipart
+        parts.append(hashlib.md5(b"").digest())     # noqa: S324
+    joined = hashlib.md5(b"".join(parts)).digest()  # noqa: S324
+    return f"{joined.hex()}-{len(parts)}"
+
+
 def etag_matches(client, bucket: str, key: str, path: Path) -> bool:
     """True if S3 already holds this exact file.
 
-    S3's ETag is the MD5 hex digest for single-part uploads. Anything uploaded
-    as multipart has a ``-N`` suffix and cannot be compared this way, so we
-    treat those as "unknown" and re-upload.
+    S3's ETag is the MD5 hex digest for a single-part upload and a digest-of-digests
+    with a ``-N`` suffix for a multipart one. Both are checkable, and the multipart
+    case has to be: at a 32 MB threshold every video in the bundle is multipart, so
+    treating those as "unknown" meant re-uploading 6.7 GB of byte-identical media on
+    every run -- over exactly the domestic uplink the TRANSFER config below exists to
+    nurse. That is also the run most likely to drop objects, so the pessimistic check
+    was buying risk, not safety.
+
+    Size is checked first because it is one HEAD field against a stat, and it rejects
+    almost every genuine change before we read a 400 MB file to hash it.
     """
     try:
         head = client.head_object(Bucket=bucket, Key=key)
@@ -82,10 +107,10 @@ def etag_matches(client, bucket: str, key: str, path: Path) -> bool:
             return False
         raise
     remote = head["ETag"].strip('"')
-    if "-" in remote:
-        return False
     if head.get("ContentLength") != path.stat().st_size:
         return False
+    if "-" in remote:
+        return remote == _multipart_etag(path, TRANSFER.multipart_chunksize)
     digest = hashlib.md5()  # noqa: S324 - matching S3's ETag, not a security use
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
