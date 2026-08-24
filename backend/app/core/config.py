@@ -23,6 +23,19 @@ class Settings:
     rate_limit: str
     login_rate_limit: str
     cookie_secure: bool
+    cookie_samesite: str
+
+
+def _cookie_samesite() -> str:
+    v = (os.environ.get("SENSEPROBE_COOKIE_SAMESITE") or "lax").strip().lower()
+    if v not in ("lax", "strict", "none"):
+        raise RuntimeError(
+            f"SENSEPROBE_COOKIE_SAMESITE must be lax, strict or none (got {v!r})")
+    if v == "none" and not _parse_bool(os.environ.get("SENSEPROBE_COOKIE_SECURE"), True):
+        raise RuntimeError(
+            "SENSEPROBE_COOKIE_SAMESITE=none requires SENSEPROBE_COOKIE_SECURE=true; "
+            "browsers silently drop a SameSite=None cookie that is not Secure.")
+    return v
 
 
 def get_settings() -> Settings:
@@ -43,6 +56,14 @@ def get_settings() -> Settings:
         rate_limit=os.environ.get("SENSEPROBE_RATE_LIMIT", "5/minute"),
         login_rate_limit=os.environ.get("SENSEPROBE_LOGIN_RATE_LIMIT", "10/minute"),
         cookie_secure=_parse_bool(os.environ.get("SENSEPROBE_COOKIE_SECURE"), True),
+        # The SPA and the API are on different registrable domains in production
+        # (6thsense.dev vs the Railway host), which makes every authenticated XHR
+        # cross-site. A `lax` cookie is stored on login and then never sent again, so
+        # the session appears to succeed and every subsequent request 401s. `none`
+        # is what a cross-origin credentialed API needs; CSRF is defended here by
+        # OriginCheckMiddleware's allowlist on unsafe methods, not by SameSite.
+        # Browsers reject SameSite=None without Secure, so that pairing is enforced.
+        cookie_samesite=_cookie_samesite(),
     )
 
 
