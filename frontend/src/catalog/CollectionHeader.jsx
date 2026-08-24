@@ -227,8 +227,19 @@ export default function CollectionHeader({
       // NOT a duration. See note 3 above.
       label: "Channel yield",
       value: yieldFrac == null ? dash(null) : `${Math.round(yieldFrac * 100)}%`,
+      /* The median carries its OWN percentage, and is named as the median CLIP.
+         Without both, the sub-line is a second statistic wearing the headline's
+         clothes: the tile reads one percentage, the sub-line reads "median N of
+         M sites", and a buyer who divides those gets a different percentage and
+         concludes the tile is broken. Neither figure is wrong. The headline is
+         weighted by clip duration and the median clip is not, so the two part
+         company whenever yield and duration are related at all — on this drop
+         60% against 66%, because the longest clip is also the lowest-yielding.
+         The buyer cannot see the weighting from here, so the page has to say
+         which figure is which. */
       sub: census
-        ? `median ${formatCount(census.median)} of ${formatCount(census.sites)} sites`
+        ? `median clip ${Math.round((census.median / census.sites) * 100)}% · ` +
+          `${formatCount(census.median)} of ${formatCount(census.sites)} sites`
         : undefined,
       hint:
         yieldFrac == null
@@ -236,6 +247,11 @@ export default function CollectionHeader({
           : "Live-and-stable channels on the worst hand, over that hand's readout sites, " +
             "weighted by clip duration. The same quantity, under the same name, as the " +
             "figure on every card and in every clip's Metadata tab. " +
+            (census && yieldFrac != null
+              ? `The headline is weighted by clip duration; the median clip is not. ` +
+                `The two differ whenever the longer clips do not yield like the ` +
+                `shorter ones, which is why both are shown. `
+              : "") +
             (t.tactile_usable_hours != null && t.tactile_hours != null
               ? `All ${dur(t.tactile_hours)} of wall clock carry tactile; weighted by ` +
                 `working channels that is ${dur(t.tactile_usable_hours)}, which is a ` +
