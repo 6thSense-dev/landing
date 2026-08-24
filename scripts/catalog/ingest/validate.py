@@ -300,7 +300,7 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                "H2: delivered frame count must equal the per-frame timestamp row count."),
         _check("tactile_crc_pass_rate", "tactile",
                "not_run" if not hands else _tiered(crc, CRC_A, CRC_FAIL, higher_is_better=True),
-               crc, CRC_B, "fraction",
+               crc, CRC_A, "fraction",
                "VENDOR-REPORTED: this counts the `crc_ok` flag column the capture daemon "
                "wrote. The on-wire bytes are not in the delivered array, so the ingest cannot "
                f"recompute it. Acceptance bound {CRC_FAIL}."),
@@ -316,7 +316,7 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
         _check("tactile_channel_coverage", "coverage",
                "not_run" if not hands else _tiered(coverage, COVERAGE_A, COVERAGE_FAIL,
                                                    higher_is_better=True),
-               coverage, COVERAGE_B, "fraction",
+               coverage, COVERAGE_A, "fraction",
                "Live AND stable channels on the worst hand, over readout sites. Acceptance "
                f"bound {COVERAGE_FAIL:.0%}; below it the glove is broken hardware."),
         _check("package_checksums", "integrity",
