@@ -277,6 +277,8 @@ def _ingest(plan: Plan, ctx: BuildCtx, blobs: dict[str, str], cached: dict) -> T
             checksums_verified=verify_checksums(plan.layout, digests),
             pipeline=PIPELINE_VERSION, geometry=geo, split=split,
             cfr_divergence_ms=ft.cfr_divergence_ms,
+            grid_divergence_ms=ft.grid_divergence_ms,
+            frames_missing_on_grid=ft.frames_missing_on_grid,
             license_file_url=media_url(plan.layout.docs.get("license"))))
         res.warnings += warn
         clip["media"]["archive"] = _archive(plan, ctx)

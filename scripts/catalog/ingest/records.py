@@ -272,7 +272,20 @@ def build_calibration(layout: TakeLayout, meta: dict, cfg: dict, *, imu_status: 
         warn.append("calibration.imu.status downgraded from 'operational' to 'unverified': the "
                     "stream produces samples but has no noise characterisation and no declared "
                     "rate, so it is unusable for VIO (H7)")
-    imu = {"model": trim(i.get("model"), 64), "status": status, "rate_hz": i.get("rate_hz"),
+    # `unverified` is the only enum value available for a working-but-uncharacterised IMU,
+    # and on its own it reads as "we do not know whether this works" -- which is wrong when
+    # the stream is delivering at a measured rate. The enum is fixed by the schema, so the
+    # honest fix is to say plainly, right next to it, what the word does and does not mean.
+    if status == "unverified":
+        imu_status_note = (
+            "`unverified` here means NOT NOISE-CHARACTERISED, not faulty and not absent. Where "
+            "an imu stream ships in `modalities` it is delivering valid data at the rate "
+            "published in this record. What is missing is the Allan-deviation noise model a VIO "
+            "pipeline needs to weight the IMU against vision.")
+    else:
+        imu_status_note = None
+    imu = {"model": trim(i.get("model"), 64), "status": status,
+           "status_note": imu_status_note, "rate_hz": i.get("rate_hz"),
            "accel_range_g": i.get("accel_range_g"), "gyro_range_dps": i.get("gyro_range_dps"),
            "accel_noise_density": i.get("accel_noise_density"), "axes": i.get("axes"),
            "accel_random_walk": i.get("accel_random_walk"),
@@ -344,6 +357,8 @@ class ClipInputs:
     pipeline: str
     split: str | None = None
     cfr_divergence_ms: float | None = None
+    grid_divergence_ms: float | None = None
+    frames_missing_on_grid: int | None = None
     license_file_url: str | None = None
     geometry: dict = field(default_factory=dict)
     extra_limitations: list[str] = field(default_factory=list)
@@ -502,7 +517,9 @@ def build_clip(ci: ClipInputs) -> tuple[dict, list[str]]:
     privacy, w = build_privacy(cfg); warn += w
     provenance, w = build_provenance(ci.layout, meta, cfg, pipeline=ci.pipeline); warn += w
     sync = build_sync(meta, streams=streams, hands=hands, duration_s=duration,
-                      cfr_divergence_ms=ci.cfr_divergence_ms)
+                      cfr_divergence_ms=ci.cfr_divergence_ms,
+                      grid_divergence_ms=ci.grid_divergence_ms,
+                      frames_missing_on_grid=ci.frames_missing_on_grid)
     calib, _imu_status, w = build_calibration(
         ci.layout, meta, cfg, imu_status=ci.imu_status, grid=ci.geometry.get("grid"),
         index_rule=ci.geometry.get("index_rule"), pitch_mm=ci.geometry.get("taxel_pitch_mm"))

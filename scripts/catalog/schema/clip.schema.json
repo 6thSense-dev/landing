@@ -1080,6 +1080,16 @@
           ],
           "maxLength": 32
         },
+        "scope": {
+          "title": "Whether this check describes the clip or the whole collection",
+          "description": "`clip` = the answer is a property of THIS take and differs between takes. `collection` = the answer is a property of the programme and comes out identical on every clip, so a reader should be shown it once at collection level rather than repeated on every clip page. This changes only WHERE a human is shown the check; every check still ships in full on every clip and is machine-readable here. Absent means `clip`.",
+          "enum": ["clip", "collection"]
+        },
+        "kind": {
+          "title": "Whether missing the bound is a gap or a decision",
+          "description": "`measured` = the bound was tested and missed. `by_design` = the value is a deliberate published decision, not a shortfall, and the rationale lives in the collection record -- no train/val/test split is published because one operator, one rig and one day puts the same domain on both sides. Presenting a considered position in the same amber as an unmeasured gap overstates the corpus\u0027s problems. Absent means `measured`.",
+          "enum": ["measured", "by_design"]
+        },
         "note": {
           "title": "Note",
           "description": "One line explaining a warn or fail, or naming the method for a check whose bound is not a number.",
@@ -1152,6 +1162,18 @@
             "integer",
             "null"
           ],
+          "minimum": 0
+        },
+        "video_frames_dropped_by_writer": {
+          "title": "Frames the recorder itself counted as dropped",
+          "description": "The producer's own drop counter. It counts what the WRITER lost, so on a rig whose loss happens upstream of the writer it reads 0 for a take that is genuinely missing several percent of its frames. Published beside `video_frames_missing_on_grid` so the two can be compared rather than silently reconciled; `video_frames_dropped` carries the larger of the pair, which is the one that is graded. null when the producer shipped no counter.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "video_frames_missing_on_grid": {
+          "title": "Frames absent from the emission grid, measured by the ingest",
+          "description": "Slots on the sensor's own emission cadence that no delivered frame occupies, counted off the per-frame timestamp index by this ingest rather than reported by the producer. The cadence is the MEDIAN inter-frame gap, which a run of consecutive drops cannot shift the way a mean can. This is the frame-loss figure a producer cannot under-report, and it is deliberately separated from timing error: a missing frame is an absent frame, not a mistimed one, and conflating the two turns a few dozen dropped frames into hundreds of milliseconds of imaginary clock drift. null when no timestamp index ships or fewer than two rows do.",
+          "type": ["integer", "null"],
           "minimum": 0
         },
         "video_frames_delivered": {
@@ -3226,7 +3248,7 @@
         },
         "maximum_alignment_error_ms": {
           "title": "Worst-case alignment error (H1)",
-          "description": "The measured maximum misalignment between ANY two streams, in milliseconds, and therefore >= every non-null `streams[].maximum_alignment_error_ms`. A consumer may and should check that inequality; a producer that reports a headline smaller than a bound derivable from its own per-stream numbers has reported a fit residual, not an alignment error. It is composed as the maximum over (a) the clock-mapping fit residual, (b) each stream's relative rate error carried over the take -- |estimated_drift_ppm| * 1e-6 * duration_s * 1000 ms -- and (c) the divergence between a constant-rate container timeline and the real per-frame arrival times. This is the number a buyer's pipeline thresholds on: above one camera frame, 33 ms at 30 fps, the clip is auto-flagged. Report what was measured, never a design target.",
+          "description": "The measured maximum misalignment between ANY two streams, in milliseconds, and therefore >= every non-null `streams[].maximum_alignment_error_ms`. A consumer may and should check that inequality; a producer that reports a headline smaller than a bound derivable from its own per-stream numbers has understated its alignment. It is composed as the maximum over (a) the clock-mapping fit STANDARD ERROR at the ends of the take (`clock_fit_se_worst_ms`, not the per-anchor residual, which is transport jitter and is published separately), (b) each stream's relative rate error carried over the take -- |estimated_drift_ppm| * 1e-6 * duration_s * 1000 ms -- and (c) the divergence between a constant-rate container timeline and the real per-frame arrival times. This is the number a buyer's pipeline thresholds on: above one camera frame, 33 ms at 30 fps, the clip is auto-flagged. Report what was measured, never a design target.",
           "type": [
             "number",
             "null"
@@ -3256,9 +3278,18 @@
             null
           ]
         },
+        "clock_fit_se_worst_ms": {
+          "title": "Clock-mapping fit standard error, worst case over the take",
+          "description": "Standard error of the linear fit that maps a device clock onto the reference clock, evaluated at the ends of the take where it is largest, in milliseconds. THIS is the alignment uncertainty and it is component (a) of `maximum_alignment_error_ms`. A single anchor stamp records when the host was handed the bytes, not when the device sampled, so it is quantised by transport burst arrival; what places a sample on the reference clock is the fitted LINE through all the anchors, and the uncertainty of a line is its standard error, not the scatter of the points about it. Quoting `clock_fit_residual_ms` here instead overstates the alignment by roughly the square root of the anchor count. Averaging that scatter is only valid when it IS scatter: a producer must publish the lag-1 autocorrelation of the residuals as evidence, and where that is positive -- the signature of a clock that curves over the take, for which a straight line is the wrong model -- the residual is used instead and `notes` says so. null when no anchor fit was performed.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
         "clock_fit_residual_ms": {
-          "title": "Clock-mapping fit residual",
-          "description": "Residual of the linear fit that maps a device clock onto the reference clock, in milliseconds. It is an INPUT to `maximum_alignment_error_ms`, never a substitute for it: a fit residual says how well a straight line described the anchors, and says nothing about relative rate error accumulated over the take or about a container timeline that diverges from arrival times. Shipped separately so a buyer can see which component dominates. null when no anchor fit was performed.",
+          "title": "Clock-mapping fit residual (jitter diagnostic, NOT the alignment)",
+          "description": "The worst SINGLE anchor's residual about the fitted clock line, in milliseconds. This is a transport-jitter DIAGNOSTIC and is deliberately not a lower bound on `maximum_alignment_error_ms`: it is legitimately an order of magnitude larger than the alignment, because it measures the arrival quantisation that the fit averages out. It is published beside `clock_fit_se_worst_ms` so a buyer can see both the alignment and the noise it was extracted from, and so that a large value here reads as what it is -- a bursty transport -- rather than as imprecise data. A record that reports this number as its alignment error has reported a fit residual, not an alignment. null when no anchor fit was performed.",
           "type": [
             "number",
             "null"
@@ -3615,6 +3646,11 @@
                     "absent",
                     "unverified"
                   ]
+                },
+                "status_note": {
+                  "title": "What the status value means for this rig, in plain words",
+                  "description": "Present when `status` is a value that reads worse than the situation warrants. `unverified` is the only enum available for an IMU that works but has never been noise-characterised, and on its own it reads as \u0022we do not know whether this functions\u0022 -- which is wrong when the stream is delivering at a measured rate. This field says plainly what the enum does and does not mean. null when the status needs no gloss.",
+                  "type": ["string", "null"]
                 },
                 "rate_hz": {
                   "title": "Sample rate",
