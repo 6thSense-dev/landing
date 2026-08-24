@@ -133,8 +133,39 @@ environment, including the firmware publishing key.
 | `CATALOG_LOCAL_SIGNING_KEY` | random per process | `CATALOG_SOURCE=local` only. |
 | `SENSEPROBE_GUEST_LOGIN_RATE_LIMIT` | `60/minute` | Guest logins get their own bucket, keyed `guest-login:<ip>`, so a shared credential cannot exhaust the limit that protects real accounts. |
 
-Nothing else changes. `DATABASE_URL`, `SENSEPROBE_SESSION_SECRET`, `SENSEPROBE_CORS_ORIGINS`
-and the existing `SENSEPROBE_LOGIN_RATE_LIMIT` keep their current values.
+`DATABASE_URL`, `SENSEPROBE_SESSION_SECRET`, `SENSEPROBE_CORS_ORIGINS` and the existing
+`SENSEPROBE_LOGIN_RATE_LIMIT` keep their current values.
+
+### The two cookie variables the portal cannot log in without
+
+Not catalog variables, but production is already set this way and a rebuild that omits them
+breaks the catalog in a way that looks like a catalog bug:
+
+| Variable | Value | Notes |
+|---|---|---|
+| `SENSEPROBE_COOKIE_SAMESITE` | `none` | Defaults to `lax`. |
+| `SENSEPROBE_COOKIE_SECURE` | `true` | The default. `none` without it is a hard startup error — browsers silently drop that pairing. |
+
+The SPA is served from `6thsense.dev` and the API from the Railway host: different registrable
+domains, so every authenticated request is cross-site. A `lax` cookie is stored on login and
+then never sent again — `POST /api/auth/login` returns 200 and `GET /api/catalog` 401s from the
+same browser one second later. CSRF is not what `SameSite` defends here; `OriginCheckMiddleware`
+rejects any unsafe method on `/api/auth/`, `/api/portal/` and `/api/admin/` whose `Origin` is
+not in `SENSEPROBE_CORS_ORIGINS`.
+
+**`none` is necessary but not sufficient, and this is the open issue.** A third-party cookie is
+blocked outright — regardless of `SameSite` — by Safari's ITP, iOS in-app browsers (WeChat), and
+Firefox/Brave/Chrome-incognito third-party cookie blocking. Those users get the 401 loop above
+against a correctly configured server — reproduce it in a Chrome incognito window. The real fix
+is to stop being cross-site: put the API on `api.6thsense.dev` (Railway custom domain + a
+Porkbun CNAME) and rebuild the frontend with `VITE_API_URL=https://api.6thsense.dev`. That
+origin is already in the `connect-src` of `frontend/Caddyfile`.
+
+`SENSEPROBE_CORS_ORIGINS` does **not** change: it lists the origins of *pages* allowed to call
+the API, and the page is still `https://6thsense.dev`. Adding the API's own origin to it would
+do nothing. Once the cutover is verified, `SENSEPROBE_COOKIE_SAMESITE` can go back to `lax` --
+`6thsense.dev` and `api.6thsense.dev` share a registrable domain, so the cookie is first-party
+and no longer needs, or benefits from, `none`.
 
 ---
 

@@ -34,11 +34,19 @@
 			Permissions-Policy "geolocation=(), microphone=(), camera=()"
 			# CSP ships in REPORT-ONLY mode: the browser logs violations to the console
 			# but blocks NOTHING, so it cannot break the lead form or portal login.
-			# `connect-src 'self'` will flag the cross-origin backend (VITE_API_URL) —
-			# read the reported origin in devtools, add it to connect-src here, then
-			# rename this header to `Content-Security-Policy` to enforce. style
+			# Rename this header to `Content-Security-Policy` to enforce. style
 			# 'unsafe-inline' is required by the inline SEO <style> in index.html plus
 			# React/framer-motion style attributes.
+			#
+			# connect-src lists BOTH API origins because the API is mid-move. Today
+			# the SPA is built with VITE_API_URL=<the Railway host>; that host is a
+			# different registrable domain from 6thsense.dev, which makes the `sid`
+			# cookie third-party and gets it dropped by Safari, iOS in-app browsers
+			# and anything with third-party cookies off — login succeeds and every
+			# request after it 401s. The fix is api.6thsense.dev (same site, cookie
+			# is first-party); it is listed here already so the cutover is one
+			# VITE_API_URL change and a redeploy, with no CSP edit in the critical
+			# path. Drop the Railway host from this list once the cutover is done.
 			#
 			# The catalog's media (posters, preview loops, the encoded mp4, the IMU
 			# and tactile sidecars) is fetched by the browser DIRECTLY from the
@@ -48,7 +56,7 @@
 			# enforcing every clip in the catalog goes blank at once. Both the
 			# regional and the legacy global virtual-hosted forms are listed because
 			# which one boto3 mints depends on how the client is configured.
-			Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; media-src 'self' https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; connect-src 'self' https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+			Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; media-src 'self' https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; connect-src 'self' https://api.6thsense.dev https://api-production-0649.up.railway.app https://6thsense-catalog-media.s3.us-west-2.amazonaws.com https://6thsense-catalog-media.s3.amazonaws.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
 			-Server
 		}
 
