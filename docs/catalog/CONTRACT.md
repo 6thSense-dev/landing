@@ -566,17 +566,35 @@ alignment cannot reach grade A.
 measured components, and is therefore `>=` every non-null `streams[].maximum_alignment_error_ms`:
 
 ```
-max( clock_fit_residual_ms,                                   # the anchor fit
+max( clock_fit_se_worst_ms,                                   # the anchor fit's uncertainty
      |estimated_drift_ppm| * 1e-6 * duration_s * 1000,        # rate error over the take
      container-timeline divergence from real arrival times )  # measured off frame_times.csv
 ```
 
-The fit residual on its own is routinely *smaller* than a bound derivable from two other
-fields in the same document — a 12.4 ms residual sitting next to `estimated_drift_ppm: 1379.9`
-over an 11.6 s take implies 16.0 ms from drift alone. A buyer will do that subtraction, so
-the build does it first: the raw residual ships separately as `clock_fit_residual_ms`, and
-`catalog-ingest validate` re-derives the inequality and **fails the build** when the headline
-is smaller than any bound the record itself implies.
+Component (a) is the **standard error of the fit**, not the scatter of the anchors about it.
+A single anchor stamp says when the host was handed the bytes, not when the device sampled,
+so it is quantised by transport burst arrival; what places a sample on the reference clock is
+the fitted *line* through all the anchors, and the uncertainty of a line is its standard
+error. On a 40–135-anchor take the two differ by roughly `sqrt(n)` — one real corpus
+published **34.45 ms** for data whose fit is uncertain to about **3 ms**, which put it past
+one video frame and read as "not frame-synchronised" for data that was.
+
+The per-anchor residual still ships, as `clock_fit_residual_ms`, labelled as the transport
+jitter the fit averaged out. It is deliberately **not** a lower bound on the headline:
+requiring the headline to exceed it is exactly what forced the overstatement above.
+
+Averaging that scatter is only legitimate when it *is* scatter. A producer quoting an SE
+must also publish the lag-1 autocorrelation of the residuals: quantisation noise is
+non-positive (measured −0.32 to −0.39 on real tactile streams), whereas a clock that curves
+over the take gives a positive value — and there a straight line is the wrong model and its
+standard error is meaningless. Where the autocorrelation is positive the ingest falls back to
+the residual for that stream and says so in `sync.notes`.
+
+The remaining components still bound the headline, and they routinely dominate: a 4.2 ms fit
+SE sitting next to `estimated_drift_ppm: 1379.9` over an 11.6 s take implies 16.0 ms from
+drift alone. A buyer will do that subtraction, so the build does it first — `catalog-ingest
+validate` re-derives the inequality and **fails the build** when the headline is smaller than
+any bound the record itself implies.
 
 ---
 
@@ -584,7 +602,7 @@ is smaller than any bound the record itself implies.
 
 | # | requirement | where it lives |
 |---|---|---|
-| **H1** | measured max inter-stream skew, auto-flag > 33 ms | `sync.maximum_alignment_error_ms` (composed from the fit residual, per-stream drift over the take and container-timeline divergence — see §5.3), `sync.clock_fit_residual_ms`, `sync.streams[].maximum_alignment_error_ms`, checks `sync_max_skew_ms` (`threshold: 33.0`, acceptance 66.0) and `sync_independent_validation` |
+| **H1** | measured max inter-stream skew, auto-flag > 33 ms | `sync.maximum_alignment_error_ms` (composed from the fit STANDARD ERROR, per-stream drift over the take and container-timeline divergence — see §5.3), `sync.clock_fit_se_worst_ms`, `sync.clock_fit_residual_ms` (jitter diagnostic, not a bound), `sync.streams[].maximum_alignment_error_ms`, checks `sync_max_skew_ms` (`threshold: 33.0`, acceptance 66.0) and `sync_independent_validation` |
 | **H2** | frame count == timestamp count; SHA-256 manifest; dropout > 1% alerts | `qa.video_frames_delivered` / `qa.video_timestamps` / `qa.frame_count_matches_timestamps`; `package_contents[].sha256`; `qa.checksums_verified`; check `video_frame_dropout` with `threshold: 0.01` |
 | **H3** | per-episode measured sync fields, sign convention stated | `sync.*` in full; no boolean `synced` field exists |
 | **H4** | exactly one disposition; every check carries id/category/result/measured/threshold | `qa.disposition` (4-value enum); `qa.checks[]` with all five keys `required` |

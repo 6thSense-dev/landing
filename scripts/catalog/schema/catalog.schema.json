@@ -865,6 +865,23 @@
             }
           }
         },
+        "collection_wide_limitations": {
+          "title": "Checks that miss their bound identically on every clip",
+          "description": "The acceptance checks whose answer is a property of the programme rather than of any take, and which therefore come out the same on every clip. They are surfaced here so a reader is shown them ONCE, properly, instead of the same seven statements repeated on every clip page -- which reads as a corpus riddled with problems when in fact only two or three warnings per clip are specific to that clip. Nothing is hidden: every clip's own `qa.checks` array still carries all of them in full. `kind: by_design` marks a deliberate published decision rather than a gap.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check_id", "result", "kind", "clips"],
+            "properties": {
+              "check_id": {"type": "string"},
+              "result": {"enum": ["warn", "fail"]},
+              "kind": {"enum": ["by_design", "not_yet_measured"]},
+              "clips": {"type": "integer", "minimum": 1},
+              "note": {"type": ["string", "null"]}
+            }
+          }
+        },
         "totals": {
           "title": "Headline totals",
           "description": "Precomputed aggregates over the clips array, so the header renders without iterating. The producer MUST keep these consistent with clips[]; a consumer that finds a mismatch should trust clips[] and report the manifest as stale.",

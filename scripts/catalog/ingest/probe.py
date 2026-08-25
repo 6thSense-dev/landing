@@ -384,6 +384,21 @@ class FrameTimes:
     rows: int | None
     first_us: float | None
     cfr_divergence_ms: float | None
+    #: The same worst-case deviation, but measured against the emission GRID rather than
+    #: against sequential frame index -- i.e. each frame is assigned its slot on the
+    #: median cadence and compared to that slot's nominal time.
+    #:
+    #: The two differ only when frames are MISSING. `cfr_divergence_ms` charges a lost
+    #: frame as though it were a timing error, because on a constant-rate container it is
+    #: one; every later frame is presented a whole period early. `grid_divergence_ms`
+    #: charges it as what it also is -- an absent frame -- and reports the count
+    #: separately in `frames_missing_on_grid`. A producer that ships true exposure times
+    #: and a container carrying real per-frame PTS is described by the second number, and
+    #: describing it with the first turns 41 dropped frames into 250 ms of imaginary clock
+    #: error. Both ship; `sync` picks between them on whether the take declares a grid.
+    grid_divergence_ms: float | None = None
+    frames_missing_on_grid: int | None = None
+    grid_period_ms: float | None = None
 
 
 def frame_times(path: Path | None) -> FrameTimes:
@@ -402,12 +417,24 @@ def frame_times(path: Path | None) -> FrameTimes:
                 except ValueError:  # a malformed row is not a timestamp; the count still holds
                     pass
     first = stamps[0] if stamps else None
-    divergence = None
+    divergence = grid_div = period_ms = missing = None
     if len(stamps) > 1:
         mean = (stamps[-1] - stamps[0]) / (len(stamps) - 1)
         divergence = max(abs((stamps[i] - stamps[0]) - i * mean)
                          for i in range(len(stamps))) / 1000.0
-    return FrameTimes(rows, first, divergence)
+        # Grid-relative. The period is the MEDIAN inter-frame gap, which a run of dropped
+        # frames cannot move -- the mean can, and that is why the mean is wrong here.
+        rel = [t - stamps[0] for t in stamps]
+        deltas = sorted(rel[i + 1] - rel[i] for i in range(len(rel) - 1))
+        period = deltas[len(deltas) // 2]
+        if period > 0:
+            slots = [round(r / period) for r in rel]
+            grid_div = max(abs(r - k * period) for r, k in zip(rel, slots)) / 1000.0
+            # Slots the sensor should have filled and did not. Monotone timestamps make
+            # the last slot the expected count, so this needs no nominal rate from anyone.
+            missing = (slots[-1] + 1) - len(stamps)
+            period_ms = period / 1000.0
+    return FrameTimes(rows, first, divergence, grid_div, missing, period_ms)
 
 
 def verify_checksums(layout: TakeLayout, digests: dict[Path, str]) -> bool | None:

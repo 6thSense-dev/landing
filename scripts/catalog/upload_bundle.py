@@ -37,6 +37,8 @@ from pathlib import Path
 
 try:
     import boto3
+    from boto3.s3.transfer import TransferConfig
+    from botocore.config import Config as BotoConfig
     from botocore.exceptions import ClientError
 except ImportError:  # pragma: no cover - dependency hint
     sys.exit("boto3 is required:  python3 -m pip install boto3")
@@ -66,12 +68,37 @@ CACHE_CONTROL = {
 DEFAULT_CACHE_CONTROL = "public, max-age=31536000, immutable"
 
 
+def _multipart_etag(path: Path, chunk: int) -> str:
+    """S3's ETag for a multipart upload of `path` at `chunk` bytes per part.
+
+    Not a plain MD5 of the file: S3 hashes each part, concatenates those digests
+    and hashes THAT, then appends the part count. Reproducible only because we
+    pin the chunk size in TRANSFER below -- boto3's default differs, so an object
+    someone else uploaded may legitimately not match.
+    """
+    parts = []
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(chunk), b""):
+            parts.append(hashlib.md5(block).digest())  # noqa: S324 - matching an ETag
+    if not parts:                                  # a zero-byte file is never multipart
+        parts.append(hashlib.md5(b"").digest())     # noqa: S324
+    joined = hashlib.md5(b"".join(parts)).digest()  # noqa: S324
+    return f"{joined.hex()}-{len(parts)}"
+
+
 def etag_matches(client, bucket: str, key: str, path: Path) -> bool:
     """True if S3 already holds this exact file.
 
-    S3's ETag is the MD5 hex digest for single-part uploads. Anything uploaded
-    as multipart has a ``-N`` suffix and cannot be compared this way, so we
-    treat those as "unknown" and re-upload.
+    S3's ETag is the MD5 hex digest for a single-part upload and a digest-of-digests
+    with a ``-N`` suffix for a multipart one. Both are checkable, and the multipart
+    case has to be: at a 32 MB threshold every video in the bundle is multipart, so
+    treating those as "unknown" meant re-uploading 6.7 GB of byte-identical media on
+    every run -- over exactly the domestic uplink the TRANSFER config below exists to
+    nurse. That is also the run most likely to drop objects, so the pessimistic check
+    was buying risk, not safety.
+
+    Size is checked first because it is one HEAD field against a stat, and it rejects
+    almost every genuine change before we read a 400 MB file to hash it.
     """
     try:
         head = client.head_object(Bucket=bucket, Key=key)
@@ -80,15 +107,33 @@ def etag_matches(client, bucket: str, key: str, path: Path) -> bool:
             return False
         raise
     remote = head["ETag"].strip('"')
-    if "-" in remote:
-        return False
     if head.get("ContentLength") != path.stat().st_size:
         return False
+    if "-" in remote:
+        return remote == _multipart_etag(path, TRANSFER.multipart_chunksize)
     digest = hashlib.md5()  # noqa: S324 - matching S3's ETag, not a security use
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest() == remote
+
+
+# Tuned for a domestic uplink rather than for EC2. boto3's defaults put ten 8 MB parts in
+# flight with a 60 s socket timeout and about four attempts; uploading multi-hundred-MB
+# media over a home connection that lost 49 objects of this very bundle in one run --
+# EndpointConnectionError and RequestTimeout, across both large mp4s and small json. Fewer
+# parts in flight and a bigger chunk mean fewer sockets to time out; the retry budget is
+# what rescues a transfer that stalls mid-part.
+#
+# The failure mode this prevents is nastier than a slow upload: catalog.json is small and
+# uploads fine, so the catalog goes on advertising clips whose media 403s.
+TRANSFER = TransferConfig(
+    multipart_threshold=32 * 1024 * 1024,
+    multipart_chunksize=32 * 1024 * 1024,
+    max_concurrency=4,
+    num_download_attempts=10,
+    use_threads=True,
+)
 
 
 def upload_one(client, bucket: str, key: str, path: Path, dry_run: bool) -> str:
@@ -105,6 +150,7 @@ def upload_one(client, bucket: str, key: str, path: Path, dry_run: bool) -> str:
             "ContentType": CONTENT_TYPES.get(suffix, "application/octet-stream"),
             "CacheControl": CACHE_CONTROL.get(suffix, DEFAULT_CACHE_CONTROL),
         },
+        Config=TRANSFER,
     )
     return "upload"
 
@@ -140,9 +186,24 @@ def main() -> int:
     prefix = f"{prefix}/" if prefix else ""
 
     session = boto3.Session(profile_name=args.profile) if args.profile else boto3.Session()
-    client = session.client("s3", region_name=args.region)
+    client = session.client(
+        "s3",
+        region_name=args.region,
+        config=BotoConfig(
+            retries={"max_attempts": 10, "mode": "adaptive"},
+            connect_timeout=30,
+            read_timeout=180,
+        ),
+    )
 
-    files = sorted(p for p in bundle.rglob("*") if p.is_file() and not p.name.startswith("."))
+    # catalog.json LAST. It is the manifest the website reads: it is small, it uploads in
+    # milliseconds, and under a plain alphabetical walk it lands before almost all of the
+    # media it points at. For the rest of the run -- 6 GB over a link that lost 49 objects
+    # last time -- the live catalog then advertises clips whose media 403s. Publishing the
+    # index before the thing it indexes is a race with a real user on the other end, so the
+    # manifest is written only once every object it names is already in the bucket.
+    _all = [p for p in bundle.rglob("*") if p.is_file() and not p.name.startswith(".")]
+    files = sorted(_all, key=lambda p: (p.name == "catalog.json", p.as_posix()))
     if not files:
         return _fail(f"no files under {bundle}")
 

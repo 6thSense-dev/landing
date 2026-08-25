@@ -776,10 +776,79 @@ def build_collection(cfg: dict, clips: list[dict], *, paths: dict[str, str],
                     "collection. Per-clip rights in each clip's rights object override this "
                     "and are authoritative."},
         "totals": build_totals(clips, subjects=subjects, sessions=sessions, details=details),
+        "collection_wide_limitations": collection_wide_limitations(details),
         "paths": dict(paths), "splits": splits, "sample_archive": sample_archive,
         "provenance_class": provenance_class(clips, details),
         "notice": cfg.get("notice"),
     }
+
+
+def _uniform_misses(details: dict[str, dict]) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Checks that miss their bound on EVERY clip, with the note to explain them.
+
+    The single definition of "collection-wide". `collection_wide_limitations` renders it and
+    `measured_scope` stamps it onto the clip records, so the manifest and the clip pages
+    cannot disagree about which checks describe the programme rather than the take.
+
+    It has to be MEASURED and not a list of ids. A hand-maintained list said
+    `privacy_redaction_record` was collection-wide; on a 30-clip corpus it warns on 10 of
+    them, so ten clips would have filed a privacy warning of their own under a heading
+    reading "applies to the whole collection, not to this clip" -- while the 10/30 tally
+    also failed the uniformity test here, so no collection page would have stated it either.
+    A check that varies has to stay on the clip that varies.
+    """
+    by_check: dict[str, list[str]] = {}
+    notes: dict[str, str] = {}
+    for doc in details.values():
+        for c in ((doc.get("qa") or {}).get("checks") or []):
+            if c.get("result") in ("warn", "fail"):
+                by_check.setdefault(c["check_id"], []).append(c["result"])
+                notes.setdefault(c["check_id"], c.get("note") or "")
+    n = len(details)
+    return {k: v for k, v in by_check.items() if len(v) == n}, notes
+
+
+def measured_scope(details: dict[str, dict]) -> set[str]:
+    """The check ids that genuinely describe the whole collection, measured over `details`."""
+    return set(_uniform_misses(details)[0]) if details else set()
+
+
+def collection_wide_limitations(details: dict[str, dict] | None) -> list[dict]:
+    """Checks that miss their bound identically on EVERY clip.
+
+    These are not clip facts. `annotation_present`, `split_assigned`,
+    `sync_independent_validation` and their neighbours describe the programme, not the
+    take, and rendering them on each clip page repeats the same seven statements ten
+    times. A buyer clicking through five clips reads them five times and concludes the
+    data is riddled with problems, when in reality only two or three warnings per clip are
+    specific to that clip.
+
+    Nothing is hidden by moving them: the per-clip `checks` array is unchanged and still
+    carries every one, machine-readable and re-derivable. This exists so the clip page can
+    show what makes THAT clip different, and the collection page can state the shared
+    limitations once, properly, where they belong.
+
+    A `by_design` entry is a decision with a published rationale, not a shortfall -- no
+    train/val/test split is published because one operator, one rig and one day puts the
+    same domain on both sides, and `collection.toml`'s split_policy says so in full.
+    Colouring a considered position the same amber as an unmeasured gap is what makes the
+    page read worse than the corpus is.
+    """
+    if not details:
+        return []
+    by_check, notes = _uniform_misses(details)
+    n = len(details)
+    BY_DESIGN = {"split_assigned"}
+    out = []
+    for cid, results in sorted(by_check.items()):
+        out.append({
+            "check_id": cid,
+            "result": results[0],
+            "kind": "by_design" if cid in BY_DESIGN else "not_yet_measured",
+            "clips": n,
+            "note": notes.get(cid) or None,
+        })
+    return out
 
 
 def build_manifest(cfg: dict, clips: list[dict], *, paths: dict[str, str], generated_utc: str,

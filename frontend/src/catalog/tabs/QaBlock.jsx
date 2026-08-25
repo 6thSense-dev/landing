@@ -18,6 +18,13 @@
  *    count does. "Accepted with 3 warns" is the honest headline.
  *  - Rows sort worst-first inside their category, so a fail or a warn cannot be
  *    buried under fifteen passes.
+ *  - Checks whose answer is a property of the PROGRAMME rather than of this take are
+ *    separated out and collapsed. Seven of the nine warns on a typical clip warn
+ *    identically on every clip -- nobody has annotated any clip, no clip has a clap
+ *    decoded, the rig has one cam-IMU solve or none. Repeating them on each clip page
+ *    reads as a corpus riddled with problems when only one to three warns are actually
+ *    about THIS clip. Nothing is hidden: they are still rendered, in full, one <details>
+ *    away, and the record a buyer downloads is unchanged.
  */
 
 import { AlertTriangle } from "lucide-react";
@@ -57,6 +64,16 @@ export function groupChecks(checks) {
   return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
+/** Split into what is about THIS clip and what is about the whole collection.
+ *  A check with no `scope` predates the field and is treated as clip-specific, which is
+ *  the conservative reading -- an old record keeps showing everything it always did. */
+export function splitByScope(checks) {
+  const clip = [];
+  const collection = [];
+  for (const c of checks) (c.scope === "collection" ? collection : clip).push(c);
+  return { clip, collection };
+}
+
 /** How many checks landed on each result. */
 export function tallyChecks(checks) {
   const t = { pass: 0, warn: 0, fail: 0, not_run: 0 };
@@ -66,17 +83,22 @@ export function tallyChecks(checks) {
 
 export default function QaBlock({ qa }) {
   const checks = Array.isArray(qa?.checks) ? qa.checks : [];
-  const checkGroups = groupChecks(checks);
-  const tally = tallyChecks(checks);
+  const { clip: clipChecks, collection: colChecks } = splitByScope(checks);
+  const checkGroups = groupChecks(clipChecks);
+  const tally = tallyChecks(clipChecks);
+  const colTally = tallyChecks(colChecks);
+  const colGroups = groupChecks(colChecks);
 
   return (
     <Block
       title="Quality"
       aside={
         checks.length
-          ? `${formatCount(checks.length)} checks · ${tally.pass} pass · ${tally.warn} warn` +
+          ? `${formatCount(clipChecks.length)} clip checks · ${tally.pass} pass · ` +
+            `${tally.warn} warn` +
             (tally.fail ? ` · ${tally.fail} fail` : "") +
-            (tally.not_run ? ` · ${tally.not_run} not run` : "")
+            (tally.not_run ? ` · ${tally.not_run} not run` : "") +
+            (colChecks.length ? ` · +${colChecks.length} collection-wide` : "")
           : null
       }
     >
@@ -124,9 +146,14 @@ export default function QaBlock({ qa }) {
               <span>
                 This clip is dispositioned <strong>{qa.disposition ?? "—"}</strong> with{" "}
                 {formatCount(tally.warn)} warn{tally.warn === 1 ? "" : "s"}
-                {tally.fail ? ` and ${formatCount(tally.fail)} fail` : ""}. Every one is a
-                measured value outside its preferred bound, listed below with the bound it
-                missed. Accepted does not mean clean.
+                {tally.fail ? ` and ${formatCount(tally.fail)} fail` : ""} of its own. Every
+                one is a measured value outside its preferred bound, listed below with the
+                bound it missed. Accepted does not mean clean.
+                {colTally.warn || colTally.fail
+                  ? ` A further ${formatCount(colTally.warn + colTally.fail)} apply to every
+                     clip in this collection rather than to this one; they are listed below
+                     the table.`
+                  : ""}
               </span>
             </p>
           ) : null}
@@ -190,6 +217,80 @@ export default function QaBlock({ qa }) {
               against the measurements that produced it.
             </p>
           )}
+          {colGroups.length ? (
+            <details className="cat-qa-collection">
+              <summary>
+                {formatCount(colChecks.length)} check
+                {colChecks.length === 1 ? "" : "s"} that apply to the whole collection, not
+                to this clip
+                {colTally.warn || colTally.fail
+                  ? ` — ${formatCount(colTally.warn + colTally.fail)} outside bound`
+                  : ""}
+              </summary>
+              <p className="cat-note">
+                These answer the same on every clip in the collection, so they describe the
+                programme rather than this take. They are here in full rather than repeated
+                on every clip page. A{" "}
+                <code className="cat-code">by design</code> row is a published decision, not
+                a gap — no train/val/test split is assigned because one operator, one rig and
+                one day puts the same domain on both sides of any split.
+              </p>
+              <div className="cat-tablewrap">
+                <table className="cat-table">
+                  <caption className="cat-sr">
+                    Collection-wide QA checks: identifier, result, measured value and
+                    threshold, grouped by category.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Check</th>
+                      <th scope="col">Result</th>
+                      <th scope="col">Measured</th>
+                      <th scope="col">Threshold</th>
+                      <th scope="col">Units</th>
+                    </tr>
+                  </thead>
+                  {colGroups.map(([category, rows]) => (
+                    <tbody key={category}>
+                      <tr>
+                        <th scope="colgroup" colSpan={5} className="cat-qa-cat">
+                          {humanise(category)}
+                        </th>
+                      </tr>
+                      {rows.map((c) => (
+                        <tr
+                          key={c.check_id}
+                          className={
+                            (c.result === "warn" || c.result === "fail") &&
+                            c.kind !== "by_design"
+                              ? "cat-table-row--warn"
+                              : ""
+                          }
+                        >
+                          <th scope="row" className="cat-mono">
+                            {c.check_id}
+                            {c.kind === "by_design" ? (
+                              <span className="cat-qa-bydesign">by design</span>
+                            ) : null}
+                            {c.note ? <span className="cat-qa-note">{c.note}</span> : null}
+                          </th>
+                          <td>
+                            <span className={`cat-qa-result cat-qa-result--${c.result}`}>
+                              {String(c.result || "—").replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td className="cat-qa-val">{checkValue(c.measured_value)}</td>
+                          <td className="cat-qa-val">{checkValue(c.threshold)}</td>
+                          <td className="cat-qa-val">{c.units ?? dash(null)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  ))}
+                </table>
+              </div>
+            </details>
+          ) : null}
+
           {qa.notes ? <p className="cat-m-para">{qa.notes}</p> : null}
           <p className="cat-note">
             Every row carries both its measurement and the bound it was judged against, which

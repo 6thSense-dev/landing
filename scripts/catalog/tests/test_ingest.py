@@ -234,6 +234,126 @@ def test_container_divergence_counts_as_an_alignment_error():
     assert video["maximum_alignment_error_ms"] == pytest.approx(58.88)
 
 
+# The producer that ships a fit standard error alongside the residual. This is the shape
+# the pipeline emits now; META above is the older two-field shape and is kept so the
+# fallback stays covered.
+META_SE = {
+    "synchronisation": {
+        "common_clock": "CLOCK_REALTIME microseconds",
+        "anchor_fit_residual_ms": {"left": 32.343, "right": 32.100},
+        "anchor_fit_se_worst_ms": {"left": 4.150, "right": 4.090},
+        "anchor_fit_lag1_autocorr": {"left": -0.36, "right": -0.35},
+        "validation_result": "not_validated",
+    }
+}
+
+
+def test_alignment_is_the_fit_standard_error_not_the_anchor_scatter():
+    """The headline must follow the SE. Quoting the residual overstated it ~8x here and
+    pushed a sub-frame corpus past one video frame."""
+    sync = build_sync(META_SE, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=84.6, cfr_divergence_ms=0.001)
+    assert sync["clock_fit_se_worst_ms"] == pytest.approx(4.150)
+    # The jitter still ships, named for what it is, and is NOT the headline.
+    assert sync["clock_fit_residual_ms"] == pytest.approx(32.343)
+    assert sync["maximum_alignment_error_ms"] == pytest.approx(4.150)
+    assert sync["maximum_alignment_error_ms"] < 33.3
+    left = next(s for s in sync["streams"] if s["stream_id"] == "tactile_left")
+    assert left["maximum_alignment_error_ms"] == pytest.approx(4.150)
+
+
+def test_a_curving_clock_falls_back_to_the_residual():
+    """Averaging arrival scatter is only valid when it IS scatter. Positive lag-1
+    autocorrelation means the clock is not linear over the take, so the fit's standard
+    error is not defensible and the conservative number has to be used instead."""
+    meta = {"synchronisation": {**META_SE["synchronisation"],
+                                "anchor_fit_lag1_autocorr": {"left": 0.41, "right": -0.35}}}
+    sync = build_sync(meta, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=84.6, cfr_divergence_ms=0.001)
+    # left curves -> its residual is used; right is clean -> its SE is used.
+    assert sync["maximum_alignment_error_ms"] == pytest.approx(32.343)
+    assert any("POSITIVE lag-1" in n for n in sync["notes"])
+    left = next(s for s in sync["streams"] if s["stream_id"] == "tactile_left")
+    right = next(s for s in sync["streams"] if s["stream_id"] == "tactile_right")
+    assert left["maximum_alignment_error_ms"] == pytest.approx(32.343)
+    assert right["maximum_alignment_error_ms"] == pytest.approx(4.090)
+
+
+def test_a_producer_without_an_se_still_gets_the_old_conservative_number():
+    """A package built before the SE shipped must not silently gain a better headline."""
+    sync = build_sync(META, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=11.57, cfr_divergence_ms=3.8)
+    assert sync["clock_fit_se_worst_ms"] == pytest.approx(12.418)
+    assert sync["clock_fit_residual_ms"] == pytest.approx(12.418)
+
+
+# Frames genuinely missing from the emission grid. The sequential-index figure charges
+# them as clock error; the grid figure does not. Which one is used is gated on the take
+# declaring a grid, because slot-rounding an ARRIVAL-stamped index masks real jitter.
+META_GRID = {
+    "synchronisation": {
+        **META_SE["synchronisation"],
+        "video_sensor_grid": {"grid_period_ms": 33.28, "grid_error_ms": 0.0,
+                              "frames_lost_in_transport": 41},
+    }
+}
+
+
+def test_lost_frames_are_not_charged_as_clock_error_when_a_grid_is_declared():
+    sync = build_sync(META_GRID, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=58.34,
+                      cfr_divergence_ms=271.9, grid_divergence_ms=0.001,
+                      frames_missing_on_grid=41)
+    video = next(s for s in sync["streams"] if s["stream_id"] == "video")
+    assert video["maximum_alignment_error_ms"] == pytest.approx(0.001)
+    # the glove fit, not the video, is now the binding term
+    assert sync["maximum_alignment_error_ms"] == pytest.approx(4.150)
+
+
+def test_without_a_declared_grid_the_conservative_figure_is_kept():
+    """An arrival-stamped package must not gain a better number just because the ingest
+    learned how to snap timestamps to a grid."""
+    sync = build_sync(META_SE, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=58.34,
+                      cfr_divergence_ms=271.9, grid_divergence_ms=0.001,
+                      frames_missing_on_grid=41)
+    video = next(s for s in sync["streams"] if s["stream_id"] == "video")
+    assert video["maximum_alignment_error_ms"] == pytest.approx(271.9)
+    assert sync["maximum_alignment_error_ms"] == pytest.approx(271.9)
+
+
+def test_the_composition_note_quotes_the_divergence_that_actually_entered_the_maximum():
+    """The note states the headline is the maximum over three components and gives their
+    values. It therefore has to be arithmetic a buyer can check.
+
+    It quoted `cfr_divergence_ms` while the maximum was taken over `grid_divergence_ms`, so
+    a real record shipped "the maximum over three measured components ... (271.717 ms)"
+    beside a headline of 5.020 ms. The build's own H1 gate cannot catch it: that gate reads
+    the stream ROWS, which carry the grid figure and are consistent.
+    """
+    import re
+    sync = build_sync(META_GRID, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=58.34,
+                      cfr_divergence_ms=271.9, grid_divergence_ms=0.001,
+                      frames_missing_on_grid=41)
+    note = next(n for n in sync["notes"] if n.startswith("maximum_alignment_error_ms is"))
+    assert "271.900" not in note
+    assert "0.001" in note
+    # No figure the note offers as a COMPONENT may exceed the maximum it composes.
+    for value in (float(m) for m in re.findall(r"\(?([\d.]+) ms\)?", note)):
+        assert value <= sync["maximum_alignment_error_ms"] + 1e-9, note
+
+
+def test_the_superseded_arrival_figure_is_still_stated_so_the_two_reconcile():
+    """`cfr_vfr_warning` can carry the producer's arrival-derived number into the same list.
+    Dropping our own mention of it would leave two unexplained numbers side by side."""
+    sync = build_sync(META_GRID, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=58.34,
+                      cfr_divergence_ms=271.9, grid_divergence_ms=0.001,
+                      frames_missing_on_grid=41)
+    assert any("271.900" in n and "frames_missing_on_grid" in n for n in sync["notes"])
+
+
 def test_a_single_stream_clip_has_no_sync_record():
     assert build_sync(META, streams=["video"], hands=[], duration_s=1.0,
                       cfr_divergence_ms=1.0) is None

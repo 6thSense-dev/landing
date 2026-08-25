@@ -73,7 +73,8 @@ def drift_implied_ms(drift_ppm: float | None, duration_s: float | None) -> float
 
 
 def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: float | None,
-               cfr_divergence_ms: float | None) -> dict | None:
+               cfr_divergence_ms: float | None, grid_divergence_ms: float | None = None,
+               frames_missing_on_grid: int | None = None) -> dict | None:
     """Measured per-clip synchronisation. There is deliberately no boolean `synced`.
 
     A boolean cannot be checked and is therefore worthless. What ships instead is the
@@ -84,7 +85,9 @@ def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: 
     residual is only one of its three components, and on its own it is routinely smaller
     than a bound a buyer can derive from two other fields in the same document:
 
-      (a) clock_fit_residual_ms  -- how well a straight line described the anchors;
+      (a) clock_fit_se_worst_ms  -- the standard error of the fitted clock line at the
+          ends of the take. NOT clock_fit_residual_ms, which is the worst single anchor's
+          arrival jitter about that line and is ~10x larger; see the note in _sync_record;
       (b) |estimated_drift_ppm| * 1e-6 * duration_s * 1000 -- relative rate error carried
           to the end of the take, which a fit residual does not contain;
       (c) the divergence between the constant-rate container timeline and the real
@@ -98,15 +101,73 @@ def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: 
     src = meta.get("synchronisation") or {}
     resid = src.get("anchor_fit_residual_ms")
     resid = resid if isinstance(resid, dict) else {}
-    measured = [v for v in resid.values() if isinstance(v, (int, float))]
-    fit_worst = max(measured) if measured else None
+    # THE ALIGNMENT IS THE FIT, NOT ANY SINGLE ANCHOR.
+    #
+    # A per-anchor stamp is quantised by USB burst arrival: it says when the host was
+    # handed the bytes, not when the device sampled. What places a sample on the host
+    # clock is the least-squares LINE through 40-135 such anchors, and the uncertainty of
+    # a line is its standard error -- worst-case at the ends of the take, which is the
+    # figure taken here. The max residual is an order of magnitude larger and is a jitter
+    # DIAGNOSTIC, not an alignment error; publishing it as the headline overstated this
+    # corpus about tenfold and pushed the number past one video frame, which reads as "not
+    # frame-synchronised" for data that is.
+    #
+    # Averaging that scatter is only legitimate if it IS scatter. `anchor_fit_lag1_autocorr`
+    # is the evidence and it is checked below: quantisation noise is non-positive
+    # (measured -0.32 to -0.39 on the tactile streams), whereas a curving clock would be
+    # positive -- and then a straight line is the wrong model and its standard error means
+    # nothing. If a producer ships a positive autocorrelation we fall back to the residual
+    # rather than quote an SE we cannot defend.
+    se = src.get("anchor_fit_se_worst_ms")
+    se = se if isinstance(se, dict) else {}
+    lag1 = src.get("anchor_fit_lag1_autocorr")
+    lag1 = lag1 if isinstance(lag1, dict) else {}
+    _curving = [h for h, v in lag1.items() if isinstance(v, (int, float)) and v > 0]
+
+    def _align(hand):
+        """Alignment uncertainty for one hand: the fit SE, or the residual if we cannot
+        stand behind the SE (no SE shipped, or that hand's clock is not straight)."""
+        v = se.get(hand)
+        if isinstance(v, (int, float)) and hand not in _curving:
+            return float(v)
+        v = resid.get(hand)
+        return float(v) if isinstance(v, (int, float)) else None
+
+    _align_all = [v for v in (_align(h) for h in (resid.keys() | se.keys())) if v is not None]
+    fit_worst = max(_align_all) if _align_all else None
+    # Kept and published beside the alignment, as the jitter it was averaged out of.
+    _resid_measured = [v for v in resid.values() if isinstance(v, (int, float))]
+    resid_worst = max(_resid_measured) if _resid_measured else None
     xh_ppm = src.get("cross_hand_relative_rate_ppm_hostclock")
+
+    # WHICH VIDEO NUMBER COUNTS: sequential-index divergence, or grid-relative?
+    #
+    # They differ only when frames are missing, and then by a lot -- 41 dropped frames out
+    # of 1713 reads as ~250 ms of sequential divergence and ~0 ms against the grid. The
+    # first is the honest number for a timeline built from ARRIVAL stamps in a constant-rate
+    # container: there, a lost frame really does shift every later frame by a period, and a
+    # consumer seeking by time lands wrong.
+    #
+    # It is the WRONG number once the producer ships true per-frame exposure times and a
+    # container carrying real PTS. Then nothing is mistimed; frames are absent. Charging
+    # absence as clock error is what kept five sound takes out of a drop.
+    #
+    # So the grid figure is used ONLY when the take declares a measured sensor grid, which
+    # is the producer asserting its timestamps are exposure-derived and not arrival. A
+    # package that declares nothing keeps the conservative number and cannot silently
+    # improve. The frame loss does not vanish either way -- it is published as
+    # `frames_missing_on_grid` and drives its own QA check.
+    _grid = src.get("video_sensor_grid")
+    _declares_grid = isinstance(_grid, dict) and _grid.get("grid_period_ms") is not None
+    if _declares_grid and grid_divergence_ms is not None:
+        video_divergence_ms = grid_divergence_ms
+    else:
+        video_divergence_ms = cfr_divergence_ms
 
     rows = []
     for sid in streams:
         hand = sid.removeprefix("tactile_")
-        per = resid.get(hand)
-        per = float(per) if isinstance(per, (int, float)) else None
+        per = _align(hand) if sid.startswith("tactile_") else None
         # Every listed stream names its clock, INCLUDING the one that is not on the
         # reference. A row of four nulls under a header that talks about a shared clock
         # reads as a gap in the record; "free-running sample counter, NOT stamped on the
@@ -120,7 +181,7 @@ def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: 
         drift = xh_ppm if sid == "tactile_right" else None
         parts = [v for v in (per, drift_implied_ms(drift, duration_s)) if v is not None]
         if sid == "video":
-            parts = [v for v in (cfr_divergence_ms,) if v is not None]
+            parts = [v for v in (video_divergence_ms,) if v is not None]
         rows.append({"stream_id": sid, "clock_id": trim(clock, 96),
                      "offset_ns": 0 if sid == "video" else None,
                      "interpolation_policy": "nearest" if sid.startswith("tactile") else "none",
@@ -140,15 +201,47 @@ def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: 
                           # stand over a stream that is on no clock at all.
                           "imu_not_on_reference")) if n]
     notes.append(
-        "maximum_alignment_error_ms is the maximum over three measured components, not the "
-        "clock-fit residual alone: the anchor-fit residual (clock_fit_residual_ms"
+        "maximum_alignment_error_ms is the maximum over three measured components, not any "
+        "one of them: the clock-fit standard error at the ends of the take "
+        "(clock_fit_se_worst_ms"
         + (f" = {fit_worst:.3f} ms" if fit_worst is not None else " = null")
         + "), each stream's relative rate error carried over the take "
         "(|estimated_drift_ppm| * 1e-6 * duration_s * 1000)"
-        + (f", and the constant-rate container timeline's divergence from the real per-frame "
-           f"arrival times ({cfr_divergence_ms:.3f} ms)." if cfr_divergence_ms is not None
+        + (f", and the container timeline's divergence from the real per-frame times "
+           f"({video_divergence_ms:.3f} ms)." if video_divergence_ms is not None
            else ", and the container-timeline divergence, which could not be measured because "
                 "no per-frame timestamp index ships."))
+    # The note above must quote the divergence that ACTUALLY entered the maximum, which is
+    # the grid figure whenever the take declares a grid. Quoting `cfr_divergence_ms` there
+    # instead published "the maximum over three components ... (271.717 ms)" beside a
+    # headline of 5.020 ms -- a buyer checking our arithmetic finds it wrong, on the one
+    # number the whole record is built around. Where the two differ the superseded figure
+    # is stated too, because `cfr_vfr_warning` may carry it into the same list and a reader
+    # has to be able to reconcile them.
+    if (_declares_grid and cfr_divergence_ms is not None
+            and video_divergence_ms is not None
+            and abs(cfr_divergence_ms - video_divergence_ms) > 0.5):
+        notes.append(
+            f"That divergence is measured against the sensor's own emission grid. Measured "
+            f"instead against a frame index with holes in it, the same take reads "
+            f"{cfr_divergence_ms:.3f} ms -- but that figure charges ABSENT frames as clock "
+            f"error, which they are not. The frames really are missing and are published "
+            f"separately as frames_missing_on_grid; they are not hidden in this number.")
+    notes.append(
+        "clock_fit_residual_ms"
+        + (f" ({resid_worst:.3f} ms)" if resid_worst is not None else " (null)")
+        + " is the worst SINGLE anchor's scatter about that line, not the alignment. It is "
+        "USB burst-arrival quantisation and is published as the jitter the fit averaged "
+        "out; the fit is what places a sample on the host clock. The lag-1 autocorrelation "
+        "of those residuals is published with them as the evidence that averaging is valid "
+        "-- it is non-positive for quantisation noise and would be positive for a clock "
+        "that curves, in which case a straight line is the wrong model.")
+    if _curving:
+        notes.append(
+            "Alignment for " + ", ".join(sorted(_curving)) + " falls back to the max anchor "
+            "residual rather than the fit standard error: that stream's residuals have "
+            "POSITIVE lag-1 autocorrelation, which is the signature of a clock that is not "
+            "linear over the take, and a linear fit's standard error is not meaningful there.")
     if not src:
         notes.append("No synchronisation record shipped with this take: alignment rests on a "
                      "shared host clock and has not been measured.")
@@ -157,7 +250,10 @@ def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: 
                 or "undeclared: the take shipped no synchronisation record",
             "offset_sign_convention": _SIGN_CONVENTION, "streams": rows,
             "maximum_alignment_error_ms": worst,
-            "clock_fit_residual_ms": fit_worst,
+            # Two different quantities, published side by side and each named for what it
+            # is. Collapsing them into one field is the defect this pair exists to prevent.
+            "clock_fit_se_worst_ms": fit_worst,
+            "clock_fit_residual_ms": resid_worst,
             "validation_method": trim(src.get("validation_method"), 1000),
             "validation_result": src.get("validation_result") or "not_validated",
             "cross_hand_offset_ms": src.get("cross_hand_offset_ms") if both else None,
@@ -186,11 +282,31 @@ def probe_disagreements(probe: Any, meta: dict) -> list[str]:
 
 # --------------------------------------------------------------------- QA (H2, H4)
 
+#: Checks whose answer is a property of the PROGRAMME, not of a take. They come out the
+#: same on every clip by construction -- nobody has annotated any clip, no clip has a clap
+#: decoded, the rig has one cam-IMU solve or none. Tagging them lets the clip page show
+#: what makes THAT clip different and the collection page state these once. The check
+#: still ships in full on every clip; this only affects where a reader is shown it.
+#:
+#: `split_assigned` is the odd one out and is tagged separately: publishing no split is a
+#: DECISION with a rationale in collection.toml (one operator, one rig, one day puts the
+#: same domain on both sides), not a gap. Rendering a considered position in the same
+#: amber as an unmeasured one is what makes the page read worse than the corpus is.
+_PROGRAMME_SCOPE = {
+    "annotation_present", "calibration_cam_imu_present", "calibration_readout_time_ms",
+    "imu_noise_characterised", "privacy_redaction_record", "sync_independent_validation",
+    "split_assigned",
+}
+_BY_DESIGN = {"split_assigned"}
+
+
 def _check(cid: str, category: str, result: str, measured: Any, threshold: Any,
            units: str | None = None, note: str | None = None) -> dict:
     """One acceptance check. H4 requires the measurement AND the bound it was tested against."""
     return {"check_id": cid, "category": category, "result": result,
             "measured_value": measured, "threshold": threshold, "units": units,
+            "scope": "collection" if cid in _PROGRAMME_SCOPE else "clip",
+            "kind": "by_design" if cid in _BY_DESIGN else "measured",
             "note": trim(note, 500)}
 
 
@@ -253,7 +369,28 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
     warn: list[str] = []
     hands, stamps = ci.tactile.hands, ci.frame_timestamps
     delivered = ci.probe.frames if ci.probe else None
-    dropped = ((ci.metadata or {}).get("quality") or {}).get("video_frames_dropped")
+    # The producer's own counter, and it counts what the WRITER lost. On this rig the loss
+    # happens upstream of the writer -- the device's own metadata says `lost_before_writer:
+    # true` with the write queue never above 7% -- so this reads 0 on takes that are
+    # genuinely missing 2-8% of their frames. It is not wrong, it is answering a narrower
+    # question than a buyer thinks it is.
+    #
+    # `frames_missing_on_grid` is measured HERE, off the delivered timestamp index, by
+    # counting slots on the emission cadence that no frame occupies. It needs nothing from
+    # the producer and cannot be under-reported by a counter that never saw the loss. When
+    # the two disagree the larger one is the number that matters, so it is the one graded.
+    _writer_dropped = ((ci.metadata or {}).get("quality") or {}).get("video_frames_dropped")
+    # Only trust the grid count when the take declares its timestamps are exposure-derived.
+    # On an ARRIVAL-stamped index the snap-to-nearest-slot step misfires: measured on
+    # synthetic arrival jitter of +/-8 ms, slot rounding invented 3 missing frames out of
+    # 1000 that were all present. Ungated, that phantom loss would be graded as real.
+    _sync_meta = (ci.metadata or {}).get("synchronisation") or {}
+    _grid_decl = _sync_meta.get("video_sensor_grid")
+    _grid_missing = (ci.frames_missing_on_grid
+                     if isinstance(_grid_decl, dict) and _grid_decl.get("grid_period_ms")
+                     else None)
+    dropped = max([v for v in (_writer_dropped, _grid_missing) if isinstance(v, int)],
+                  default=None)
     parity = None if (delivered is None or stamps is None) else (delivered == stamps)
     crc, usable = ci.tactile.crc_pass_rate, ci.tactile.usable_channels
     sites = (ci.tactile.preview or {}).get("readout_sites")
@@ -290,8 +427,13 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                ("fail" if validation == "fail" else "not_run" if sync is None else "warn"),
                validation, "pass", None,
                None if validation == "pass" else
-               "No independent common-mode event (a clap visible in video and sharp on both "
-               "gloves) validates the alignment; it rests on the shared host clock."),
+               "The alignment IS measured -- see sync.maximum_alignment_error_ms -- but nothing "
+               "physical corroborates it. A shared host clock gives every stream the same ruler, "
+               "so there is no drift between them; what it cannot show is a constant offset, "
+               "because a timestamp records when the host received the data, not when the event "
+               "happened, and the video and tactile paths have different delays. Only a "
+               "common-mode physical event -- a clap, visible in video and sharp on both gloves "
+               "-- can measure that. Not measured here, so not claimed."),
         _check("video_frame_dropout", "media", _tiered(dropout, 0.0, DROPOUT_FAIL,
                higher_is_better=False), dropout, DROPOUT_THRESHOLD, "fraction",
                f"H2 alerts above {DROPOUT_THRESHOLD:.0%}; acceptance bound {DROPOUT_FAIL:.0%}."),
@@ -351,9 +493,12 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                ("pass" if len(noise_present) == len(noise_keys) and imu_cal.get("rate_hz")
                 else "warn"),
                f"{len(noise_present)}/4 noise parameters", "4/4 plus rate_hz", None,
-               "H7: accelerometer and gyroscope noise density and random walk. An IMU with a "
-               "null characterisation is unusable for VIO, which is what IMU in an egocentric "
-               "dataset is for."),
+               "This does NOT mean the IMU is faulty or absent -- where an imu stream ships it "
+               "is delivering valid data, and the delivered rate is published beside this. What "
+               "is missing is the NOISE model: accelerometer and gyroscope noise density and "
+               "random walk, from an Allan deviation over a long stationary recording. A VIO "
+               "pipeline needs those numbers to weight the IMU against vision, which is why a "
+               "working but uncharacterised IMU still misses this bound."),
         _check("rights_reviewed", "rights", "pass" if reviewed else "warn", reviewed, True, None,
                None if reviewed else "No human rights review is on record; all four fail closed."),
         _check("privacy_consent_covers_granted_rights", "privacy", perm_result, perm_measured,
@@ -376,7 +521,11 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                "pass" if pii in ("passed", "not_required") else
                ("fail" if pii == "failed" else "warn"), pii, "passed"),
         _check("annotation_present", "annotation", "pass" if ci.segments else "warn",
-               len(ci.segments), 1, "count"),
+               len(ci.segments), 1, "count",
+               "No time-segmented action labels. Every clip ships a free-text description "
+               "of the whole take, which tells a human what happens but gives a model no "
+               "boundary to learn: nothing here says when one action ends and the next "
+               "begins."),
         _check("split_assigned", "annotation", "pass" if ci.split else "warn",
                ci.split, "train|val|test", None,
                "H10: without a published split every buyer invents their own and no two "
@@ -400,6 +549,9 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                     + ", ".join(c["check_id"] for c in checks if c["result"] == "fail"))
     return {
         "grade": grade, "disposition": disposition, "video_frames_dropped": dropped,
+        # Both, so the gap between them is visible rather than silently resolved above.
+        "video_frames_dropped_by_writer": _writer_dropped,
+        "video_frames_missing_on_grid": _grid_missing,
         "video_frames_delivered": delivered, "video_timestamps": stamps,
         "frame_count_matches_timestamps": parity, "tactile_crc_pass_rate": crc,
         "tactile_crc_pass_rate_by_hand": ci.tactile.crc_by_hand,
@@ -826,8 +978,14 @@ def _sync_rows(details: dict[str, dict]) -> list[Row]:
             implied = drift_implied_ms(row.get("estimated_drift_ppm"), doc.get("duration_s"))
             if implied is not None:
                 bounds.append((f"{row.get('stream_id')} drift over duration_s", implied))
-        if isinstance(sync.get("clock_fit_residual_ms"), (int, float)):
-            bounds.append(("clock_fit_residual_ms", float(sync["clock_fit_residual_ms"])))
+        # The bound is the fit STANDARD ERROR, not the max anchor residual. The residual is
+        # deliberately NOT a bound here: it is the per-anchor arrival jitter the fit
+        # averages out, it is legitimately an order of magnitude larger than the alignment,
+        # and requiring the headline to exceed it is what forced this corpus to publish a
+        # 34 ms figure for data aligned to about 3. It still ships, beside the SE and
+        # labelled as jitter, and `sync.notes` says which is which.
+        if isinstance(sync.get("clock_fit_se_worst_ms"), (int, float)):
+            bounds.append(("clock_fit_se_worst_ms", float(sync["clock_fit_se_worst_ms"])))
         # Both sides are published to millisecond thousandths, so the comparison is made
         # at that precision: a 4e-4 ms rounding artefact is not an H1 violation.
         for label, value in bounds:

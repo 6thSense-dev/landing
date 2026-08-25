@@ -1948,6 +1948,43 @@
   white-space: normal;
 }
 
+/* Collection-wide checks: present, in full, but folded away so they do not repeat the
+   same seven statements on every clip page. Deliberately quiet -- they are context, and
+   the rows above them are the ones about this clip. */
+.cat-d-overlay .cat-qa-collection {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
+.cat-d-overlay .cat-qa-collection > summary {
+  cursor: pointer;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-xs);
+  color: var(--cat-ink-2);
+  list-style: revert;
+}
+
+.cat-d-overlay .cat-qa-collection > summary:hover {
+  color: var(--cat-ink-1);
+}
+
+/* A decision, not a shortfall. Reads as neutral so it cannot be mistaken for the amber
+   of a bound that was actually missed. */
+.cat-d-overlay .cat-qa-bydesign {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-regular);
+  color: var(--cat-ink-2);
+  vertical-align: middle;
+}
+
+
 /* --------------------------------------------------- documentation --- */
 
 .cat-d-overlay .cat-m-docs {

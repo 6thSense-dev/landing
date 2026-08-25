@@ -62,9 +62,11 @@ takes/
 │   ├── video/
 │   │   ├── stereo_upright.mp4          the web mp4 the guest watches. [left | right] SBS
 │   │   │                               (mono rig: name it mono.mp4)
-│   │   └── frame_times.csv             header exactly: frame_idx,host_us — 1 row per frame
+│   │   └── frame_times.csv             header: frame_idx,host_us — 1 row per frame
+│   │                                    (extra columns ignored; join on column 1)
 │   ├── tactile/{left,right}.npz        omit the hand you did not instrument
-│   ├── imu/imu.csv                     header exactly: t_s,ax,ay,az,gx,gy,gz
+│   ├── imu/imu.csv                     header: t_s,ax,ay,az,gx,gy,gz
+│   │                                    (or host_us,... if on the shared clock)
 │   ├── segcap/segments.csv             t0_s,t1_s,label,verb,objects,description
 │   ├── calibration/
 │   │   ├── calibration.json            the raw solve
@@ -262,7 +264,7 @@ Then check three things by eye in `<bundle>/catalog.json`:
 | | |
 |---|---|
 | directory name | = the clip id, forever (§1) |
-| `video/frame_times.csv` | header exactly `frame_idx,host_us`, one row per frame, row count == the container's frame count. This is H2, the most common automated rejection in the industry |
-| `imu/imu.csv` | header exactly `t_s,ax,ay,az,gx,gy,gz`. `t_s` is seconds from take start, not an epoch. Accel m/s², gyro rad/s — if yours are g and deg/s say so under `imu_units`, do not convert by hand |
+| `video/frame_times.csv` | header starting `frame_idx,host_us`, one row per frame, row count == the container's frame count. This is H2, the most common automated rejection in the industry. Extra trailing columns are read and ignored, which is the slot for shipping a second timebase — e.g. `frame_idx,host_us,host_recv_us`, where column 1 is the frame's exposure time and column 2 the raw arrival stamp it was derived from. Put the timestamp you want joined on in column 1 |
+| `imu/imu.csv` | header `t_s,ax,ay,az,gx,gy,gz`, where `t_s` is seconds from take start, not an epoch. **Prefer `host_us` in place of `t_s`** when your IMU is stamped on the same clock as `video/frame_times.csv` and the tactile streams: absolute microseconds make the three modalities joinable with no `t0` assumption, and the ingest resolves that column name natively. Accel m/s², gyro rad/s — if yours are g and deg/s say so under `imu_units`, do not convert by hand. Getting that declaration wrong is silent: a deg/s stream read as rad/s is off by 57.3× and nothing in the pipeline can tell |
 | `segcap/segments.csv` | header exactly `t0_s,t1_s,label,verb,objects,description`. `objects` semicolon-separated (`tray;bolt;bin`), seconds from take start, ascending |
 | tactile stills | a leading `p50_`/`p75_`/`p90_`/`p95_`/`p99_`/`max_` becomes the frame's caption. Sample **across** the force distribution: a reel of nothing but `max_` frames is a highlight reel, and a buyer who spots that stops trusting the package |
