@@ -783,6 +783,36 @@ def build_collection(cfg: dict, clips: list[dict], *, paths: dict[str, str],
     }
 
 
+def _uniform_misses(details: dict[str, dict]) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Checks that miss their bound on EVERY clip, with the note to explain them.
+
+    The single definition of "collection-wide". `collection_wide_limitations` renders it and
+    `measured_scope` stamps it onto the clip records, so the manifest and the clip pages
+    cannot disagree about which checks describe the programme rather than the take.
+
+    It has to be MEASURED and not a list of ids. A hand-maintained list said
+    `privacy_redaction_record` was collection-wide; on a 30-clip corpus it warns on 10 of
+    them, so ten clips would have filed a privacy warning of their own under a heading
+    reading "applies to the whole collection, not to this clip" -- while the 10/30 tally
+    also failed the uniformity test here, so no collection page would have stated it either.
+    A check that varies has to stay on the clip that varies.
+    """
+    by_check: dict[str, list[str]] = {}
+    notes: dict[str, str] = {}
+    for doc in details.values():
+        for c in ((doc.get("qa") or {}).get("checks") or []):
+            if c.get("result") in ("warn", "fail"):
+                by_check.setdefault(c["check_id"], []).append(c["result"])
+                notes.setdefault(c["check_id"], c.get("note") or "")
+    n = len(details)
+    return {k: v for k, v in by_check.items() if len(v) == n}, notes
+
+
+def measured_scope(details: dict[str, dict]) -> set[str]:
+    """The check ids that genuinely describe the whole collection, measured over `details`."""
+    return set(_uniform_misses(details)[0]) if details else set()
+
+
 def collection_wide_limitations(details: dict[str, dict] | None) -> list[dict]:
     """Checks that miss their bound identically on EVERY clip.
 
@@ -806,19 +836,11 @@ def collection_wide_limitations(details: dict[str, dict] | None) -> list[dict]:
     """
     if not details:
         return []
-    by_check: dict[str, list[str]] = {}
-    notes: dict[str, str] = {}
-    for doc in details.values():
-        for c in ((doc.get("qa") or {}).get("checks") or []):
-            if c.get("result") in ("warn", "fail"):
-                by_check.setdefault(c["check_id"], []).append(c["result"])
-                notes.setdefault(c["check_id"], c.get("note") or "")
+    by_check, notes = _uniform_misses(details)
     n = len(details)
     BY_DESIGN = {"split_assigned"}
     out = []
     for cid, results in sorted(by_check.items()):
-        if len(results) != n:
-            continue                      # differs between clips -> belongs on the clip
         out.append({
             "check_id": cid,
             "result": results[0],

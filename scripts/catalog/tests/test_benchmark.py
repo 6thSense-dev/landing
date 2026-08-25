@@ -20,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ingest.benchmark import (  # noqa: E402
     AUTO_HOURS_MIN_SECONDS,
+    collection_wide_limitations,
+    measured_scope,
     BenchmarkConfigError,
     build_benchmark,
     build_facets,
@@ -372,3 +374,60 @@ def test_the_schema_requires_the_category_roll_up():
     item = bench_schema["properties"]["categories"]["items"]
     assert item["required"] == ["value", "label", "values", "clips"]
     assert item["additionalProperties"] is False
+
+
+# --------------------------------------------------------------------------- #
+# scope is measured, not declared
+# --------------------------------------------------------------------------- #
+
+def _doc(*checks):
+    return {"qa": {"checks": [{"check_id": cid, "result": r, "scope": sc, "note": "n"}
+                              for cid, r, sc in checks]}}
+
+
+def test_a_check_that_varies_between_clips_is_not_collection_wide():
+    """The predicate behind both `scope` and `collection_wide_limitations`.
+
+    A static id list claimed `privacy_redaction_record` described the programme. Measured
+    over a 30-clip corpus it warned on 10 -- so ten clips carried a privacy warning of
+    their own, folded under a heading reading "applies to the whole collection, not to this
+    clip", while the same 10-of-30 tally kept it out of the collection block too. It was
+    stated correctly in neither place.
+    """
+    details = {
+        "a": _doc(("everywhere", "warn", "collection"), ("sometimes", "warn", "collection")),
+        "b": _doc(("everywhere", "warn", "collection"), ("sometimes", "pass", "collection")),
+    }
+    assert measured_scope(details) == {"everywhere"}
+    assert [e["check_id"] for e in collection_wide_limitations(details)] == ["everywhere"]
+
+
+def test_scope_and_the_collection_block_describe_the_same_set():
+    """These are two renderings of one fact, so they must never disagree -- that
+    disagreement is what let a check go unreported by both surfaces."""
+    from ingest.catalog_ingest import _restamp_scope
+    details = {
+        "a": _doc(("uniform", "warn", "collection"), ("varies", "warn", "collection"),
+                  ("plain", "pass", "clip")),
+        "b": _doc(("uniform", "warn", "collection"), ("varies", "pass", "collection"),
+                  ("plain", "pass", "clip")),
+    }
+    touched = _restamp_scope(details)
+    assert touched == ["b"] or touched == ["a", "b"]
+    folded = {c["check_id"] for d in details.values()
+              for c in d["qa"]["checks"] if c["scope"] == "collection"}
+    assert folded == {e["check_id"] for e in collection_wide_limitations(details)}
+    # the varying one is back on the clip, in both records
+    for d in details.values():
+        assert next(c for c in d["qa"]["checks"]
+                    if c["check_id"] == "varies")["scope"] == "clip"
+
+
+def test_a_uniform_clip_check_is_never_promoted_to_collection():
+    """Demotion only. Two clips that happen to agree do not make a check programme-scoped,
+    and a two-clip corpus would otherwise promote almost everything it measures."""
+    from ingest.catalog_ingest import _restamp_scope
+    details = {"a": _doc(("coincidence", "warn", "clip")),
+               "b": _doc(("coincidence", "warn", "clip"))}
+    assert _restamp_scope(details) == []
+    assert all(c["scope"] == "clip" for d in details.values() for c in d["qa"]["checks"])

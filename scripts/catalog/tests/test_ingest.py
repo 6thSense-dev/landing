@@ -322,6 +322,38 @@ def test_without_a_declared_grid_the_conservative_figure_is_kept():
     assert sync["maximum_alignment_error_ms"] == pytest.approx(271.9)
 
 
+def test_the_composition_note_quotes_the_divergence_that_actually_entered_the_maximum():
+    """The note states the headline is the maximum over three components and gives their
+    values. It therefore has to be arithmetic a buyer can check.
+
+    It quoted `cfr_divergence_ms` while the maximum was taken over `grid_divergence_ms`, so
+    a real record shipped "the maximum over three measured components ... (271.717 ms)"
+    beside a headline of 5.020 ms. The build's own H1 gate cannot catch it: that gate reads
+    the stream ROWS, which carry the grid figure and are consistent.
+    """
+    import re
+    sync = build_sync(META_GRID, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=58.34,
+                      cfr_divergence_ms=271.9, grid_divergence_ms=0.001,
+                      frames_missing_on_grid=41)
+    note = next(n for n in sync["notes"] if n.startswith("maximum_alignment_error_ms is"))
+    assert "271.900" not in note
+    assert "0.001" in note
+    # No figure the note offers as a COMPONENT may exceed the maximum it composes.
+    for value in (float(m) for m in re.findall(r"\(?([\d.]+) ms\)?", note)):
+        assert value <= sync["maximum_alignment_error_ms"] + 1e-9, note
+
+
+def test_the_superseded_arrival_figure_is_still_stated_so_the_two_reconcile():
+    """`cfr_vfr_warning` can carry the producer's arrival-derived number into the same list.
+    Dropping our own mention of it would leave two unexplained numbers side by side."""
+    sync = build_sync(META_GRID, streams=["video", "tactile_left", "tactile_right"],
+                      hands=["left", "right"], duration_s=58.34,
+                      cfr_divergence_ms=271.9, grid_divergence_ms=0.001,
+                      frames_missing_on_grid=41)
+    assert any("271.900" in n and "frames_missing_on_grid" in n for n in sync["notes"])
+
+
 def test_a_single_stream_clip_has_no_sync_record():
     assert build_sync(META, streams=["video"], hands=[], duration_s=1.0,
                       cfr_divergence_ms=1.0) is None

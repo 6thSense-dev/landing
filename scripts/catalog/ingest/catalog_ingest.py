@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from .benchmark import (SPLITS, BenchmarkConfigError, build_manifest, build_splits, humanise,
+                        measured_scope,
                         primary_series, series_id, validate_benchmark_config)
 from .imu import ImuError, build_imu_preview
 from .probe import (LayoutError, ProbeError, TakeLayout, digest_files, extract_poster,
@@ -386,6 +387,35 @@ def _manifest(ctx: BuildCtx, clips: list[dict], plans: list[Plan],
         category_of=lambda c: c.get("category"))
 
 
+def _restamp_scope(details: dict[str, dict]) -> list[str]:
+    """Correct every record's `check.scope` against what the whole drop measured.
+
+    Returns the clip ids whose bytes changed, so only those get rewritten.
+
+    validate.py tags a check `collection` from a static candidate list, because it is
+    handed one take at a time and cannot know how the others answered. That list is a
+    statement of intent; this is the measurement. Keeping only the candidates that ACTUALLY
+    miss their bound on every clip is what stops a varying check -- a privacy warning on 10
+    clips of 30, say -- being filed under "applies to the whole collection, not to this
+    clip" on the ten pages it is genuinely about.
+
+    Demotion only. A check outside the candidate list is never promoted to `collection`
+    however uniformly it answers, because uniform-by-accident is not the same as
+    programme-scoped, and a corpus of two clips would otherwise promote almost everything.
+    """
+    keep = measured_scope(details)
+    touched = []
+    for cid, doc in details.items():
+        changed = False
+        for c in ((doc.get("qa") or {}).get("checks") or []):
+            if c.get("scope") == "collection" and c.get("check_id") not in keep:
+                c["scope"] = "clip"
+                changed = True
+        if changed:
+            touched.append(cid)
+    return touched
+
+
 def cmd_build(args: argparse.Namespace) -> int:
     takes_dir, out = Path(args.takes).resolve(), Path(args.out).resolve()
     cfg_path = (Path(args.collection).resolve() if args.collection else
@@ -430,6 +460,18 @@ def cmd_build(args: argparse.Namespace) -> int:
     clips = [r.summary for r in results if r.ok and r.summary]
     shipped = {c["id"] for c in clips}  # a skipped take must not drag the totals to null
     details = {r.clip_id: r.detail for r in results if r.ok and r.detail}
+    # `scope` is the only field a clip record cannot determine on its own: whether a check
+    # describes the programme or the take is a fact about the OTHER clips. validate.py
+    # stamps a candidate from a static list because it sees one take at a time; here, with
+    # every record in hand, the candidate is confirmed against what was actually measured.
+    # A check that does not miss its bound on every clip goes back to being a clip fact,
+    # which is what keeps this field and `collection_wide_limitations` describing the same
+    # set. Rewritten AFTER the cache restore above, so a clip skipped as unchanged is
+    # re-stamped too -- its scope depends on its neighbours, and a neighbour may have moved.
+    _slug = {p.clip_id: p.slug for p in plans}
+    for cid in _restamp_scope(details):
+        _write_if_changed(ctx.out / expand_template(PATHS["detail"], cid, _slug[cid]),
+                          _dumps(details[cid]))
     try:
         manifest = _manifest(ctx, clips, [p for p in plans if p.clip_id in shipped], details)
     except BenchmarkConfigError as exc:

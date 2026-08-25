@@ -208,9 +208,25 @@ def build_sync(meta: dict, *, streams: list[str], hands: list[str], duration_s: 
         + "), each stream's relative rate error carried over the take "
         "(|estimated_drift_ppm| * 1e-6 * duration_s * 1000)"
         + (f", and the container timeline's divergence from the real per-frame times "
-           f"({cfr_divergence_ms:.3f} ms)." if cfr_divergence_ms is not None
+           f"({video_divergence_ms:.3f} ms)." if video_divergence_ms is not None
            else ", and the container-timeline divergence, which could not be measured because "
                 "no per-frame timestamp index ships."))
+    # The note above must quote the divergence that ACTUALLY entered the maximum, which is
+    # the grid figure whenever the take declares a grid. Quoting `cfr_divergence_ms` there
+    # instead published "the maximum over three components ... (271.717 ms)" beside a
+    # headline of 5.020 ms -- a buyer checking our arithmetic finds it wrong, on the one
+    # number the whole record is built around. Where the two differ the superseded figure
+    # is stated too, because `cfr_vfr_warning` may carry it into the same list and a reader
+    # has to be able to reconcile them.
+    if (_declares_grid and cfr_divergence_ms is not None
+            and video_divergence_ms is not None
+            and abs(cfr_divergence_ms - video_divergence_ms) > 0.5):
+        notes.append(
+            f"That divergence is measured against the sensor's own emission grid. Measured "
+            f"instead against a frame index with holes in it, the same take reads "
+            f"{cfr_divergence_ms:.3f} ms -- but that figure charges ABSENT frames as clock "
+            f"error, which they are not. The frames really are missing and are published "
+            f"separately as frames_missing_on_grid; they are not hidden in this number.")
     notes.append(
         "clock_fit_residual_ms"
         + (f" ({resid_worst:.3f} ms)" if resid_worst is not None else " (null)")
