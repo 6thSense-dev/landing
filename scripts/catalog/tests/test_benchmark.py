@@ -431,3 +431,19 @@ def test_a_uniform_clip_check_is_never_promoted_to_collection():
                "b": _doc(("coincidence", "warn", "clip"))}
     assert _restamp_scope(details) == []
     assert all(c["scope"] == "clip" for d in details.values() for c in d["qa"]["checks"])
+
+
+def test_nothing_claims_by_design_without_a_rationale_a_buyer_can_read():
+    """`by_design` says a gap is a considered position. That is only checkable if the
+    reasoning ships. The one check that carried it was justified by "one operator, one rig
+    and one day", which the drop contradicts on rig, day and jurisdiction -- and the
+    collection record it pointed at is None whenever there is no split, so the rationale
+    could not have shipped even if it had been true."""
+    details = {
+        "a": _doc(("split_assigned", "warn", "collection")),
+        "b": _doc(("split_assigned", "warn", "collection")),
+    }
+    entries = collection_wide_limitations(details)
+    assert [e["check_id"] for e in entries] == ["split_assigned"]
+    assert entries[0]["kind"] == "not_yet_measured"
+    assert all(e["kind"] != "by_design" for e in entries)

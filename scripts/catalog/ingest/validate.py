@@ -297,7 +297,17 @@ _PROGRAMME_SCOPE = {
     "imu_noise_characterised", "privacy_redaction_record", "sync_independent_validation",
     "split_assigned",
 }
-_BY_DESIGN = {"split_assigned"}
+# A check is `by_design` only when a rationale for the decision actually reaches the buyer.
+# `split_assigned` was listed here with the justification "one operator, one rig and one day
+# puts the same domain on both sides of any split". Three of those clauses are false for this
+# drop -- two devices (16A260, 16A273), two days, two jurisdictions (CN, HK), three sessions --
+# and the repo's own example policy splits on exactly the axis the sentence says does not
+# exist. Worse, `build_splits` returns None when no clip carries a split, so the collection
+# record the badge pointed at could never have carried the rationale either.
+#
+# A missing split is therefore a gap, and is coloured like one. Re-add an id here only
+# together with a published policy a buyer can read.
+_BY_DESIGN: set[str] = set()
 
 
 def _check(cid: str, category: str, result: str, measured: Any, threshold: Any,
