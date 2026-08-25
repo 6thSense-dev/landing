@@ -828,17 +828,18 @@ def collection_wide_limitations(details: dict[str, dict] | None) -> list[dict]:
     show what makes THAT clip different, and the collection page can state the shared
     limitations once, properly, where they belong.
 
-    A `by_design` entry is a decision with a published rationale, not a shortfall -- no
-    train/val/test split is published because one operator, one rig and one day puts the
-    same domain on both sides, and `collection.toml`'s split_policy says so in full.
-    Colouring a considered position the same amber as an unmeasured gap is what makes the
-    page read worse than the corpus is.
+    A `by_design` entry would be a decision with a published rationale rather than a
+    shortfall. Nothing qualifies today: the one candidate, `split_assigned`, was justified
+    by "one operator, one rig and one day", which this drop contradicts on rig, day and
+    jurisdiction -- and `build_splits` returns None without a split, so the rationale had
+    nowhere to ship even if it had been true. An unpublished split is a gap and is
+    coloured as one.
     """
     if not details:
         return []
     by_check, notes = _uniform_misses(details)
     n = len(details)
-    BY_DESIGN = {"split_assigned"}
+    BY_DESIGN: set[str] = set()      # see the docstring; nothing earns this yet
     out = []
     for cid, results in sorted(by_check.items()):
         out.append({

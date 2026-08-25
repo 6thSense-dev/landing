@@ -227,13 +227,15 @@ export default function QaBlock({ qa }) {
                   ? ` — ${formatCount(colTally.warn + colTally.fail)} outside bound`
                   : ""}
               </summary>
+              {/* Says only what the rows below it say. The earlier version asserted a
+                  reason for the missing split — "one operator, one rig and one day" — which
+                  this drop contradicts on rig, day and jurisdiction, and asserted it whether
+                  or not the record actually omitted a split. A paragraph that argues with
+                  the table beneath it costs more credibility than the amber it saves. */}
               <p className="cat-note">
-                These answer the same on every clip in the collection, so they describe the
-                programme rather than this take. They are here in full rather than repeated
-                on every clip page. A{" "}
-                <code className="cat-code">by design</code> row is a published decision, not
-                a gap — no train/val/test split is assigned because one operator, one rig and
-                one day puts the same domain on both sides of any split.
+                These miss their bound identically on every clip in the collection, so they
+                describe the programme rather than this take. They are here in full rather
+                than repeated on every clip page, and the record you download is unchanged.
               </p>
               <div className="cat-tablewrap">
                 <table className="cat-table">
@@ -269,7 +271,12 @@ export default function QaBlock({ qa }) {
                         >
                           <th scope="row" className="cat-mono">
                             {c.check_id}
-                            {c.kind === "by_design" ? (
+                            {/* Only a row that actually misses its bound can be excused
+                                by design. Gated on the result too, because a `pass` wearing
+                                a "by design" chip reads as a decision not to measure
+                                something we did in fact measure. */}
+                            {c.kind === "by_design" &&
+                            (c.result === "warn" || c.result === "fail") ? (
                               <span className="cat-qa-bydesign">by design</span>
                             ) : null}
                             {c.note ? <span className="cat-qa-note">{c.note}</span> : null}

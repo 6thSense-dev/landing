@@ -1087,7 +1087,7 @@
         },
         "kind": {
           "title": "Whether missing the bound is a gap or a decision",
-          "description": "`measured` = the bound was tested and missed. `by_design` = the value is a deliberate published decision, not a shortfall, and the rationale lives in the collection record -- no train/val/test split is published because one operator, one rig and one day puts the same domain on both sides. Presenting a considered position in the same amber as an unmeasured gap overstates the corpus\u0027s problems. Absent means `measured`.",
+          "description": "`measured` = the bound was tested and missed. `by_design` = the value is a deliberate decision rather than a shortfall, and is only ever set when the rationale ships with the collection so a buyer can read it and disagree. A gap with no published rationale is `measured`, whatever the reason for it. Absent means `measured`.",
           "enum": ["measured", "by_design"]
         },
         "note": {
