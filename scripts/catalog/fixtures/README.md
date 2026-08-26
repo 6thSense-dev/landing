@@ -167,13 +167,19 @@ make -C scripts/catalog fixtures                     # the delivered corpus: no 
 python3 fixtures/generate_fixtures.py --out ../sample-gaps --clips 30 --with-gaps
 ```
 
-| index | gap | what it exercises |
+Five of these are gaps — something missing that should not be. **Two are not gaps at all**:
+0 and 15 build the *other product*. Camera-only (stereo camera, no gloves) is one of the two
+things this rig sells, and it lives behind `--with-gaps` only because this particular drop
+contains none, so this is the only place the catalog's camera-only path gets exercised.
+
+| index | variation | what it exercises |
 |---|---|---|
+| 0 | no `tactile/` and no `imu/`, **clean** quality | the camera-only product at its best: one clocked stream, so `sync_max_skew_ms` and `sync_independent_validation` are `not_applicable` alongside the three tactile checks. **Must reach grade A.** Before `not_applicable` existed it could not, on any input — checks it could never run held it at B or C |
 | 4 | one hand only | a single-hand `usable_channels` |
 | 6 | no `imu/` | IMU tab **disabled**, not empty |
 | 9 | no `country` in `take.yaml` | em-dash on the card; clip drops out of the country filter |
 | 11 | no `segcap/` | Segcap tab disabled, automatic `known_limitations` entry |
-| 15 | no `tactile/` | `hands: []`, tactile view disabled — legal, a video-only clip |
+| 15 | no `tactile/`, **caveat** quality | the camera-only product **with real defects**: `hands: []`, the `none` bucket in `facets.hands`, tactile checks `not_applicable` — and it must STILL grade down. If this one ever reaches A, `not_applicable` has become a loophole |
 | 19 | `mono.mp4` instead of the SBS pair | the single-pane player and `capture: mono_egocentric` |
 
 `--with-gaps` also leaves one clip's `privacy.faces_redacted` unassessed (`null`), which is the

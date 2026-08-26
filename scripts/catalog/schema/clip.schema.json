@@ -1042,18 +1042,19 @@
         },
         "result": {
           "title": "Check result",
-          "description": "'pass' = within threshold. 'warn' = outside the preferred bound but inside the acceptance bound; it must be reflected in the grade and in known_limitations. 'fail' = outside the acceptance bound; a clip with any fail cannot be dispositioned 'accepted'. 'not_run' = the check was not executed, which is never evidence of passing.",
+          "description": "'pass' = within threshold. 'warn' = outside the preferred bound but inside the acceptance bound; it must be reflected in the grade and in known_limitations. 'fail' = outside the acceptance bound; a clip with any fail cannot be dispositioned 'accepted'. 'not_run' = the check APPLIES to this package and was not executed, which is never evidence of passing and always caps the grade. 'not_applicable' = there is nothing for this check to measure, because the package does not carry the thing it checks -- a tactile check on a camera-only package, or an inter-stream skew check on a package delivering a single clocked stream. That is a property of WHICH PRODUCT this is, not of how well it was captured, so it does not cap the grade. The two are deliberately separate values: collapsing them would either penalise a product for a question that does not apply to it, or let an unmeasured check pass as a shrug. A 'not_applicable' result is only legal when the absence is itself visible elsewhere in this record -- `hands: []` for the tactile checks, `sync: null` for the inter-stream ones -- so a buyer can verify the claim rather than take it.",
           "type": "string",
           "enum": [
             "pass",
             "warn",
             "fail",
-            "not_run"
+            "not_run",
+            "not_applicable"
           ]
         },
         "measured_value": {
           "title": "Measured value",
-          "description": "What was actually observed. A number for numeric checks, a string for enum-valued ones, a boolean for structural ones. null is legal ONLY when result is 'not_run'.",
+          "description": "What was actually observed. A number for numeric checks, a string for enum-valued ones, a boolean for structural ones. null is legal ONLY when result is 'not_run' (nothing was measured) or 'not_applicable' (there was nothing to measure). `threshold` is still published on a 'not_applicable' row: it is the bound this check WOULD be held to on a package that carries the stream, and printing it keeps the check table diffable across the two products.",
           "type": [
             "number",
             "string",

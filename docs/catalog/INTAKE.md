@@ -11,11 +11,28 @@ Pipeline and S3: [`README.md`](./README.md) · Field-by-field spec: [`CONTRACT.m
 
 ## 0. What this collection is
 
-Every clip in the delivered drop is **egocentric stereo video plus tactile on both hands**.
-That is the product; there is no mono clip, no video-only clip and no one-handed clip in it.
-Concretely, every take carries `video/stereo_upright.mp4` **and** both `tactile/left.npz` and
-`tactile/right.npz`, and every clip therefore reads `capture: "stereo_egocentric"` with
-`hands: ["left", "right"]`.
+**Two products, and they are equals.** The rig ships:
+
+| product | carries | `hands` | `facets.hands` bucket |
+|---|---|---|---|
+| **egocentric only** | `video/stereo_upright.mp4` | `[]` | `none` |
+| **egocentric + tactile** | `video/stereo_upright.mp4` + `tactile/left.npz` + `tactile/right.npz` | `["left", "right"]` | `left`, `right`, `both` |
+
+**Both are always stereo.** `capture` reads `stereo_egocentric` on every clip of either
+product; there is no mono product and a mono take is a fault, not a variant. A take with
+exactly one glove is also a fault — the packaging pipeline refuses to build it rather than
+demote it to camera-only, because a half-instrumented capture is not either product.
+
+A camera-only take is **not** a degraded or faulty clip and the catalog must not grade it as
+one. Its three tactile QA checks report `not_applicable`, not `not_run`, so they do not cap
+its grade: a flawless camera-only take reaches **grade A** on exactly the same rule that
+grades a tactile take (`CONTRACT.md` §4.2). What it does not get is a free pass — every check
+that *does* apply to it is run and can still fail it.
+
+**This particular drop is all camera + tactile.** Every one of the ~30 takes handed to the
+ingest carries both gloves, so `facets.hands` has no `none` bucket in it and `facets.modality`
+lists `tactile` on every clip. That is a fact about this drop, not about the product line, and
+a later drop containing camera-only takes needs no change to the ingest, the schema or the UI.
 
 **Two countries, and only two.** Captures are in **mainland China (`CN`)** and **Hong Kong SAR
 (`HK`)**. These are two separate ISO 3166-1 alpha-2 codes, not one code with a subdivision,
@@ -112,7 +129,8 @@ a smaller catalog you were told about beats a wrong one you were not.
 | | `privacy.retention`, `privacy.reidentification_prohibited` | null / `false`; grade capped below A |
 | | `split` | out of the split filter and out of `collection.splits` |
 | **OPTIONAL** (silent) | `subcategory`, `description`, `operator`, `environment`, `subjects`, `restrictions`, `known_limitations`, `grade_override`, `task` | null → em-dash |
-| | `imu/`, `segcap/`, `tactile/` | that tab is **disabled**, not empty. A video-only clip is legal |
+| | `imu/`, `segcap/` | that tab is **disabled**, not empty |
+| | `tactile/` | **this is the camera-only product, not a gap.** `hands: []`, tactile tab disabled, the three tactile checks report `not_applicable` and the grade is **not** capped. §0 |
 | | `preview/*`, `docs/checksums.sha256` | the CLI cuts / hashes them itself |
 
 **Nothing is ever guessed.** An undeterminable value is `null`, the UI renders `null` as an
@@ -248,13 +266,18 @@ python3 upload_bundle.py --bundle <bundle> --prefix v1/         # -> private S3
 `--media-mode copy` is not optional for a real drop: the default, `reference`, writes URLs for
 bytes it never materialised, so nothing useful uploads.
 
-Then check three things by eye in `<bundle>/catalog.json`:
+Then check these by eye in `<bundle>/catalog.json`:
 
 - `collection.totals.clips` equals the number of takes you handed it;
 - `collection.totals.countries` is exactly `["CN", "HK"]` (a shorter list means a `take.toml`
   is missing its `country`; a longer one means the drop left the declared scope, §0);
-- `facets.capture` has one bucket, `stereo_egocentric`, and `facets.hands` shows `both` on
-  every clip — anything else means a take is missing an eye or a glove (§0);
+- `facets.capture` has one bucket, `stereo_egocentric` — a second bucket means a take is
+  missing an eye, which is a fault in either product (§0);
+- `facets.hands` matches the drop you handed over: for an all-tactile drop like this one,
+  `both` on every clip and no `none` bucket. A `none` bucket is a camera-only take, which is
+  legal and expected in a mixed drop — check it against your own manifest rather than
+  treating it as an error. A `left`-or-`right`-only clip with no matching partner IS an
+  error: one glove is neither product (§0);
 - no `qa.grade: "C"` you did not expect — a surprise C is a missing file, not bad data (§2).
 
 ---

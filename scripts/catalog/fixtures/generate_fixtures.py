@@ -1271,15 +1271,8 @@ def build_metadata(*, spec: Take, take_id: str, device: str, firmware: str, oper
             "Anchors jitter up to ~%.0f ms because the USB reader receives ~16 tactile frames "
             "per read, so arrival stamps are quantised to the burst cadence. The linear fit "
             "averages this out; treat per-frame alignment as +/-1 video frame." % align_ms),
-        validation_method=(
-            "A bimanual clap was staged at the head of the take: the frame in which the "
-            "hands meet is identified in video/frame_times.csv and the impact transient is "
-            "picked on both gloves. The three timestamps are compared directly, so this is "
-            "independent evidence rather than a restatement of the clock arithmetic."
-            if sync_validated else None if not hands else
-            "No independent common-mode physical event (clap) was staged in this take; "
-            "alignment rests on the shared host clock."),
-        validation_result="pass" if sync_validated else "not_validated",
+        validation_method=validation_method(sync_validated, hands, bool(imu)),
+        validation_result=("pass" if sync_validated and (hands or imu) else "not_validated"),
         tactile_samples_per_video_frame=(round(TACTILE_RATE_HZ / ftimes["measured_fps"], 2)
                                          if hands else None),
         cfr_vfr_warning=(
@@ -1329,7 +1322,15 @@ def build_metadata(*, spec: Take, take_id: str, device: str, firmware: str, oper
         "Force is in raw ADC counts; there is no calibration to newtons or kPa.",
         "No hand pose ground truth; finger articulation is not recoverable from this package.",
     ] if hands else [
-        "No tactile stream: this take is video and inertial only.",
+        # A SHAPE, NOT A FAULT. `known_limitations` is where a buyer looks for what the
+        # package cannot support, and "no tactile" belongs there for a buyer comparing the
+        # two products -- but it is the shape of the camera-only product, and the sentence
+        # has to say so or the list reads as a defect report. The old line also said "video
+        # and inertial only" unconditionally, which is wrong on a take with no IMU.
+        "This is the camera-only product: stereo video%s, and no tactile glove was worn. "
+        "That is the shape of the capture, not something missing from it. Nothing here "
+        "supports contact timing or contact force."
+        % (" plus the inertial stream" if imu else " only, with no inertial stream"),
     ]
     if hands:
         worst = min(tact[h]["stable"] for h in hands)
@@ -1580,19 +1581,89 @@ FIRMWARES = ["1.3.15.glove", "1.3.16.glove", "1.4.0.glove"]
 IMU_MODELS = ["BMI270", "ICM-42688-P", "LSM6DSV16X"]
 PIPELINE = "egotac-pack/0.4.2"
 
-# THE DELIVERED CORPUS HAS NO GAPS. Every clip is egocentric STEREO video plus BOTH
-# tactile hands plus IMU plus segcap, in CN or HK. That is the product, and the default
-# fixture is the product.
+# THE DELIVERED DROP IS ALL CAMERA + TACTILE. Every clip in the default corpus is
+# egocentric STEREO video plus BOTH tactile hands plus IMU plus segcap, in CN or HK.
+# That is what THIS drop contains, and the default fixture is that drop.
 #
-# The gaps below are kept, behind --with-gaps, because the UI paths they exercise are
-# real code: a disabled tab, an em-dash where a value is genuinely unknown, a one-hand
-# channel census, a mono pane with no disparity. Delete the only fixture that reaches
-# those branches and they rot un-run until a real take finally has a hole in it. So the
-# gap corpus stays, it is tested (scripts/catalog/tests/test_fixture_corpus.py), and it
-# is never what `make fixtures` produces.
-GAPS = {4: "right_hand_only", 6: "no_imu", 9: "no_country", 11: "no_segcap",
-        15: "no_tactile", 19: "mono"}
+# The variations below are kept, behind --with-gaps, because the paths they exercise are
+# real code. TWO DIFFERENT KINDS OF THING LIVE IN THIS DICT and the difference matters:
+#
+#   GAPS proper -- `right_hand_only`, `no_imu`, `no_country`, `no_segcap`, `mono`. Each is
+#   something missing that should not be: an em-dash where a value is genuinely unknown, a
+#   disabled tab, a one-hand census, a mono pane with no disparity. Delete the only fixture
+#   that reaches those branches and they rot un-run until a real take has a hole in it.
+#
+#   THE SECOND PRODUCT -- `no_tactile` and `camera_only_clean`. Camera-only (stereo camera,
+#   no gloves) is NOT a gap. It is one of the two things this rig sells and the packaging
+#   pipeline builds it deliberately; it lives here only because this particular drop has
+#   none, so this is the only place the catalog's camera-only path gets exercised. Two of
+#   them on purpose, at opposite ends of the quality range, because the grader has to get
+#   both right and they are different failures if it does not:
+#      0  camera_only_clean   clean profile, and the ONLY warn this index would otherwise
+#                             carry -- sync_independent_validation -- is inapplicable here
+#                             because the take delivers one clocked stream. Must reach
+#                             grade A. If it cannot, the grade rule is penalising a product
+#                             for questions about a different product, which is exactly the
+#                             defect `not_applicable` was added to fix.
+#     15  no_tactile          caveat profile, IMU kept -- camera-only WITH real defects, and
+#                             with a genuine alignment question it has not answered. Must
+#                             still grade DOWN. If it ever reaches A, `not_applicable` has
+#                             become a loophole.
+#
+# The gap corpus is tested (scripts/catalog/tests/test_fixture_corpus.py) and is never what
+# `make fixtures` produces.
+GAPS = {0: "camera_only_clean", 4: "right_hand_only", 6: "no_imu", 9: "no_country",
+        11: "no_segcap", 15: "no_tactile", 19: "mono"}
 
+#: The two `gap` ids that are not gaps at all: they build the OTHER product.
+CAMERA_ONLY = frozenset({"no_tactile", "camera_only_clean"})
+
+#: `camera_only_clean` ships NO IMU either, and that is deliberate rather than incidental.
+#: It makes the take a single-clocked-stream package, which is the only shape where
+#: `sync_max_skew_ms` and `sync_independent_validation` are honestly inapplicable -- there
+#: is no second stream for the video to be out of step with. That is the second half of the
+#: grader change and `no_tactile` (which keeps its IMU) does not reach it.
+#:
+#: It is also the only way this fixture can reach grade A without lying. A camera-only take
+#: that DOES carry the fixture's IMU has a real alignment question and no answer to it: the
+#: fixture's IMU rides a free-running sample counter that is explicitly declared NOT on the
+#: reference clock, so nothing physical corroborates the pair and `sync_independent_validation`
+#: warns -- exactly as it warns on a tactile take with no clap staged. Faking a "pass" there
+#: would put a staged common-mode event in the same document as `imu_not_on_reference`, which
+#: says nobody solved that offset. B is the right grade for that take and it is the same B a
+#: tactile take in the same state gets, which is the equality this whole change is about.
+_NO_IMU_GAPS = frozenset({"no_imu", "camera_only_clean"})
+
+
+def validation_method(sync_validated: bool, hands: list[str], imu: bool) -> str | None:
+    """What physically corroborated this take's stream alignment, if anything.
+
+    A CLAP CORROBORATES VIDEO AGAINST GLOVES. On a camera-only take there are no gloves, so
+    quoting the clap would publish a measurement that could not have happened -- and the
+    clip record renders this string verbatim on the Calib & sync tab. The common-mode event
+    there is the video frame against the IMU accelerometer instead.
+
+    With neither a glove nor an IMU the take delivers ONE clocked stream, so there is no
+    cross-stream alignment for anything to corroborate. That is not "we did not validate
+    it"; it is "there is nothing here to validate". This returns null, `build_sync` returns
+    no record, and the ingest marks the check `not_applicable` rather than `not_run`.
+    """
+    if not (hands or imu):
+        return None
+    if not sync_validated:
+        return ("No independent common-mode physical event was staged in this take; "
+                "alignment rests on the shared host clock.")
+    if hands:
+        return ("A bimanual clap was staged at the head of the take: the frame in which the "
+                "hands meet is identified in video/frame_times.csv and the impact transient "
+                "is picked on both gloves. The three timestamps are compared directly, so "
+                "this is independent evidence rather than a restatement of the clock "
+                "arithmetic.")
+    return ("A single sharp table strike was staged at the head of the take: the frame in "
+            "which the hand lands is identified in video/frame_times.csv and the impact "
+            "transient is picked on the IMU accelerometer. The two timestamps are compared "
+            "directly, so this is independent evidence rather than a restatement of the "
+            "clock arithmetic.")
 
 
 def _article(phrase: str) -> str:
@@ -1639,7 +1710,7 @@ def plan(i: int, seed: int, with_gaps: bool, countries: list[str],
                          int(round(seconds[1] * VIDEO_FPS)))
     prof_name = PROFILE_CYCLE[i % len(PROFILE_CYCLE)]
     hands = ["left", "right"]
-    if gap == "no_tactile":
+    if gap in CAMERA_ONLY:
         hands = []
     elif gap == "right_hand_only":
         hands = ["right"]
@@ -1684,25 +1755,45 @@ def plan(i: int, seed: int, with_gaps: bool, countries: list[str],
     # H10. Assigned BY CAPTURE DEVICE, not at random, so no device appears in two splits
     # and a model cannot memorise a rig. Deterministic from the device id.
     split = {"16A260": "train", "16A317": "train", "16B044": "val", "17C902": "test"}[device]
-    spec["long"] = (
-        f"A single operator performs {spec['title'][0].lower() + spec['title'][1:]} in "
-        f"{_article(spec['env'])} "
-        f"{spec['env']}. The take is continuous and unstaged: the hands enter frame already "
-        f"working, and the tactile arrays are worn snug, so contact is present from the first "
-        f"sample rather than starting from a clean baseline.\n\n"
-        # NO PRECISION CLAIM HERE. The clip's own measured
-        # sync.maximum_alignment_error_ms is rendered on the Calib & sync tab, next to
-        # this clip's frame period, and the build refuses a description that claims a
-        # bound the measurement does not support (validate.py, "clip copy does not
-        # overstate measured sync"). Point at the number; do not restate it.
-        f"The value of the take is the time alignment: {'both gloves and the ' if len(hands) == 2 else 'the glove and the ' if hands else 'the '}"
+    # A CAMERA-ONLY TAKE GETS ITS OWN SENTENCES, not the tactile ones with the nouns filed
+    # off. The old template produced "the camera share one host clock" on a glove-less take
+    # -- ungrammatical, and worse, it went on to sell time alignment as "the value of the
+    # take" for a package that has one stream to align. Camera-only is a product, so it is
+    # described as one: what it is, not what it is missing.
+    _worn = ("The take is continuous and unstaged: the hands enter frame already working, "
+             "and the tactile arrays are worn snug, so contact is present from the first "
+             "sample rather than starting from a clean baseline."
+             if hands else
+             "The take is continuous and unstaged: the hands enter frame already working. "
+             "No tactile glove is worn on this take -- this is the camera-only product, "
+             "which is one of the two this rig ships, and not a capture with a stream "
+             "missing from it.")
+    # NO PRECISION CLAIM IN EITHER BRANCH. The clip's own measured
+    # sync.maximum_alignment_error_ms is rendered on the Calib & sync tab, next to this
+    # clip's frame period, and the build refuses a description that claims a bound the
+    # measurement does not support (validate.py, "clip copy does not overstate measured
+    # sync"). Point at the number; do not restate it.
+    _value = (
+        f"The value of the take is the time alignment: "
+        f"{'both gloves and the ' if len(hands) == 2 else 'the glove and the '}"
         f"camera share one host clock, and the resulting worst-case inter-stream error is "
         f"measured and published per clip rather than claimed -- see Calib & sync. What it "
         f"is not is a force dataset: the tactile values are raw ADC counts with no mapping "
-        f"to newtons.")
+        f"to newtons."
+        if hands else
+        "What ships is the calibrated stereo pair and its per-frame exposure index: the "
+        "delivered panes, the fisheye intrinsics and the rectification residual actually "
+        "measured on a delivered frame -- see Calib & sync. What it is not is a tactile "
+        "take; there is no contact signal here to align anything to, and the tactile QA "
+        "checks read not_applicable rather than not_run for that reason.")
+    spec["long"] = (
+        f"A single operator performs {spec['title'][0].lower() + spec['title'][1:]} in "
+        f"{_article(spec['env'])} "
+        f"{spec['env']}. {_worn}\n\n" + _value)
     return dict(
         i=i, spec=spec, take_id=take_id, device=device, country=country, gap=gap,
         stereo=stereo, frames=frames, hands=hands, prof=prof_name,
+        imu=gap not in _NO_IMU_GAPS,
         rights=rights, rights_profile=rp_name, license_id=lic_id, license_name=lic_name,
         privacy=privacy, when=when, tz=TZ[country], split=split,
         # A staged bimanual clap -- visible in video, sharp on both gloves -- is the only
@@ -1758,7 +1849,7 @@ def build_take(p: dict, takes_dir: Path, tmp: Path, collection: dict, force: boo
 
     # ---- imu -------------------------------------------------------------
     imu = None
-    if p["gap"] != "no_imu":
+    if p["imu"]:
         imu = make_imu(d / "imu" / "imu.csv", dur_s, p["seed"] + 7)
     elif (d / "imu").exists():
         shutil.rmtree(d / "imu")
@@ -1972,11 +2063,13 @@ def main(argv=None) -> int:
     ap.add_argument("--force", action="store_true",
                     help="re-encode video even when an up-to-date file is already present")
     ap.add_argument("--with-gaps", action="store_true",
-                    help="add the deliberate gaps (one mono take, one with no IMU, one with "
-                         "no segcap, one with no tactile, one right-hand-only, one with no "
-                         "country) that exercise the UI's disabled-tab and em-dash paths. "
-                         "OFF by default: the delivered corpus is stereo + both hands "
-                         "throughout, and the default fixture is the delivered corpus.")
+                    help="add the deliberate variations that exercise the UI's disabled-tab "
+                         "and em-dash paths, and the catalog's camera-only path: one mono "
+                         "take, one with no IMU, one with no segcap, one right-hand-only, one "
+                         "with no country, and TWO camera-only takes (the second product -- "
+                         "one at the caveat profile that must still grade down, one clean and "
+                         "IMU-less that must reach grade A). OFF by default: this drop is "
+                         "stereo + both hands throughout, and the default fixture is the drop.")
     ap.add_argument("--uniform", action="store_true",
                     help=argparse.SUPPRESS)   # deprecated: gapless is now the default
     ap.add_argument("--clean", action="store_true",

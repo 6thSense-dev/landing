@@ -222,6 +222,14 @@ Closed set of nine names, each optional; an absent facet hides its control.
 Each bucket is `{value, label, clips, hours, usable_hours}`. Filtering is equality on `value`;
 `label` ships in the data so the UI carries no lookup table that can drift.
 
+Three of the nine do not partition the collection and the UI must not draw them as
+percentages: `modality` and `rights` (a clip contributes several buckets each), and `hands`,
+where a two-glove clip fills `left`, `right` **and** `both`. `hands` also carries **`none`**,
+for `hands: []` — the camera-only product, which is one of the two this rig ships. `none` is a
+real determined value, not a placeholder for a missing one (`hands` is never null), and it
+exists so that every clip lands in at least one bucket: a clip in no bucket is a clip a buyer
+cannot filter for, cannot count and cannot price.
+
 **`label` must be a human name, and for `country` that is enforced.** A code the producer
 cannot name in English **fails the build** (exit 2) rather than falling back to the code, and
 `validate` re-checks the emitted buckets (`every country facet bucket carries a display
@@ -306,7 +314,7 @@ Everything the card, the filter bar and the sort need; nothing else.
 | `resolution` | `[w,h]` int | yes | composite width for SBS: `[1920,600]` |
 | `fps` | float > 0 | yes | `30.06`, never rounded to `30` |
 | `modalities` | enum[] unique | no | modality facet, which tabs enable |
-| `hands` | `left`/`right`, unique | no | `[]` = no glove (legal, ≠ null) |
+| `hands` | `left`/`right`, unique | no | `[]` = no glove — the camera-only product, legal, ≠ null, buckets as `none` (§3.2, §4.2.1) |
 | `subjects` | int ≥ 0 | yes | |
 | `bytes` | int ≥ 0 | yes | download size |
 | `poster` | AssetUrl | 3-state | card thumbnail |
@@ -362,21 +370,34 @@ Computed by the ingest; a human may override it **downward only**, never upward.
 ```
 let cov = qa.tactile_coverage = min(usable_channels[h]) / readout_sites, over hands h
 let drp = video_frames_dropped / video_frames_delivered
+let NA  = { c.check_id : c in qa.checks, c.result == "not_applicable" }
 
-grade = "A"  if  no check result is "warn", "fail" or "not_run"
-             and video_frames_dropped == 0
-             and tactile_crc_pass_rate >= 0.9999
-             and cov >= 0.60
-             and sync.maximum_alignment_error_ms <= 33.0
+# a bound this package has nothing to meet it with is not a bound it missed
+let met(check_id, bound) = check_id in NA  or  <the bound holds>
+
+grade = "A"  if  no check result is "warn", "fail" or "not_run"    # "not_applicable" is not
+             and video_frames_dropped == 0                         #   in that list
+             and met("tactile_crc_pass_rate",    crc >= 0.9999)
+             and met("tactile_channel_coverage", cov >= 0.60)
+             and met("sync_max_skew_ms",         sync.maximum_alignment_error_ms <= 33.0)
 
       = "B"  if  no check result is "fail"
-             and drp <= 0.01                                  # H2
-             and tactile_crc_pass_rate >= 0.999
-             and cov >= 0.40
-             and sync.maximum_alignment_error_ms <= 33.0      # H1
+             and drp <= 0.01                                       # H2
+             and met("tactile_crc_pass_rate",    crc >= 0.999)
+             and met("tactile_channel_coverage", cov >= 0.40)
+             and met("sync_max_skew_ms",         sync.maximum_alignment_error_ms <= 33.0)  # H1
 
       = "C"  otherwise, provided disposition == "accepted"
 ```
+
+**Every input to this rule is in the record.** `NA` is read off `qa.checks[].result`, which
+ships in full, so a buyer holding one clip JSON can re-derive its grade exactly. That is the
+point of putting inapplicability in the record rather than in the grader: the alternative —
+a grader that quietly ignores certain `not_run` rows when it recognises a camera-only clip —
+publishes a grade nobody outside this repository can reproduce or audit.
+
+**`not_applicable` is the only result that does not cap the grade**, and it is reachable only
+from a structural fact published in the same document. See §4.2.1.
 
 **B tests H1 too.** It used not to, and the consequence was that a clip measured 24% over
 the single most common rejection cause on a new rig was still labelled "within the H2
@@ -427,6 +448,55 @@ than `denied`: it is an assertion a buyer's counsel will ask us to indemnify. `o
 asserts only that terms exist to negotiate, so an unbacked one warns rather than fails.
 `privacy_redaction_record` fails on `faces_redacted: true` with `redaction: null`, which
 claims an outcome this schema itself defines as never having happened.
+
+#### 4.2.1 `not_run` vs `not_applicable` — the two ways a check has no number
+
+This rig ships **two products and they are equals**: *egocentric only* (stereo camera, no
+gloves) and *egocentric + tactile* (stereo camera plus two gloves). Both are always stereo.
+Camera-only is a shape the product ships, not a capture that went wrong, and the grade rule
+has to be able to say so.
+
+| result | means | caps the grade |
+|---|---|---|
+| `not_run` | the check **applies** to this package and was not executed | **yes, always** — an unmeasured bound is never evidence of passing |
+| `not_applicable` | the package **does not carry the stream the check tests**, so there was never a number to take | **no** |
+
+The distinction is the whole point, and the cheap version of this fix — making tactile checks
+"pass" on a camera-only clip, or dropping them from the gate — destroys it. A glove that was
+worn and whose CRC rate could not be read is `not_run` and still caps the grade. Only the
+*absence of the glove* is `not_applicable`.
+
+**Two rules keep it honest, and they are enforced in `ingest/validate.py`:**
+
+1. **`not_applicable` is derived from a structural fact, never from a missing measurement.**
+   The only two facts that produce it are `hands == []` (no glove was worn) and fewer than
+   two clocked streams in the package (nothing for an inter-stream skew to be between). A
+   measurement coming back `null` never produces it.
+2. **That fact is published in the same record**, so the claim is checkable rather than
+   assertable: `hands` for the tactile checks, `sync: null` for the inter-stream ones. Every
+   `not_applicable` row also states the fact in its `note`, and still carries the `threshold`
+   it *would* be held to on a package that carries the stream, so the check table stays
+   diffable between the two products.
+
+The checks that can report `not_applicable`, and on what:
+
+| check | inapplicable when | why |
+|---|---|---|
+| `tactile_crc_pass_rate` | `hands == []` | no tactile frame exists to have carried a CRC |
+| `tactile_channel_coverage` | `hands == []` | no readout sites to be covered. A **dead** glove is a coverage of zero and still fails; an absent one has no coverage |
+| `tactile_census_reproducible` | `hands == []` | no channel census to re-derive |
+| `sync_max_skew_ms` | fewer than two clocked streams | H1 is a *relation between* streams. The single delivered stream's own timeline is still checked, by `video_frame_timestamp_parity` |
+| `sync_independent_validation` | fewer than two clocked streams | there is no cross-stream alignment for a common-mode physical event to corroborate |
+
+A `not_applicable` row is neither a warn nor a fail: it is not counted in `qa.checks_warn` or
+`qa.checks_fail`, and it produces no `known_limitations` entry, because there is no limitation
+to state — the package's shape is already published in `modalities` and `hands`.
+
+**A camera-only clip is still fully gradeable down.** Everything that applies to it is run:
+frame dropout, frame/timestamp parity, checksums, the camera calibration model, rectification
+residual, cam-IMU extrinsics, readout time, IMU noise, all four rights checks, all four
+privacy checks, annotation and split. Nothing in this section touches consent, `pii_review`,
+rights or hold.
 
 ---
 
@@ -1009,6 +1079,8 @@ bump the moment 1.0 ships, and they are named here rather than folded quietly in
 | `benchmark.tasks[].clips` added as required-and-nullable | **major** (tightened `required`) |
 | `benchmark.categories[]` added as required — the coarse roll-up the chart actually draws, emitted by the producer because the consumer holds no clip-to-category map (§3.1.1) | **major** (tightened `required`) |
 | `media.video.{overview, closeup}` added as optional-and-nullable — the two rendered clips every package already ships, the overlay composite and the force close-up, were pointed at by nothing and so were invisible to a buyer | minor |
+| `qa.checks[].result` gains `not_applicable` (§4.2.1) — without it there is no way to say "there was nothing here to check", so a flawless camera-only package was structurally incapable of reaching grade A and a buyer reading the raw record could not tell an inapplicable check from one we skipped | minor (new enum member) |
+| `facets.hands` gains the conventional value `none` for `hands: []` — a camera-only clip previously fell into no bucket, so it could not be filtered for, counted or priced | minor (no schema constraint changed; `FacetBucket.value` is a free string) |
 
 Anything after the first published bundle follows the table strictly. The reason to say this
 out loud is that a contract which quietly rewrites its own `1.0` is worth exactly as much as a

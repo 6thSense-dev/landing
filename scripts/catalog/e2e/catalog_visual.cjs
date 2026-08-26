@@ -343,8 +343,17 @@ async function login(page) {
        The card used to badge only a mono clip, so a buyer scanning thirty
        thumbnails was never told anywhere in the grid that all of them are
        stereo + tactile — and a record with a missing `capture` silently stamped
-       "Mono" on a card. */
-    const marks = await page.evaluate(() => {
+       "Mono" on a card.
+
+       THERE ARE TWO PRODUCT MARKS, and both are correct: "STEREO · TACTILE" and
+       "STEREO · CAMERA ONLY". This used to demand the first on every card, which
+       is a fact about THIS drop (v2 asserts it properly, off the manifest) and
+       not a fact about the grid. Asserted here instead: every card carries a
+       mark, every mark names one of the two products, and no card wears the
+       alert tone — camera-only is a product and must never be rendered as a
+       defect. */
+    const PRODUCT_MARKS = ["STEREO · TACTILE", "STEREO · CAMERA ONLY"];
+    const marks = await page.evaluate((ok) => {
       const cards = [...document.querySelectorAll(".cat-card")];
       const texts = cards.map((c) => {
         const m = c.querySelector(".cat-card__mark");
@@ -352,13 +361,15 @@ async function login(page) {
       });
       return {
         cards: cards.length,
-        marked: texts.filter((t) => t === "STEREO · TACTILE").length,
-        others: [...new Set(texts.filter((t) => t !== "STEREO · TACTILE"))],
+        marked: texts.filter((t) => ok.includes(t)).length,
+        others: [...new Set(texts.filter((t) => !ok.includes(t)))],
+        alerted: document.querySelectorAll(".cat-card__mark--alert").length,
         saysMono: /\bmono\b/i.test(document.querySelector(".cat-grid").textContent || ""),
       };
-    });
-    check("v4b. every card states STEREO · TACTILE, and none says Mono",
-          marks.cards > 0 && marks.marked === marks.cards && !marks.saysMono,
+    }, PRODUCT_MARKS);
+    check("v4b. every card names one of the two products, none is alert-toned, none says Mono",
+          marks.cards > 0 && marks.marked === marks.cards && marks.alerted === 0 &&
+          !marks.saysMono,
           JSON.stringify(marks));
 
     /* v4c. One baseline per grid row. The card title reserves two lines and the

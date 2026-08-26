@@ -255,7 +255,13 @@ def corpus_shape_note(clips: list[dict], task_of, category_of=None) -> str | Non
 
 
 _CAPTURE_LABELS = {"stereo_egocentric": "Stereo", "mono_egocentric": "Mono"}
-_HAND_LABELS = {"left": "Left hand", "right": "Right hand", "both": "Both hands"}
+_HAND_LABELS = {"left": "Left hand", "right": "Right hand", "both": "Both hands",
+                # A REAL bucket, not a placeholder for a missing value. `hands` is never
+                # null, so [] is a determined answer: this is the camera-only product.
+                # Returning no bucket at all was worse than mislabelling it -- the clip
+                # existed in the grid and in no Hands filter, so the one buyer who wants
+                # exactly this product could not select it and could not count it.
+                "none": "No gloves (camera only)"}
 _ACRONYMS = {"imu": "IMU", "qa": "QA", "rgb": "RGB", "sbs": "SBS", "pii": "PII"}
 
 # ISO 3166-1 alpha-2 -> English name. This is a LOOKUP TABLE, not a scope declaration:
@@ -379,7 +385,16 @@ def build_facets(clips: list[dict], *, country_overrides: dict[str, str] | None 
     `rights` (one bucket per permission, four per clip).
     """
     def hands_of(clip: dict) -> list[str]:
+        """`[]` -> `none`, two hands -> `left`, `right` AND `both`.
+
+        Like `modality` and `rights`, this facet does not partition the collection, and
+        `none` is what makes the partition it does not form legible: every clip lands in
+        at least one bucket, so the bucket counts add up to something a buyer can reason
+        about instead of silently dropping the camera-only product on the floor.
+        """
         hands = list(clip.get("hands") or [])
+        if not hands:
+            return ["none"]
         return [*hands, "both"] if len(hands) == 2 else hands
 
     facets = {
@@ -783,8 +798,9 @@ def build_collection(cfg: dict, clips: list[dict], *, paths: dict[str, str],
     }
 
 
-def _uniform_misses(details: dict[str, dict]) -> tuple[dict[str, list[str]], dict[str, str]]:
-    """Checks that miss their bound on EVERY clip, with the note to explain them.
+def _uniform_misses(details: dict[str, dict]) -> tuple[dict[str, list[str]], dict[str, str],
+                                                        dict[str, int]]:
+    """Checks that miss their bound on every clip they APPLY to, with the explaining note.
 
     The single definition of "collection-wide". `collection_wide_limitations` renders it and
     `measured_scope` stamps it onto the clip records, so the manifest and the clip pages
@@ -796,16 +812,33 @@ def _uniform_misses(details: dict[str, dict]) -> tuple[dict[str, list[str]], dic
     reading "applies to the whole collection, not to this clip" -- while the 10/30 tally
     also failed the uniformity test here, so no collection page would have stated it either.
     A check that varies has to stay on the clip that varies.
+
+    THE DENOMINATOR IS THE CLIPS THE CHECK APPLIES TO, not the whole drop. A collection may
+    hold both products, and a tactile check on a camera-only clip is `not_applicable` -- it
+    has no opinion. Counting those as "did not miss" would mean one camera-only clip in a
+    thirty-clip drop knocks a genuinely programme-wide tactile warning off collection scope
+    and reprints it on twenty-nine tactile clip pages, which is the exact noise this
+    function exists to remove. A clip that abstains does not get a vote either way.
+
+    Two or more clips must apply, so a check that is inapplicable everywhere but one cannot
+    be promoted to "collection-wide" off a single clip's warn.
+
+    Returns (misses-by-check, note-by-check, applicable-count-by-check).
     """
     by_check: dict[str, list[str]] = {}
     notes: dict[str, str] = {}
+    applicable: dict[str, int] = {}
     for doc in details.values():
         for c in ((doc.get("qa") or {}).get("checks") or []):
+            if c.get("result") == "not_applicable":
+                continue
+            applicable[c["check_id"]] = applicable.get(c["check_id"], 0) + 1
             if c.get("result") in ("warn", "fail"):
                 by_check.setdefault(c["check_id"], []).append(c["result"])
                 notes.setdefault(c["check_id"], c.get("note") or "")
-    n = len(details)
-    return {k: v for k, v in by_check.items() if len(v) == n}, notes
+    uniform = {k: v for k, v in by_check.items()
+               if applicable.get(k, 0) > 1 and len(v) == applicable[k]}
+    return uniform, notes, applicable
 
 
 def measured_scope(details: dict[str, dict]) -> set[str]:
@@ -837,8 +870,7 @@ def collection_wide_limitations(details: dict[str, dict] | None) -> list[dict]:
     """
     if not details:
         return []
-    by_check, notes = _uniform_misses(details)
-    n = len(details)
+    by_check, notes, applicable = _uniform_misses(details)
     BY_DESIGN: set[str] = set()      # see the docstring; nothing earns this yet
     out = []
     for cid, results in sorted(by_check.items()):
@@ -846,7 +878,10 @@ def collection_wide_limitations(details: dict[str, dict] | None) -> list[dict]:
             "check_id": cid,
             "result": results[0],
             "kind": "by_design" if cid in BY_DESIGN else "not_yet_measured",
-            "clips": n,
+            # The clips this applies to, which is len(details) unless some clip reported
+            # it `not_applicable`. Printing the whole drop there would claim the statement
+            # covers clips it has nothing to say about.
+            "clips": applicable.get(cid, len(details)),
             "note": notes.get(cid) or None,
         })
     return out

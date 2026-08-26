@@ -114,9 +114,16 @@ export function matchesFilters(clip, f) {
     return false;
   }
 
+  /* `hands` is never null and [] is a determined answer, so there are FOUR selectable
+     states, not three: left, right, both, and none. `none` is the camera-only product —
+     one of the two this rig ships — and before it existed that clip matched no bucket in
+     `facets.hands` at all, so a buyer who wanted exactly that product had no way to ask
+     for it and no count to price it from. */
   const hands = Array.isArray(clip.hands) ? clip.hands : [];
   if (f.hands != null) {
-    if (f.hands === "both" ? hands.length < 2 : !hands.includes(f.hands)) return false;
+    if (f.hands === "both" ? hands.length < 2
+      : f.hands === "none" ? hands.length > 0
+        : !hands.includes(f.hands)) return false;
   }
 
   const grade = clip.qa ? clip.qa.grade : null;
