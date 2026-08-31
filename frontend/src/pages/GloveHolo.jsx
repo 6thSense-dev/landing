@@ -108,6 +108,8 @@ export default function GloveHolo() {
   // Synthesised grips down the fingers, and their lattice density.
   const [gripExtend, setGripExtend] = useState(() => qNum("gripExtend", 1));
   const [gripScale, setGripScale] = useState(() => qNum("gripScale", 68));
+  // Inward shrink, as a fraction of model height. Slims the bulky fingers.
+  const [slim, setSlim] = useState(() => qNum("slim", 0.5));
   const [compare, setCompare] = useState(() => qBool("compare", true));
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState(null);
@@ -142,7 +144,7 @@ export default function GloveHolo() {
                     look={look} hue={hue} wire={wire} spin={spin} ring={ring}
                     intensity={intensity} scan={scan} glitch={glitch}
                     rotX={rotX} rotY={rotY} rotZ={rotZ} trim={trim} marks={marks}
-                    gripExtend={gripExtend} gripScale={gripScale}
+                    gripExtend={gripExtend} gripScale={gripScale} slim={slim}
                     onReady={setInfo} onError={(e) => setErr(e?.message || e)}
                   />
                 </Suspense>
@@ -193,6 +195,7 @@ export default function GloveHolo() {
             <Slider label="strength" value={marks} min={0} max={1.6} step={0.05} onChange={setMarks} />
             <Slider label="onto fingers" value={gripExtend} min={0} max={1} step={0.05} onChange={setGripExtend} />
             <Slider label="grip density" value={gripScale} min={12} max={110} step={1} onChange={setGripScale} />
+            <Slider label="slim fingers" value={slim} min={0} max={1} step={0.05} onChange={setSlim} />
             <div style={{ fontSize: 11, opacity: 0.55, lineHeight: 1.5 }}>
               Anti-slip grip pad + AprilTag, composited from glove-marks.png so they
               survive the holo and matte looks. The tag is a real, detector-verified
@@ -224,9 +227,10 @@ export default function GloveHolo() {
 weight   1.5MB fbx + 3.7MB 4096² basecolor
 mesh     ${info ? `${info.verts.toLocaleString()} verts / ${Math.round(info.tris).toLocaleString()} tris` : "…"}
 bbox     ${info ? info.size.join(" × ") : "…"}
+weld     ${info?.weld ?? "…"}
 look     ${look} / ${hue}${wire ? " + wire" : ""}
 palm     ${info?.palm ? info.palm.join(", ") : "…"}
-pose     rotX=${rotX} rotY=${rotY} rotZ=${rotZ} trim=${trim}`}
+pose     rotX=${rotX} rotY=${rotY} rotZ=${rotZ} trim=${trim} slim=${slim}`}
           </pre>
 
           <div style={{ fontSize: 11, opacity: 0.55, lineHeight: 1.6 }}>

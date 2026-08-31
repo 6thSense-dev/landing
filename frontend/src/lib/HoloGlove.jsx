@@ -127,6 +127,9 @@ export default function HoloGlove({
   marks = 1,
   gripExtend = 1,
   gripScale = 68,
+  // Inward shrink along the vertex normal, as a fraction of the model's
+  // height. Slims the fingers far more than the palm — see slimMesh().
+  slim = 0,
   // "marks-only" skips the 3.5MB basecolor the FBX references. Only safe when
   // the caller will never select look="textured" — the /products preview only
   // ever shows the hologram, the /glove-holo bench needs all three.
@@ -143,8 +146,8 @@ export default function HoloGlove({
   // Pose is read by the raf tick and by the loader callback, so it lives in a
   // ref rather than the [src]-only effect closure (which would freeze it at
   // whatever the first render passed).
-  const poseRef = useRef({ rotX, rotY, rotZ, trim });
-  poseRef.current = { rotX, rotY, rotZ, trim };
+  const poseRef = useRef({ rotX, rotY, rotZ, trim, slim });
+  poseRef.current = { rotX, rotY, rotZ, trim, slim };
 
   // ---- build the scene once ------------------------------------------------
   useEffect(() => {
@@ -242,6 +245,7 @@ export default function HoloGlove({
     const markTex = new THREE.TextureLoader().load(MARKS_MAP, (t) => {
       sceneRef.current.markImage = t.image;
       calibratePalm();
+      slimMesh();
     });
     markTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
     markTex.colorSpace = THREE.NoColorSpace;
@@ -404,6 +408,7 @@ export default function HoloGlove({
         pivot.add(obj);
         sceneRef.current.model = obj;
         sceneRef.current.unitScale = k;
+        sceneRef.current.modelHeight = s.y;
 
         // Scanline pitch and sweep length are expressed in the model's LOCAL
         // space, so derive them from the local height — ~44 bands and one sweep
@@ -413,6 +418,7 @@ export default function HoloGlove({
         fitModel();
         applyLook();
         calibratePalm();
+        slimMesh();
         // Count from `meshes`, not a fresh traverse — the wireframe clones share
         // the same geometry and would double every number.
         onReady?.({
@@ -423,6 +429,7 @@ export default function HoloGlove({
           ),
           size: [s.x, s.y, s.z].map((v) => +v.toFixed(2)),
           palm: sceneRef.current.palmDir,
+          weld: sceneRef.current.weldStat,
         });
       },
       undefined,
@@ -456,40 +463,69 @@ export default function HoloGlove({
     // definition, so the synthesised finger grips can only ever agree with the
     // baked ones. Needs BOTH the mesh and the mask, so it runs from whichever
     // finishes last.
-    function calibratePalm() {
+    // Per-vertex sample of the marks map, cached because both consumers below
+    // need it and decoding the PNG to a canvas is not free.
+    //   .fabric  glove shell (A), 0 on cuff / strap / forearm
+    //   .grip    Tripo's baked grip pad (R) — only the palm carries it
+    //   .tag     the fiducial quad (B)
+    function sampleMarks() {
       const st = sceneRef.current;
       const img = st.markImage;
-      if (!img || !st.model) return;
+      if (!img || !st.model || st.markSamples) return st.markSamples;
 
-      const S = 512; // the grips average out at this size; we only need a direction
+      const S = 512; // the grips average out at this size; we need masks, not detail
       const cv = document.createElement("canvas");
       cv.width = cv.height = S;
       const ctx = cv.getContext("2d", { willReadFrequently: true });
       ctx.drawImage(img, 0, 0, S, S);
       const px = ctx.getImageData(0, 0, S, S).data;
 
+      const out = new Map();
+      st.model.traverse((o) => {
+        if (!o.isMesh || st.wireMeshes.includes(o)) return;
+        const uv = o.geometry.attributes.uv;
+        if (!uv) return;
+        const n = uv.count;
+        const rec = { grip: new Float32Array(n), fabric: new Float32Array(n), tag: new Float32Array(n) };
+        for (let i = 0; i < n; i++) {
+          // three flips textures vertically by default, so v = 0 is the LAST row.
+          const x = Math.min(S - 1, Math.max(0, (uv.getX(i) * S) | 0));
+          const y = Math.min(S - 1, Math.max(0, ((1 - uv.getY(i)) * S) | 0));
+          const p = (y * S + x) * 4;
+          rec.grip[i] = px[p] / 255;
+          rec.tag[i] = px[p + 2] / 255;
+          rec.fabric[i] = px[p + 3] / 255;
+        }
+        out.set(o, rec);
+      });
+      st.markSamples = out;
+      return out;
+    }
+
+    // Which way does the palm face? Read it off the data rather than hard-code a
+    // direction for this one mesh: average the object-space normals of every
+    // vertex Tripo already painted a grip on. That is the palm by definition, so
+    // the synthesised finger grips can only ever agree with the baked ones.
+    function calibratePalm() {
+      const st = sceneRef.current;
+      const samples = sampleMarks();
+      if (!samples) return;
+
       const acc = new THREE.Vector3();
       const n = new THREE.Vector3();
       let hits = 0;
-      st.model.traverse((o) => {
-        if (!o.isMesh || st.wireMeshes.includes(o)) return;
-        const pos = o.geometry.attributes.uv;
+      for (const [o, rec] of samples) {
         const nor = o.geometry.attributes.normal;
-        if (!pos || !nor) return;
-        for (let i = 0; i < pos.count; i++) {
-          const u = pos.getX(i);
-          // three flips textures vertically by default, so v = 0 is the LAST row.
-          const v = 1 - pos.getY(i);
-          const x = Math.min(S - 1, Math.max(0, (u * S) | 0));
-          const y = Math.min(S - 1, Math.max(0, (v * S) | 0));
+        if (!nor) continue;
+        for (let i = 0; i < rec.grip.length; i++) {
           // Downsampling averages grip-over-fabric, so a painted pad lands
-          // around 60/255 rather than 255; 28 is comfortably above the noise.
-          if (px[(y * S + x) * 4] > 28) {
+          // around 60/255 rather than 255; 0.11 is comfortably above the noise.
+          if (rec.grip[i] > 0.11) {
             acc.add(n.fromBufferAttribute(nor, i));
             hits++;
           }
         }
-      });
+      }
       if (hits < 200 || acc.lengthSq() < 1e-6) {
         console.warn("[HoloGlove] palm calibration found only", hits, "grip verts");
         return;
@@ -504,7 +540,195 @@ export default function HoloGlove({
       gripUniforms.uGripV.value.copy(v);
       st.palmDir = palm.toArray().map((k) => +k.toFixed(3));
     }
+
+    // Tripo modelled the glove noticeably chunkier than the real one, the
+    // fingers worst of all. Push every shell vertex inward along its own normal
+    // by a fixed distance: a thin part loses a much larger FRACTION of its
+    // girth than a thick one, so one uniform offset slims the ~0.045-radius
+    // fingers about twice as hard (in %) as the palm, with no need to segment
+    // the fingers — which is just as well, since they are curled and separate
+    // cleanly on no axis.
+    //
+    // Gated on the fabric mask so the cuff, the wrist strap, the fiducial's
+    // backing plate and the bare forearm keep their thickness; those are thin
+    // plates that would erode or invert.
+    //
+    // Always re-derived from a pristine copy of the positions, never from the
+    // current ones, so dragging the slider cannot compound the shrink.
+    // Weld table for the slimming pass: which vertices occupy the same POINT
+    // IN SPACE, regardless of how many UV copies of it the atlas holds.
+    //
+    // Everything below depends on this. FBXLoader expands the file's indexed
+    // mesh into a non-indexed triangle soup, so 40k distinct points arrive as
+    // 154k independent corners, and BOTH inputs to the offset are per-corner
+    // and discontinuous across those duplicates:
+    //   - computeVertexNormals() on a soup yields FACE normals, so neighbouring
+    //     triangles point slightly differently;
+    //   - the mask weight is sampled through UVs, and on an atlas this
+    //     fragmented a corner near an island edge bleeds onto whatever sits
+    //     next to it, so one corner reads "glove" and its twin reads "cuff".
+    // Either alone tears the surface into confetti when you move it. Averaging
+    // both per welded point makes the field continuous and the shell slides
+    // inward as one piece.
+    function weldTable(o, base) {
+      const st = sceneRef.current;
+      let t = st.weldTables?.get(o);
+      if (t) return t;
+      // Quantise to 1e-4 of model height: far finer than the ~7e-3 vertex
+      // spacing, far coarser than float32 noise.
+      const q = 1e4 / (st.modelHeight || 1);
+      const n = base.length / 3;
+      const groupOf = new Int32Array(n);
+      const index = new Map();
+      let groups = 0;
+      for (let i = 0; i < n; i++) {
+        const k = `${Math.round(base[i * 3] * q)},${Math.round(base[i * 3 + 1] * q)},${Math.round(base[i * 3 + 2] * q)}`;
+        let g = index.get(k);
+        if (g === undefined) { g = groups++; index.set(k, g); }
+        groupOf[i] = g;
+      }
+      t = { groupOf, groups };
+      (st.weldTables ||= new Map()).set(o, t);
+      return t;
+    }
+
+    // Group adjacency, built from the triangle soup via the weld table.
+    function weldAdjacency(o, base) {
+      const st = sceneRef.current;
+      let a = st.adjacency?.get(o);
+      if (a) return a;
+      const { groupOf, groups } = weldTable(o, base);
+      const sets = Array.from({ length: groups }, () => new Set());
+      for (let t = 0; t < groupOf.length; t += 3) {
+        const g0 = groupOf[t], g1 = groupOf[t + 1], g2 = groupOf[t + 2];
+        if (g0 !== g1) { sets[g0].add(g1); sets[g1].add(g0); }
+        if (g1 !== g2) { sets[g1].add(g2); sets[g2].add(g1); }
+        if (g2 !== g0) { sets[g2].add(g0); sets[g0].add(g2); }
+      }
+      // Flatten to typed arrays — 26k Sets are fine to build once, miserable to
+      // walk 14 times per slider move.
+      const start = new Int32Array(groups + 1);
+      for (let g = 0; g < groups; g++) start[g + 1] = start[g] + sets[g].size;
+      const nbr = new Int32Array(start[groups]);
+      for (let g = 0, k = 0; g < groups; g++) for (const n of sets[g]) nbr[k++] = n;
+      a = { start, nbr };
+      (st.adjacency ||= new Map()).set(o, a);
+      return a;
+    }
+
+    // Tripo modelled the glove far chunkier than the real one, the fingers worst
+    // of all. Slimming is LAPLACIAN SHRINK: each welded point steps toward the
+    // average of its neighbours, repeatedly. Displacement scales with curvature,
+    // so the thin, highly-curved fingers pull in hard while the broad flat palm
+    // barely moves — which is exactly the correction wanted, and it needs no
+    // finger segmentation (just as well: they are curled and separate cleanly
+    // on no axis).
+    //
+    // Three approaches were tried before this one; all of them tear, and the
+    // reason is worth keeping:
+    //
+    //  1. Offset along the raw per-vertex normal. FBXLoader hands back a
+    //     non-indexed soup, so computeVertexNormals() yields FACE normals and
+    //     each triangle flies off on its own — the mesh becomes confetti.
+    //  2. Offset along normals welded per position. Continuous, still torn: a
+    //     fixed offset INVERTS any concave feature whose radius of curvature is
+    //     smaller than the offset, and this glove is covered in knuckle creases
+    //     finer than any useful amount, so their walls crossed and sheared the
+    //     fingers into rings.
+    //  3. Offset along a Laplacian-SMOOTHED normal field. Fixes the creases, but
+    //     over a fingertip the field averages toward the finger's axis, so the
+    //     cap translates down the tube instead of shrinking radially and the
+    //     walls punch through it — flat, cut-off tips.
+    //
+    // Laplacian shrink cannot do any of that: every step is a convex
+    // combination of existing points, so the surface can never cross itself.
+    // Its one cost is that it smooths away fine GEOMETRIC detail along with the
+    // bulk — which is why the strength is kept modest. The grip pad, the
+    // AprilTag and the basecolor are all UV-mapped, so none of them are touched
+    // by this at any strength.
+    //
+    // Weighted by the fabric mask so the cuff, wrist strap, fiducial backing
+    // plate and bare forearm hold their shape. Always re-derived from a pristine
+    // copy of the positions, so the slider cannot compound the shrink.
+    const SHRINK_MAX_ITERS = 45;
+    const SHRINK_LAMBDA = 0.5;
+
+    // Welded point positions + the averaged mask weight per point. Averaging the
+    // weight matters: sampled per corner it is discontinuous across UV seams on
+    // an atlas this fragmented, and a discontinuous weight drags neighbouring
+    // triangles by different amounts.
+    function shrinkInputs(o, base, rec) {
+      const st = sceneRef.current;
+      let inp = st.shrinkInputs?.get(o);
+      if (inp) return inp;
+      const { groupOf, groups } = weldTable(o, base);
+      const gp = new Float32Array(groups * 3);
+      const gw = new Float32Array(groups);
+      const count = new Float32Array(groups);
+      for (let i = 0; i < groupOf.length; i++) {
+        const g = groupOf[i];
+        gp[g*3] = base[i*3]; gp[g*3+1] = base[i*3+1]; gp[g*3+2] = base[i*3+2];
+        gw[g] += rec.fabric[i] * (1 - rec.tag[i]);
+        count[g]++;
+      }
+      for (let g = 0; g < groups; g++) gw[g] /= count[g] || 1;
+      inp = { gp, gw, groupOf, groups };
+      (st.shrinkInputs ||= new Map()).set(o, inp);
+      return inp;
+    }
+
+    function slimMesh() {
+      const st = sceneRef.current;
+      const samples = sampleMarks();
+      if (!samples) return;
+      const strength = Math.max(0, Math.min(1, poseRef.current.slim || 0));
+
+      for (const [o, rec] of samples) {
+        const pos = o.geometry.attributes.position;
+        let base = st.basePositions?.get(o);
+        if (!base) {
+          base = new Float32Array(pos.array);
+          (st.basePositions ||= new Map()).set(o, base);
+        }
+        const arr = pos.array;
+        if (strength <= 0) {
+          arr.set(base);
+        } else {
+          const { gp, gw, groupOf, groups } = shrinkInputs(o, base, rec);
+          const { start, nbr } = weldAdjacency(o, base);
+          let cur = Float32Array.from(gp);
+          let next = new Float32Array(groups * 3);
+          // Shrinkage grows with ITERATION COUNT; lambda past ~0.6 only makes
+          // each step wobble, so strength drives the count.
+          const iters = Math.round(strength * SHRINK_MAX_ITERS);
+          for (let it = 0; it < iters; it++) {
+            for (let g = 0; g < groups; g++) {
+              const s0 = start[g], s1 = start[g + 1], n = s1 - s0;
+              if (n === 0) { next[g*3] = cur[g*3]; next[g*3+1] = cur[g*3+1]; next[g*3+2] = cur[g*3+2]; continue; }
+              let ax = 0, ay = 0, az = 0;
+              for (let k = s0; k < s1; k++) { const m = nbr[k] * 3; ax += cur[m]; ay += cur[m+1]; az += cur[m+2]; }
+              const w = SHRINK_LAMBDA * gw[g];
+              next[g*3]   = cur[g*3]   + w * (ax / n - cur[g*3]);
+              next[g*3+1] = cur[g*3+1] + w * (ay / n - cur[g*3+1]);
+              next[g*3+2] = cur[g*3+2] + w * (az / n - cur[g*3+2]);
+            }
+            const t = cur; cur = next; next = t;
+          }
+          for (let i = 0; i < groupOf.length; i++) {
+            const g = groupOf[i] * 3;
+            arr[i*3] = cur[g]; arr[i*3+1] = cur[g+1]; arr[i*3+2] = cur[g+2];
+          }
+        }
+        pos.needsUpdate = true;
+        o.geometry.computeVertexNormals(); // positions really moved
+        o.geometry.computeBoundingBox();
+        o.geometry.computeBoundingSphere();
+      }
+      fitModel();
+    }
+
     sceneRef.current.calibratePalm = calibratePalm;
+    sceneRef.current.slimMesh = slimMesh;
 
     function fitModel() {
       const st = sceneRef.current;
@@ -649,6 +873,10 @@ export default function HoloGlove({
   useEffect(() => {
     sceneRef.current.fitModel?.();
   }, [rotX, rotY, rotZ, trim]);
+
+  useEffect(() => {
+    sceneRef.current.slimMesh?.();
+  }, [slim]);
 
   return (
     <div

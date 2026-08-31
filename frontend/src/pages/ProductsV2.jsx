@@ -475,7 +475,7 @@ export default function ProductsV2() {
                       <HoloGlove
                         look="holo" hue="white" wire spin={!reduceMotion}
                         glitch={reduceMotion ? 0 : 0.6}
-                        ring={false} rotZ={-0.45} rotY={4.71} trim={0.4}
+                        ring={false} rotZ={-0.45} rotY={4.71} trim={0.4} slim={0.5}
                         preload="marks-only"
                         onReady={() => setGlove3dReady(true)}
                       />
