@@ -21,6 +21,15 @@ const Hand3D = lazy(() => import("./Hand3D.jsx"));
 // already gated off. Lazy is what actually makes the D5 gate below pay.
 const AuroraGL = lazy(() => import("./AuroraGL.jsx"));
 
+// PREVIEW ONLY (/products?hologlove): puts all three scenes into the same
+// holographic-white language — the Skin glove replaces its webp flip-book, the
+// Eye2 render becomes the real enclosure CAD (public/eye2.glb, built by
+// scripts/build-eye2-cad.py), and the dexterous hand drops its dark PBR body
+// for the same hologram. One shader behind all three: lib/holoMaterial.js.
+// Query-gated, so the shipped page is untouched.
+const HoloGlove = lazy(() => import("../lib/HoloGlove.jsx"));
+const HoloTurntable = lazy(() => import("../lib/HoloTurntable.jsx"));
+
 // `?tune` overlay: sliders for cycle speed and per-frame size, over the REAL scene.
 // Lazy + query-gated so a normal visitor never downloads or mounts it.
 const GloveTunePanel = lazy(() => import("./GloveTunePanel.jsx"));
@@ -78,6 +87,25 @@ const USE_HAND3D = (() => {
   const q = new URLSearchParams(window.location.search);
   if (q.has("nohand3d")) return false;
   if (window.innerWidth < HAND3D_MIN_W) return false;
+  return hasWebGL();
+})();
+
+// Eye2 framing is query-tunable during the preview (?e2fill=, ?e2yaw=, ?e2tilt=)
+// so the enclosure can be posed without a rebuild. Preview-only, like the gate.
+const Q = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+const qnum = (k, d) => (Q.has(k) && !Number.isNaN(parseFloat(Q.get(k))) ? parseFloat(Q.get(k)) : d);
+
+// Needs WebGL and a desktop layout. The threshold is 880, NOT HAND3D_MIN_W's
+// 720: 880 is where products-v2.css switches to the single-column mobile
+// layout, and gating at 720 would put four WebGL contexts inside a 46vh-tall
+// stacked cell. Using the layout's own breakpoint also keeps the page either
+// all-holographic or not at all, never a mix of hologram and flat render.
+const HOLO_MIN_W = 880;
+const USE_HOLOGLOVE = (() => {
+  if (typeof window === "undefined") return false;
+  const q = new URLSearchParams(window.location.search);
+  if (!q.has("hologlove")) return false;
+  if (window.innerWidth < HOLO_MIN_W) return false;
   return hasWebGL();
 })();
 
@@ -211,6 +239,15 @@ export default function ProductsV2() {
   // the user never sees an empty gap while the STL loads.
   const [hand3dNear, setHand3dNear] = useState(false);
   const [hand3dReady, setHand3dReady] = useState(false);
+  // Same two-stage mount for the preview glove. The Skin scene is first on the
+  // page, so "near" is true almost immediately — the stage still matters,
+  // because it keeps the FBX fetch off the critical path for first paint.
+  const skinSecRef = useRef(null);
+  const [glove3dNear, setGlove3dNear] = useState(false);
+  const [glove3dReady, setGlove3dReady] = useState(false);
+  const eye2SecRef = useRef(null);
+  const [eye2HoloNear, setEye2HoloNear] = useState(false);
+  const [eye2HoloReady, setEye2HoloReady] = useState(false);
   // Eye2 scene "tone lift" (0..1) shared with the aurora each frame; the aurora
   // brightens its base as the Eye2 scene centers. Kept identical to the original.
   const lightRef = useRef(0);
@@ -220,6 +257,24 @@ export default function ProductsV2() {
 
   // Defer mounting the 3D hand until the Hand scene is near the viewport, so the
   // ~4MB STL fetch + second WebGL init don't jank first paint or fight the aurora.
+  // One observer per holographic scene: four WebGL contexts on this page
+  // (aurora + glove + Eye2 + hand) is a lot, so none of them are created until
+  // their scene is close to the viewport.
+  useEffect(() => {
+    if (!USE_HOLOGLOVE) return;
+    const watch = (el, set) => {
+      if (!el) return null;
+      if (!("IntersectionObserver" in window)) { set(true); return null; }
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { set(true); io.disconnect(); }
+      }, { rootMargin: "300px 0px" });
+      io.observe(el);
+      return io;
+    };
+    const ios = [watch(skinSecRef.current, setGlove3dNear), watch(eye2SecRef.current, setEye2HoloNear)];
+    return () => ios.forEach((io) => io?.disconnect());
+  }, []);
+
   useEffect(() => {
     if (!USE_HAND3D) return;
     const el = handSecRef.current;
@@ -257,11 +312,16 @@ export default function ProductsV2() {
     // layers too. The page then pays for both tiers and gets heavier, not
     // lighter. Setting srcset (with no src) starts the fetch for whichever
     // candidate the layers themselves will select.
-    GLOVE_SRCSET.forEach((set) => {
-      const im = new Image();
-      im.sizes = GLOVE_SIZES;
-      im.srcset = set;
-    });
+    // Skipped in the ?hologlove preview: the flip-book is not on screen there,
+    // so warming its ~2.1MB of frames would make the preview's page weight look
+    // worse than the swap actually is.
+    if (!USE_HOLOGLOVE) {
+      GLOVE_SRCSET.forEach((set) => {
+        const im = new Image();
+        im.sizes = GLOVE_SIZES;
+        im.srcset = set;
+      });
+    }
 
     let scrollY = window.scrollY, t = 0, curActive = -1, gBase = -1, gNext = -1, raf = 0;
     // t is elapsed MILLISECONDS since the loop started, not a frame counter, so the
@@ -388,7 +448,8 @@ export default function ProductsV2() {
       <div className="page">
         {STAGES.map((s, i) => (
           <section className="scene" id={s.title.toLowerCase()} key={s.title}
-            ref={s.title === "Hand" ? handSecRef : undefined}>
+            ref={s.title === "Hand" ? handSecRef : s.title === "Skin" ? skinSecRef
+              : s.title === "Eye2" ? eye2SecRef : undefined}>
             <div className="copy">
               <div className="idx">{s.idx}</div>
               <h1>{s.title}</h1>
@@ -400,7 +461,28 @@ export default function ProductsV2() {
               </div>
               <a className="cta" href="/#contact">{s.cta}</a>
             </div>
-            {USE_HAND3D && s.title === "Hand"
+            {USE_HOLOGLOVE && s.glove
+              ? <div className="pimg holo3d">
+                  {/* The flip-book frame holds the slot until the mesh is up, so
+                      the scene never opens on an empty box. */}
+                  {!glove3dReady && (
+                    <img className="hand3d-placeholder" src={s.img}
+                      alt={`6thSense ${s.title}`} draggable="false"
+                      loading="eager" decoding="async" />
+                  )}
+                  {glove3dNear && (
+                    <Suspense fallback={null}>
+                      <HoloGlove
+                        look="holo" hue="white" wire spin={!reduceMotion}
+                        glitch={reduceMotion ? 0 : 0.6}
+                        ring={false} rotZ={-0.45} rotY={4.71} trim={0.4} slim={0.5} stretch={0.7}
+                        preload="marks-only"
+                        onReady={() => setGlove3dReady(true)}
+                      />
+                    </Suspense>
+                  )}
+                </div>
+              : USE_HAND3D && s.title === "Hand"
               ? <div className="pimg hand3d">
                   {/* robo.webp stays on top until the 3D model has loaded + rendered */}
                   {!hand3dReady && (
@@ -410,7 +492,8 @@ export default function ProductsV2() {
                   )}
                   {hand3dNear && (
                     <Suspense fallback={null}>
-                      <Hand3D onReady={() => setHand3dReady(true)} />
+                      <Hand3D holo={USE_HOLOGLOVE} hue="white" intensity={1.75}
+                        onReady={() => setHand3dReady(true)} />
                     </Suspense>
                   )}
                 </div>
@@ -430,6 +513,28 @@ export default function ProductsV2() {
                     srcSet={GLOVE_SRCSET[1]} sizes={GLOVE_SIZES} src={GLOVE_FRAMES[1]}
                     alt="" aria-hidden="true" draggable="false" loading="eager"
                     decoding="async" style={{ opacity: 0, transform: GLOVE_TRANSFORMS[1] }} />
+                </div>
+              : USE_HOLOGLOVE && s.title === "Eye2"
+              ? <div className="pimg holo3d">
+                  {/* The shipped render holds the slot until the CAD is up. The
+                      finish swatches are dropped here on purpose — "black or
+                      white" means nothing once the enclosure is a hologram. */}
+                  {!eye2HoloReady && (
+                    <img className="hand3d-placeholder" src={s.img}
+                      alt={`6thSense ${s.title}`} draggable="false"
+                      loading="lazy" decoding="async" />
+                  )}
+                  {eye2HoloNear && (
+                    <Suspense fallback={null}>
+                      <HoloTurntable src="/eye2.glb" hue="white" wire flat intensity={0.62}
+                        label="6thSense Eye2 egocentric camera, rotating enclosure render"
+                        glitch={reduceMotion ? 0 : 0.6}
+                        spin={!reduceMotion} tiltX={qnum("e2tilt", -0.3)} rotY={qnum("e2yaw", 0)}
+                        rotZ={qnum("e2roll", 0)}
+                        fill={qnum("e2fill", 1)}
+                        onReady={() => setEye2HoloReady(true)} />
+                    </Suspense>
+                  )}
                 </div>
               : s.title === "Eye2"
               ? <div className="pimg eye2-cell">

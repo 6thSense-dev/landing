@@ -74,6 +74,10 @@
    loop is a smooth dissolve instead of a hard flip-book swap. Zero layout shift:
    the container keeps the .pimg box; layers are absolutely positioned inside it. */
 .pv2 .pimg.glove-stack { position: relative; }
+/* PREVIEW (/products?hologlove): a live hologram takes the same .pimg box as
+   the image it replaces. No drop-shadow — the mesh is a transparent WebGL
+   canvas, so a CSS shadow would trace the rectangle, not the model. */
+.pv2 .pimg.holo3d { position: relative; filter: none; }
 .pv2 .glove-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 
 /* Eye2 finish preview — the render sits in a compact column with the finish

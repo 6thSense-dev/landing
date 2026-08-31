@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+import { createHoloMaterial, setHoloScale, holoFitDistance, holoSweptBounds, HOLO_FIT_TARGET } from "../lib/holoMaterial.js";
 
 /**
  * Hand3D — Phase 3a of the /products v2 Hand scene.
@@ -27,6 +28,11 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
  * not a generic/third-party hand. If we ever want a fully abstract silhouette
  * instead, swap the STL meshes for a stylized proxy form here.
  *
+ * HOLO MODE (`holo`): swaps the dark PBR body for the shared hologram material
+ * (lib/holoMaterial.js) and drops the fire-glow skin shell, so the Hand scene
+ * matches the holographic Skin and Eye2 scenes. The gesture animation, the
+ * camera framing and the MJCF parsing are untouched — only the materials change.
+ *
  * Attribution: the underlying geometry is the "Tetheria Aero Hand" (right, open)
  * from the Google DeepMind MuJoCo Menagerie
  * (https://github.com/google-deepmind/mujoco_menagerie), licensed under
@@ -50,7 +56,7 @@ function applyTransform(obj, el) {
   obj.quaternion.set(qx, qy, qz, qw); // -> three.js xyzw
 }
 
-export default function Hand3D({ onReady }) {
+export default function Hand3D({ onReady, holo = false, hue = "white", intensity = 1 }) {
   const mountRef = useRef(null);
 
   useEffect(() => {
@@ -105,7 +111,12 @@ export default function Hand3D({ onReady }) {
     // bare metal) so the rendered hand reads as OUR molded robot skin — the actual
     // Hand product — rather than a third-party CAD hand. The animated fire-glow
     // skin shell below layers live "tactile sensing" on top of this.
-    const material = new THREE.MeshStandardMaterial({
+    // Holo mode replaces this outright; the dark PBR body below is the default.
+    // The STLs are in metres (the hand is ~0.2 units tall), so the hologram's
+    // scanline pitch and glitch amplitude get retuned to that once framed.
+    const holoMat = holo ? createHoloMaterial({ hue, glitch: 0.5, intensity }) : null;
+
+    const material = holoMat || new THREE.MeshStandardMaterial({
       color: 0x0e0d0a,        // 6thSense dark ground
       metalness: 0.18,
       roughness: 0.78,
@@ -303,16 +314,53 @@ export default function Hand3D({ onReady }) {
       // skin shader so the dissolve sweeps wrist -> fingertips.
       skinMaterial.uniforms.uYMin.value = -size.y / 2;
       skinMaterial.uniforms.uYMax.value = size.y / 2;
+      // Same figure drives the hologram: its scanline pitch and glitch tear are
+      // both in OBJECT units, and these STLs are metres (hand ~0.2 tall), so the
+      // unit-scale defaults would give one enormous band and no visible tear.
+      if (holoMat) {
+        setHoloScale(holoMat, size.y);
+        holoMat.uniforms.uGlitchScale.value = size.y;
+      }
       // Portrait hand: frame on height so it reads big in the scene column, but
       // clamp on width so a wide 3/4 can't overflow. Product-is-hero => tight-ish.
-      const fitDim = Math.max(size.y, size.x * 1.1, size.z);
+      // Holo mode frames by the SHARED rule (lib/holoMaterial.js) so the hand
+      // reads the same size as the holographic glove and Eye2. The default
+      // (non-holo) path is untouched: it is what ships on /products today.
       const fov = (camera.fov * Math.PI) / 180;
-      const dist = (fitDim / 2 / Math.tan(fov / 2)) * 2.05; // pushed back a bit -> flatter perspective, less forward "zoom" at fist
+      const swept = holoMat ? holoSweptBounds(rootGroup) : null;
+      // Framing is measured ONCE, on the rest pose, but the gesture loop then
+      // moves the hand under it: the fingers reach above where they started and
+      // the mass drifts sideways, so the model sits off-centre in its own frame
+      // (measured 121px of slack on one side and 1px on the other). Containment
+      // alone therefore is not enough. This is the headroom for that drift.
+      //
+      // 0.94 leaves the hand the same apparent size as the glove and the Eye2
+      // while keeping clearance through the whole gesture, checked by eye at
+      // several phases. (Automated edge detection was useless here: the aurora
+      // has bright near-white patches at the cell edge that read as model.)
+      const GESTURE_HEADROOM = 0.86;
+      const dist = holoMat
+        ? holoFitDistance(swept.spinWidth, swept.height, camera,
+                          HOLO_FIT_TARGET * GESTURE_HEADROOM)
+        // Portrait hand: frame on height so it reads big in the scene column,
+        // but clamp on width so a wide 3/4 can't overflow.
+        : (Math.max(size.y, size.x * 1.1, size.z) / 2 / Math.tan(fov / 2)) * 2.05;
       // Gentle 3/4: mostly front-on (palm to viewer), a little from the right and
       // slightly above. Camera sits on +Z so the palm normal (+Z) faces it.
       const dir = new THREE.Vector3(0.32, 0.16, 1).normalize();
       camera.position.copy(dir.multiplyScalar(dist));
-      camera.lookAt(0, 0, 0);
+      // Holo mode aims off-origin to recentre the hand in its cell. Framing is
+      // measured ONCE on the rest pose, but the gesture then swings the thumb
+      // well out to one side and reaches the fingers upward, so the hand ends
+      // up sitting high and to the right of its own frame — measured 112px of
+      // slack on the left against 1px on the right, with the thumb clipping.
+      // Aiming the camera right and up moves the hand left and down, which buys
+      // that clearance back WITHOUT shrinking it below the other two scenes.
+      // Final: every edge clears by >=41px across 20 samples of a full loop.
+      const vH = 2 * dist * Math.tan(fov / 2);
+      const aimX = holoMat ? vH * camera.aspect * 0.13 : 0;
+      const aimY = holoMat ? vH * 0.06 : 0;
+      camera.lookAt(aimX, aimY, 0);
       camera.near = dist / 100;
       camera.far = dist * 100;
       camera.updateProjectionMatrix();
@@ -408,6 +456,7 @@ export default function Hand3D({ onReady }) {
       skinMaterial.uniforms.uReveal.value = reveal;
       skinMaterial.uniforms.uTime.value = tg;
       skinMaterial.uniforms.uCamPos.value.copy(camera.position);
+      if (holoMat) holoMat.uniforms.uTime.value = tg;
 
       renderer.render(scene, camera);
     };
@@ -463,10 +512,14 @@ export default function Hand3D({ onReady }) {
                   applyTransform(mesh, geomEl);
                   g.add(mesh);
                   // Skin shell: same geometry + transform, drawn after the metal.
-                  const skin = new THREE.Mesh(bufGeo, skinMaterial);
-                  applyTransform(skin, geomEl);
-                  skin.renderOrder = 1;
-                  g.add(skin);
+                  // Skipped in holo mode — the dissolve reads as grime over a
+                  // hologram, and the hologram already carries its own sweep.
+                  if (!holo) {
+                    const skin = new THREE.Mesh(bufGeo, skinMaterial);
+                    applyTransform(skin, geomEl);
+                    skin.renderOrder = 1;
+                    g.add(skin);
+                  }
                   if (pending === 0) { orientHand(); frameCamera(); signalReady(); }
                   render();
                 },

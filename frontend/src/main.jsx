@@ -35,6 +35,11 @@ const PeoplePage = lazy(() => import("./pages/PeoplePage.jsx"));
 const SkinTune = lazy(() => import("./pages/SkinTune.jsx"));
 const RoboShot = lazy(() => import("./pages/RoboShot.jsx"));
 
+// TEMPORARY look-test for the new Tripo glove mesh (/glove-holo), rendered as a
+// hologram next to the Skin visual that ships today, so we can decide whether to
+// swap. Remove this + the route below once that call is made.
+const GloveHolo = lazy(() => import("./pages/GloveHolo.jsx"));
+
 // UNLISTED hardware guide (/gloves/setup) — reached via the QR code shipped
 // with the glove. Intentionally not in the nav, sitemap, or SEO prerender;
 // the page injects a robots noindex tag itself.
@@ -88,6 +93,7 @@ function AnimatedRoutes() {
         <Route path="/skin-tune" element={<PageTransition><SkinTune /></PageTransition>} />
         <Route path="/glove-tune" element={<PageTransition><GloveTune /></PageTransition>} />
         <Route path="/robo-shot" element={<PageTransition><RoboShot /></PageTransition>} />
+        <Route path="/glove-holo" element={<PageTransition><GloveHolo /></PageTransition>} />
         <Route path="/people" element={<PageTransition><PeoplePage /></PageTransition>} />
         <Route path="/gloves/setup" element={<PageTransition><GloveSetupPage /></PageTransition>} />
         <Route path="/privacy" element={<PageTransition><LegalPage slug="/privacy" /></PageTransition>} />
