@@ -21,12 +21,11 @@ const Hand3D = lazy(() => import("./Hand3D.jsx"));
 // already gated off. Lazy is what actually makes the D5 gate below pay.
 const AuroraGL = lazy(() => import("./AuroraGL.jsx"));
 
-// PREVIEW ONLY (/products?hologlove): puts all three scenes into the same
-// holographic-white language — the Skin glove replaces its webp flip-book, the
-// Eye2 render becomes the real enclosure CAD (public/eye2.glb, built by
-// scripts/build-eye2-cad.py), and the dexterous hand drops its dark PBR body
-// for the same hologram. One shader behind all three: lib/holoMaterial.js.
-// Query-gated, so the shipped page is untouched.
+// All three scenes share one holographic-white language: the Skin glove
+// replaces its webp flip-book, the Eye2 render becomes the real enclosure CAD
+// (public/eye2.glb, built by scripts/build-eye2-cad.py), and the dexterous hand
+// drops its dark PBR body for the same hologram. One shader behind all three:
+// lib/holoMaterial.js.
 const HoloGlove = lazy(() => import("../lib/HoloGlove.jsx"));
 const HoloTurntable = lazy(() => import("../lib/HoloTurntable.jsx"));
 
@@ -90,8 +89,8 @@ const USE_HAND3D = (() => {
   return hasWebGL();
 })();
 
-// Eye2 framing is query-tunable during the preview (?e2fill=, ?e2yaw=, ?e2tilt=)
-// so the enclosure can be posed without a rebuild. Preview-only, like the gate.
+// Eye2 framing stays query-tunable (?e2fill=, ?e2yaw=, ?e2tilt=, ?e2roll=) so
+// the enclosure can be re-posed without a rebuild.
 const Q = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
 const qnum = (k, d) => (Q.has(k) && !Number.isNaN(parseFloat(Q.get(k))) ? parseFloat(Q.get(k)) : d);
 
@@ -100,11 +99,16 @@ const qnum = (k, d) => (Q.has(k) && !Number.isNaN(parseFloat(Q.get(k))) ? parseF
 // layout, and gating at 720 would put four WebGL contexts inside a 46vh-tall
 // stacked cell. Using the layout's own breakpoint also keeps the page either
 // all-holographic or not at all, never a mix of hologram and flat render.
+//
+// Below that, and without WebGL, every scene falls back to the flat renders
+// that shipped before this — the flip-book, the Eye2 photo with its finish
+// swatches, and the dark PBR hand. `?noholo` forces that path anywhere, the
+// same escape hatch `?nogl` and `?nohand3d` already provide.
 const HOLO_MIN_W = 880;
 const USE_HOLOGLOVE = (() => {
   if (typeof window === "undefined") return false;
   const q = new URLSearchParams(window.location.search);
-  if (!q.has("hologlove")) return false;
+  if (q.has("noholo")) return false;
   if (window.innerWidth < HOLO_MIN_W) return false;
   return hasWebGL();
 })();
@@ -466,7 +470,10 @@ export default function ProductsV2() {
                   {/* The flip-book frame holds the slot until the mesh is up, so
                       the scene never opens on an empty box. */}
                   {!glove3dReady && (
-                    <img className="hand3d-placeholder" src={s.img}
+                    // Light tier on purpose: this is on screen for under a
+                    // second before the mesh replaces it, so the full 2752px
+                    // flip-book frame (339KB) is not worth fetching for it.
+                    <img className="hand3d-placeholder" src="/hero/glove/w1400/frame-001.webp"
                       alt={`6thSense ${s.title}`} draggable="false"
                       loading="eager" decoding="async" />
                   )}
@@ -476,7 +483,6 @@ export default function ProductsV2() {
                         look="holo" hue="white" wire spin={!reduceMotion}
                         glitch={reduceMotion ? 0 : 0.6}
                         ring={false} rotZ={-0.45} rotY={4.71} trim={0.4} slim={0.5} stretch={0.7}
-                        preload="marks-only"
                         onReady={() => setGlove3dReady(true)}
                       />
                     </Suspense>
@@ -520,7 +526,9 @@ export default function ProductsV2() {
                       finish swatches are dropped here on purpose — "black or
                       white" means nothing once the enclosure is a hologram. */}
                   {!eye2HoloReady && (
-                    <img className="hand3d-placeholder" src={s.img}
+                    // 30KB webp, not the 701KB PNG behind s.img: same reasoning
+                    // as the Skin placeholder above.
+                    <img className="hand3d-placeholder" src="/eye2-dark-1000.webp"
                       alt={`6thSense ${s.title}`} draggable="false"
                       loading="lazy" decoding="async" />
                   )}

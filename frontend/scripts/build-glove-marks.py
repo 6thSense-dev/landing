@@ -11,7 +11,7 @@ looks both do:
   * the fiducial on the back of the wrist, which Tripo hallucinated as a blobby
     non-grid glyph rather than a real, detectable AprilTag.
 
-This writes ONE extra texture, glove-marks.png, sharing the basecolor's UVs:
+This writes glove-marks.webp, sharing the basecolor's UVs:
 
     R  anti-slip grip mask   1 where the baked Y-pattern is
     G  AprilTag luminance    0 = black cell, 1 = white cell (0 outside the tag)
@@ -38,6 +38,10 @@ edge (tried, rejected — the whole glove lit up with outlines). Grey opening wi
 a structuring element wider than a grip mark erases the grips but preserves the
 panels, so subtracting it leaves exactly the grips.
 
+It also writes glove-basecolor.webp: the source basecolor is a 3.5MB 4096²
+JPEG, and the only thing that wants it is the bench's "textured" look, so it is
+downscaled and re-encoded here rather than shipped as delivered.
+
 Needs numpy, scipy, opencv-python, Pillow. Run from anywhere:
     python3 frontend/scripts/build-glove-marks.py [--preview]
 """
@@ -56,7 +60,11 @@ Image.MAX_IMAGE_PIXELS = None
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "public" / "models" / "glove-holo"
 BASECOLOR = MODEL_DIR / "glove+3d+model.fbm" / "glove+3d+model_basecolor.jpg"
-OUT = MODEL_DIR / "glove-marks.png"
+OUT = MODEL_DIR / "glove-marks.webp"
+# The basecolor is only wanted by the bench's "textured" look, so it is written
+# small and separately; the hologram never samples it.
+BASECOLOR_OUT = MODEL_DIR / "glove-basecolor.webp"
+BASECOLOR_SIZE = 2048
 
 # Output resolution. The grips are ~30px across in the 4096² atlas, so half
 # resolution still resolves them; the mask is computed at full res and area-
@@ -210,7 +218,11 @@ def main() -> int:
     if OUT_SIZE != w:
         bands = [b.resize((OUT_SIZE, OUT_SIZE), Image.LANCZOS) for b in bands]
     img = Image.merge("RGBA", bands)
-    img.save(OUT, optimize=True)
+    # WebP LOSSLESS, not PNG and not lossy: these are four independent masks,
+    # so a lossy codec would smear the fiducial's cells into each other, but
+    # lossless WebP is simply a better container than PNG here — 661KB against
+    # 1275KB for bit-identical data.
+    img.save(OUT, lossless=True, method=6)
 
     # Round-trip guard: if the fiducial cannot survive the write, everything
     # downstream is drawing a blank square and no one notices.
@@ -221,6 +233,15 @@ def main() -> int:
             f"B max {back[..., 2].max()}; both should reach 255)"
         )
     print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB, {OUT_SIZE}²) — tag intact")
+
+    # ---- the basecolor, downscaled ---------------------------------------
+    Image.fromarray(rgb.astype(np.uint8), "RGB").resize(
+        (BASECOLOR_SIZE, BASECOLOR_SIZE), Image.LANCZOS
+    ).save(BASECOLOR_OUT, quality=88, method=6)
+    print(
+        f"wrote {BASECOLOR_OUT} ({BASECOLOR_OUT.stat().st_size / 1024:.0f} KB, "
+        f"{BASECOLOR_SIZE}², from {w}²)"
+    )
 
     if args.preview:
         Image.fromarray((grip * 255).astype(np.uint8)).resize((1400, 1400)).save(
