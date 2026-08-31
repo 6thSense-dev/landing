@@ -187,6 +187,103 @@ export function createHoloMaterial(o = {}) {
   return mat;
 }
 
+/* ---------------------------------------------------------------------------
+ * Framing
+ *
+ * All three holographic scenes share one sizing rule so they read as the same
+ * "size" on the page. Fitting each model to its own cell does NOT achieve that:
+ * a tall glove ends up height-bound and fills the cell, while the wide, flat
+ * Eye2 ends up width-bound and looks like a toy beside it.
+ *
+ * The rule instead normalises the model's DIAGONAL against the cell's diagonal,
+ * which is orientation-agnostic — a wide object and a tall object of equal
+ * diagonal read as equally big. The model diagonal is the worst case over a
+ * full turn (the horizontal spin diagonal, not the current silhouette), so
+ * nothing grows as the turntable rotates.
+ *
+ * Containment is then applied on top: whatever the target asks for, the model
+ * still may not exceed CONTAIN of either cell axis.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * EXACT bounds of what a turntable will sweep: the largest radius any vertex
+ * reaches from the Y axis, and the true vertical extent.
+ *
+ * Box3.setFromObject is not usable here, twice over. It returns the axis-
+ * aligned box of the ROTATED geometry, which over-estimates badly once a model
+ * is posed; and it measures about the object's ORIGIN, so a CAD part whose
+ * origin sits outside its own body (the Eye2's does) swings out under rotation
+ * and inflates every extent — measured 114x117x84 for a part that is really
+ * 96x61x55, which then fitted it about 25% too small.
+ *
+ * One pass over the vertices instead. Costs a few ms once per load, and every
+ * scene using the same measure is what makes the shared size rule mean
+ * anything.
+ */
+export function holoSweptBounds(root) {
+  root.updateWorldMatrix(true, true);
+  let r2 = 0, yMin = Infinity, yMax = -Infinity;
+  const seen = new Set();
+  root.traverse((o) => {
+    if (!o.isMesh || seen.has(o.geometry)) return;
+    seen.add(o.geometry);
+    const pos = o.geometry.attributes.position;
+    if (!pos) return;
+    const m = o.matrixWorld.elements;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const wx = m[0] * x + m[4] * y + m[8] * z + m[12];
+      const wy = m[1] * x + m[5] * y + m[9] * z + m[13];
+      const wz = m[2] * x + m[6] * y + m[10] * z + m[14];
+      const d = wx * wx + wz * wz;
+      if (d > r2) r2 = d;
+      if (wy < yMin) yMin = wy;
+      if (wy > yMax) yMax = wy;
+    }
+  });
+  const radius = Math.sqrt(r2);
+  return { radius, spinWidth: radius * 2, yMin, yMax, height: yMax - yMin };
+}
+
+// Model diagonal as a fraction of the cell diagonal. One number, three scenes.
+export const HOLO_FIT_TARGET = 0.78;
+const CONTAIN = 0.94;
+
+/** Half-height of the view at the origin, for a perspective camera. */
+export const holoViewHeight = (camera) =>
+  2 * camera.position.length() * Math.tan((camera.fov * Math.PI) / 360);
+
+/**
+ * Scale for a model at a FIXED camera distance (HoloGlove, HoloTurntable).
+ * @param {number} spinWidth worst-case horizontal extent over a full turn
+ * @param {number} height    vertical extent
+ */
+export function holoFitScale(spinWidth, height, viewW, viewH, target = HOLO_FIT_TARGET) {
+  const modelDiag = Math.hypot(spinWidth, height) || 1;
+  const cellDiag = Math.hypot(viewW, viewH);
+  return Math.min(
+    (target * cellDiag) / modelDiag,
+    (CONTAIN * viewW) / (spinWidth || 1),
+    (CONTAIN * viewH) / (height || 1)
+  );
+}
+
+/**
+ * The same rule expressed as a camera DISTANCE, for a scene that frames by
+ * moving the camera instead of scaling the model (Hand3D).
+ */
+export function holoFitDistance(spinWidth, height, camera, target = HOLO_FIT_TARGET) {
+  const modelDiag = Math.hypot(spinWidth, height) || 1;
+  const t = Math.tan((camera.fov * Math.PI) / 360);
+  const a = camera.aspect || 1;
+  // viewH = 2*d*t, viewW = viewH*a, cellDiag = viewH*hypot(a,1)
+  return Math.max(
+    modelDiag / (target * 2 * t * Math.hypot(a, 1)),
+    height / (CONTAIN * 2 * t),
+    spinWidth / (CONTAIN * 2 * t * a)
+  );
+}
+
 /** Retune the scanline pitch once the model's real height is known. */
 export function setHoloScale(mat, modelHeight, bands = 44) {
   const h = modelHeight || 1;

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
-import { HOLO_HUES, createHoloMaterial, setHoloScale } from "./holoMaterial.js";
+import { HOLO_HUES, createHoloMaterial, setHoloScale, holoFitScale, holoSweptBounds } from "./holoMaterial.js";
 
 /**
  * HoloGlove — evaluation viewer for the new glove mesh, rendered as a
@@ -130,6 +130,9 @@ export default function HoloGlove({
   // Inward shrink along the vertex normal, as a fraction of the model's
   // height. Slims the fingers far more than the palm — see slimMesh().
   slim = 0,
+  // Lengthen the fingers, as a fraction of model height added at the tips.
+  // The mesh's fingers are stubby; 0 leaves them as delivered.
+  stretch = 0,
   // "marks-only" skips the 3.5MB basecolor the FBX references. Only safe when
   // the caller will never select look="textured" — the /products preview only
   // ever shows the hologram, the /glove-holo bench needs all three.
@@ -146,8 +149,8 @@ export default function HoloGlove({
   // Pose is read by the raf tick and by the loader callback, so it lives in a
   // ref rather than the [src]-only effect closure (which would freeze it at
   // whatever the first render passed).
-  const poseRef = useRef({ rotX, rotY, rotZ, trim, slim });
-  poseRef.current = { rotX, rotY, rotZ, trim, slim };
+  const poseRef = useRef({ rotX, rotY, rotZ, trim, slim, stretch });
+  poseRef.current = { rotX, rotY, rotZ, trim, slim, stretch };
 
   // ---- build the scene once ------------------------------------------------
   useEffect(() => {
@@ -430,6 +433,7 @@ export default function HoloGlove({
           size: [s.x, s.y, s.z].map((v) => +v.toFixed(2)),
           palm: sceneRef.current.palmDir,
           weld: sceneRef.current.weldStat,
+          axis: sceneRef.current.fingerAxis,
         });
       },
       undefined,
@@ -651,6 +655,8 @@ export default function HoloGlove({
     // plate and bare forearm hold their shape. Always re-derived from a pristine
     // copy of the positions, so the slider cannot compound the shrink.
     const SHRINK_MAX_ITERS = 45;
+    const STRETCH_MAX = 0.22;   // fraction of model height added at the tips
+    const STRETCH_START = 0.55; // where along the shell the ramp begins
     const SHRINK_LAMBDA = 0.5;
 
     // Welded point positions + the averaged mask weight per point. Averaging the
@@ -677,6 +683,59 @@ export default function HoloGlove({
       return inp;
     }
 
+    // Where the fingers point, and where they start — both read off the mesh
+    // rather than assumed, so this survives the model being re-exported.
+    //
+    // The palm is wherever Tripo painted grips (that is what calibratePalm
+    // already keys on). The fingertips are the shell points furthest from the
+    // palm centroid — restricting to the FABRIC shell is what makes this work,
+    // because the model also carries a forearm, and the far end of that is
+    // otherwise the furthest thing from the palm.
+    function fingerAxis(o, base, rec) {
+      const st = sceneRef.current;
+      let fa = st.fingerAxes?.get(o);
+      if (fa) return fa;
+
+      const n = base.length / 3;
+      const c = new THREE.Vector3();
+      let hits = 0;
+      for (let i = 0; i < n; i++) {
+        if (rec.grip[i] > 0.11) { c.x += base[i*3]; c.y += base[i*3+1]; c.z += base[i*3+2]; hits++; }
+      }
+      if (hits < 200) return null;
+      c.multiplyScalar(1 / hits);
+
+      // Furthest 4% of shell points from the palm centroid = the fingertips.
+      const shell = [];
+      for (let i = 0; i < n; i++) {
+        if (rec.fabric[i] < 0.5) continue;
+        const dx = base[i*3] - c.x, dy = base[i*3+1] - c.y, dz = base[i*3+2] - c.z;
+        shell.push([dx*dx + dy*dy + dz*dz, i]);
+      }
+      if (shell.length < 500) return null;
+      shell.sort((a, b) => b[0] - a[0]);
+      const tipN = Math.max(50, Math.floor(shell.length * 0.04));
+      const axis = new THREE.Vector3();
+      for (let k = 0; k < tipN; k++) {
+        const i = shell[k][1];
+        axis.x += base[i*3] - c.x; axis.y += base[i*3+1] - c.y; axis.z += base[i*3+2] - c.z;
+      }
+      axis.normalize();
+
+      // Project the shell onto that axis to find where to start the stretch.
+      let tMin = Infinity, tMax = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (rec.fabric[i] < 0.5) continue;
+        const t = (base[i*3] - c.x) * axis.x + (base[i*3+1] - c.y) * axis.y + (base[i*3+2] - c.z) * axis.z;
+        if (t < tMin) tMin = t;
+        if (t > tMax) tMax = t;
+      }
+      fa = { axis, c, tMin, tMax };
+      (st.fingerAxes ||= new Map()).set(o, fa);
+      st.fingerAxis = axis.toArray().map((v) => +v.toFixed(3));
+      return fa;
+    }
+
     function slimMesh() {
       const st = sceneRef.current;
       const samples = sampleMarks();
@@ -691,9 +750,8 @@ export default function HoloGlove({
           (st.basePositions ||= new Map()).set(o, base);
         }
         const arr = pos.array;
-        if (strength <= 0) {
-          arr.set(base);
-        } else {
+        arr.set(base);
+        if (strength > 0) {
           const { gp, gw, groupOf, groups } = shrinkInputs(o, base, rec);
           const { start, nbr } = weldAdjacency(o, base);
           let cur = Float32Array.from(gp);
@@ -717,6 +775,33 @@ export default function HoloGlove({
           for (let i = 0; i < groupOf.length; i++) {
             const g = groupOf[i] * 3;
             arr[i*3] = cur[g]; arr[i*3+1] = cur[g+1]; arr[i*3+2] = cur[g+2];
+          }
+        }
+
+        // Lengthen the fingers: slide points along the finger axis by an amount
+        // that ramps from 0 at the knuckles to full at the tips. A smooth
+        // scalar field, so like the shrink it cannot fold the surface — it is a
+        // stretch, not an offset. Runs on whatever the shrink produced, but
+        // reads its ramp from the PRISTINE positions so the two are independent.
+        const stretchAmt = Math.max(0, Math.min(1, poseRef.current.stretch || 0)) *
+          STRETCH_MAX * (st.modelHeight || 1);
+        if (stretchAmt > 0) {
+          const fa = fingerAxis(o, base, rec);
+          if (fa) {
+            const { axis, c, tMin, tMax } = fa;
+            // Knuckles sit ~55% of the way up the shell; below that is palm.
+            const t0 = tMin + (tMax - tMin) * STRETCH_START;
+            const span = Math.max(1e-6, tMax - t0);
+            for (let i = 0; i < arr.length / 3; i++) {
+              const t = (base[i*3] - c.x) * axis.x + (base[i*3+1] - c.y) * axis.y + (base[i*3+2] - c.z) * axis.z;
+              let u = (t - t0) / span;
+              if (u <= 0) continue;
+              u = u > 1 ? 1 : u;
+              const ramp = u * u * (3 - 2 * u) * rec.fabric[i];
+              arr[i*3]   += axis.x * stretchAmt * ramp;
+              arr[i*3+1] += axis.y * stretchAmt * ramp;
+              arr[i*3+2] += axis.z * stretchAmt * ramp;
+            }
           }
         }
         pos.needsUpdate = true;
@@ -750,10 +835,14 @@ export default function HoloGlove({
       // every yaw, so fit the horizontal DIAGONAL. Fitting the front view alone
       // lets a finger overflow the stage a quarter-turn later.
       const ws = visible.getSize(new THREE.Vector3());
-      const spinWidth = Math.hypot(ws.x, ws.z) || 1;
       const viewH = 2 * camera.position.z * Math.tan((camera.fov * Math.PI) / 360);
       const viewW = viewH * camera.aspect;
-      const fitK = Math.min(viewW / spinWidth, viewH / (ws.y || 1)) * 0.78;
+      // Exact swept bounds — the same measure every holographic scene uses, so
+      // the shared size rule actually means the same thing for all of them. A
+      // trimmed model falls back to the clipped AABB, which is what defines
+      // "visible" in that case.
+      const sw = trim > 0 ? Math.hypot(ws.x, ws.z) : holoSweptBounds(obj).spinWidth;
+      const fitK = holoFitScale(sw || 1, ws.y, viewW, viewH);
       const vc = visible.getCenter(new THREE.Vector3());
 
       // Scaling happens about the object's origin, so a point p in the current
@@ -876,7 +965,7 @@ export default function HoloGlove({
 
   useEffect(() => {
     sceneRef.current.slimMesh?.();
-  }, [slim]);
+  }, [slim, stretch]);
 
   return (
     <div

@@ -110,6 +110,8 @@ export default function GloveHolo() {
   const [gripScale, setGripScale] = useState(() => qNum("gripScale", 68));
   // Inward shrink, as a fraction of model height. Slims the bulky fingers.
   const [slim, setSlim] = useState(() => qNum("slim", 0.5));
+  // Lengthen the fingers — the mesh reads short and stubby.
+  const [stretch, setStretch] = useState(() => qNum("stretch", 0.5));
   const [compare, setCompare] = useState(() => qBool("compare", true));
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState(null);
@@ -144,7 +146,7 @@ export default function GloveHolo() {
                     look={look} hue={hue} wire={wire} spin={spin} ring={ring}
                     intensity={intensity} scan={scan} glitch={glitch}
                     rotX={rotX} rotY={rotY} rotZ={rotZ} trim={trim} marks={marks}
-                    gripExtend={gripExtend} gripScale={gripScale} slim={slim}
+                    gripExtend={gripExtend} gripScale={gripScale} slim={slim} stretch={stretch}
                     onReady={setInfo} onError={(e) => setErr(e?.message || e)}
                   />
                 </Suspense>
@@ -196,6 +198,7 @@ export default function GloveHolo() {
             <Slider label="onto fingers" value={gripExtend} min={0} max={1} step={0.05} onChange={setGripExtend} />
             <Slider label="grip density" value={gripScale} min={12} max={110} step={1} onChange={setGripScale} />
             <Slider label="slim fingers" value={slim} min={0} max={1} step={0.05} onChange={setSlim} />
+            <Slider label="longer fingers" value={stretch} min={0} max={1} step={0.05} onChange={setStretch} />
             <div style={{ fontSize: 11, opacity: 0.55, lineHeight: 1.5 }}>
               Anti-slip grip pad + AprilTag, composited from glove-marks.png so they
               survive the holo and matte looks. The tag is a real, detector-verified
@@ -230,7 +233,9 @@ bbox     ${info ? info.size.join(" × ") : "…"}
 weld     ${info?.weld ?? "…"}
 look     ${look} / ${hue}${wire ? " + wire" : ""}
 palm     ${info?.palm ? info.palm.join(", ") : "…"}
-pose     rotX=${rotX} rotY=${rotY} rotZ=${rotZ} trim=${trim} slim=${slim}`}
+axis     ${info?.axis ? info.axis.join(", ") : "…"}
+pose     rotX=${rotX} rotY=${rotY} rotZ=${rotZ} trim=${trim}
+shape    slim=${slim} stretch=${stretch}`}
           </pre>
 
           <div style={{ fontSize: 11, opacity: 0.55, lineHeight: 1.6 }}>

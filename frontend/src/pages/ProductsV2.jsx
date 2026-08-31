@@ -475,7 +475,7 @@ export default function ProductsV2() {
                       <HoloGlove
                         look="holo" hue="white" wire spin={!reduceMotion}
                         glitch={reduceMotion ? 0 : 0.6}
-                        ring={false} rotZ={-0.45} rotY={4.71} trim={0.4} slim={0.5}
+                        ring={false} rotZ={-0.45} rotY={4.71} trim={0.4} slim={0.5} stretch={0.7}
                         preload="marks-only"
                         onReady={() => setGlove3dReady(true)}
                       />
@@ -530,7 +530,8 @@ export default function ProductsV2() {
                         label="6thSense Eye2 egocentric camera, rotating enclosure render"
                         glitch={reduceMotion ? 0 : 0.6}
                         spin={!reduceMotion} tiltX={qnum("e2tilt", -0.3)} rotY={qnum("e2yaw", 0)}
-                        fill={qnum("e2fill", 0.95)}
+                        rotZ={qnum("e2roll", 0)}
+                        fill={qnum("e2fill", 1)}
                         onReady={() => setEye2HoloReady(true)} />
                     </Suspense>
                   )}

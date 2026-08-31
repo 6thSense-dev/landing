@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { createHoloMaterial, setHoloScale } from "./holoMaterial.js";
+import { createHoloMaterial, setHoloScale, holoFitScale, holoSweptBounds, HOLO_FIT_TARGET } from "./holoMaterial.js";
 
 /**
  * A .glb rendered as a slowly-turning hologram, using the shared material in
@@ -24,9 +24,14 @@ export default function HoloTurntable({
   wire = false,
   spin = true,
   flat = false,       // per-face normals (CAD without a NORMAL attribute)
-  fill = 0.78,        // fraction of the frame the model occupies
+  fill = 1,           // per-scene nudge on the shared target; containment
+                      // still caps it, so this can never cause an overflow
   tiltX = 0,          // static pitch, radians
   rotY = 0,           // starting yaw
+  rotZ = 0,           // roll. A wide, flat model in a portrait cell is capped
+                      // by width containment long before it reaches the shared
+                      // size target; rolling its long axis onto the cell
+                      // diagonal is what lets it match the other scenes.
   label,
   onReady,
   onError,
@@ -76,28 +81,32 @@ export default function HoloTurntable({
       depthWrite: false,
     });
 
-    let model = null;
-    let baseSize = null;    // world bounds at scale 1, WITH the pose applied
-    let baseCenter = null;
+    let model = null;   // the posed holder; refit scales THIS
+    let swept = null;   // exact swept bounds at scale 1, pose applied
 
     // Fit the WORST-CASE (diagonal) silhouette: the turntable shows every yaw,
     // so fitting the current one lets a long object overflow a quarter-turn
     // later. Re-run on resize — it depends on camera.aspect, and the very first
     // layout pass can measure the mount at zero.
     //
-    // Centring is done by MOVING THE ROOT, not by translating geometry: a
-    // meshopt/quantized .glb keeps its positions in a scaled node space, so a
-    // world-space geometry.translate() displaces the model instead of centring
-    // it. Scaling happens about the object origin, so a point at `baseCenter`
-    // lands at baseCenter * k and the offset is just -baseCenter * k.
+    // Centring uses a WRAPPER with an offset child, never geometry.translate():
+    // a meshopt/quantized .glb keeps its positions in a scaled node space, so a
+    // world-space translate displaces the model instead of centring it. Posing
+    // the wrapper also means the rotation pivots on the part rather than on the
+    // file's origin — which for this CAD sits well outside the body, and swung
+    // it far enough out to inflate its measured size by ~25%.
     const refit = () => {
-      if (!model || !baseSize) return;
-      const spinWidth = Math.hypot(baseSize.x, baseSize.z) || 1;
+      if (!model || !swept) return;
       const viewH = 2 * camera.position.z * Math.tan((camera.fov * Math.PI) / 360);
       const viewW = viewH * camera.aspect;
-      const k = Math.min(viewW / spinWidth, viewH / (baseSize.y || 1)) * fill;
+      // Shared across all three holographic scenes so they read as one size.
+      // `fill` scales the TARGET, not the result: applied afterwards it would
+      // sail straight past the containment clamp and let the model overflow.
+      const k = holoFitScale(swept.spinWidth, swept.height, viewW, viewH, HOLO_FIT_TARGET * fill);
       model.scale.setScalar(k);
-      model.position.set(-baseCenter.x * k, -baseCenter.y * k, -baseCenter.z * k);
+      // Swept bounds are radial about Y, so X/Z are centred by construction;
+      // only the vertical midpoint needs taking out.
+      model.position.set(0, -((swept.yMin + swept.yMax) / 2) * k, 0);
     };
 
     const loader = new GLTFLoader();
@@ -133,18 +142,23 @@ export default function HoloTurntable({
         setHoloScale(mat, localH);
         mat.uniforms.uGlitchScale.value = localH;
 
-        obj.rotation.x = tiltX;
-        obj.rotation.y = rotY;
-        obj.scale.setScalar(1);
-        obj.position.set(0, 0, 0);
-        pivot.add(obj);
-        model = obj;
         obj.updateWorldMatrix(true, true);
-        const box = new THREE.Box3().setFromObject(obj);
-        baseSize = box.getSize(new THREE.Vector3());
-        baseCenter = box.getCenter(new THREE.Vector3());
+        const raw = new THREE.Box3().setFromObject(obj);
+        const c = raw.getCenter(new THREE.Vector3());
+        obj.position.set(-c.x, -c.y, -c.z);
+
+        const holder = new THREE.Group();
+        holder.add(obj);
+        holder.rotation.set(tiltX, rotY, rotZ);
+        pivot.add(holder);
+        model = holder;
+
+        swept = holoSweptBounds(holder);
         refit();
-        onReady?.({ size: baseSize.toArray().map((v) => +v.toFixed(2)) });
+        onReady?.({
+          size: raw.getSize(new THREE.Vector3()).toArray().map((v) => +v.toFixed(1)),
+          swept: [+swept.spinWidth.toFixed(1), +swept.height.toFixed(1)],
+        });
       },
       undefined,
       (err) => { if (!disposed) onError?.(err); }

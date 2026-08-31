@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
-import { createHoloMaterial, setHoloScale } from "../lib/holoMaterial.js";
+import { createHoloMaterial, setHoloScale, holoFitDistance, holoSweptBounds, HOLO_FIT_TARGET } from "../lib/holoMaterial.js";
 
 /**
  * Hand3D — Phase 3a of the /products v2 Hand scene.
@@ -323,14 +323,44 @@ export default function Hand3D({ onReady, holo = false, hue = "white", intensity
       }
       // Portrait hand: frame on height so it reads big in the scene column, but
       // clamp on width so a wide 3/4 can't overflow. Product-is-hero => tight-ish.
-      const fitDim = Math.max(size.y, size.x * 1.1, size.z);
+      // Holo mode frames by the SHARED rule (lib/holoMaterial.js) so the hand
+      // reads the same size as the holographic glove and Eye2. The default
+      // (non-holo) path is untouched: it is what ships on /products today.
       const fov = (camera.fov * Math.PI) / 180;
-      const dist = (fitDim / 2 / Math.tan(fov / 2)) * 2.05; // pushed back a bit -> flatter perspective, less forward "zoom" at fist
+      const swept = holoMat ? holoSweptBounds(rootGroup) : null;
+      // Framing is measured ONCE, on the rest pose, but the gesture loop then
+      // moves the hand under it: the fingers reach above where they started and
+      // the mass drifts sideways, so the model sits off-centre in its own frame
+      // (measured 121px of slack on one side and 1px on the other). Containment
+      // alone therefore is not enough. This is the headroom for that drift.
+      //
+      // 0.94 leaves the hand the same apparent size as the glove and the Eye2
+      // while keeping clearance through the whole gesture, checked by eye at
+      // several phases. (Automated edge detection was useless here: the aurora
+      // has bright near-white patches at the cell edge that read as model.)
+      const GESTURE_HEADROOM = 0.86;
+      const dist = holoMat
+        ? holoFitDistance(swept.spinWidth, swept.height, camera,
+                          HOLO_FIT_TARGET * GESTURE_HEADROOM)
+        // Portrait hand: frame on height so it reads big in the scene column,
+        // but clamp on width so a wide 3/4 can't overflow.
+        : (Math.max(size.y, size.x * 1.1, size.z) / 2 / Math.tan(fov / 2)) * 2.05;
       // Gentle 3/4: mostly front-on (palm to viewer), a little from the right and
       // slightly above. Camera sits on +Z so the palm normal (+Z) faces it.
       const dir = new THREE.Vector3(0.32, 0.16, 1).normalize();
       camera.position.copy(dir.multiplyScalar(dist));
-      camera.lookAt(0, 0, 0);
+      // Holo mode aims off-origin to recentre the hand in its cell. Framing is
+      // measured ONCE on the rest pose, but the gesture then swings the thumb
+      // well out to one side and reaches the fingers upward, so the hand ends
+      // up sitting high and to the right of its own frame — measured 112px of
+      // slack on the left against 1px on the right, with the thumb clipping.
+      // Aiming the camera right and up moves the hand left and down, which buys
+      // that clearance back WITHOUT shrinking it below the other two scenes.
+      // Final: every edge clears by >=41px across 20 samples of a full loop.
+      const vH = 2 * dist * Math.tan(fov / 2);
+      const aimX = holoMat ? vH * camera.aspect * 0.13 : 0;
+      const aimY = holoMat ? vH * 0.06 : 0;
+      camera.lookAt(aimX, aimY, 0);
       camera.near = dist / 100;
       camera.far = dist * 100;
       camera.updateProjectionMatrix();
