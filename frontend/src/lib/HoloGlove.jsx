@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { HOLO_HUES, createHoloMaterial, setHoloScale, holoFitScale, holoSweptBounds } from "./holoMaterial.js";
 
 /**
@@ -12,12 +13,11 @@ import { HOLO_HUES, createHoloMaterial, setHoloScale, holoFitScale, holoSweptBou
  * flip-book of /hero/glove/frame-00N.webp on /products, plus the STL Aero-hand
  * in Hand3D.jsx). Nothing on a shipped page imports it.
  *
- * The source is a Tripo-generated FBX (single mesh, ~40k verts, one 4096²
- * basecolor). It is loaded straight from /public/models/glove-holo as .fbx —
- * fine for a localhost look-test, NOT ship-shape: the raw pair is 5.2MB, and
- * FBXLoader adds ~21KB gzip on top of `three` (measured: this file builds to a
- * 59.3KB / 20.8KB-gzip chunk). Productionising means a GLB + Draco/meshopt and
- * a downscaled texture, like /public/dexterous-hand.glb.
+ * The source was a Tripo-generated FBX; what ships is a meshopt-compressed GLB
+ * built from it (scripts/fbx-to-glb.mjs). The FBX arrived as a 154k-corner
+ * triangle soup carrying only 40,442 real points, so indexing it is most of the
+ * win: 1.5MB of FBX became 418KB of GLB, and swapping FBXLoader for the
+ * GLTFLoader the site already uses took its own bite out of the bundle.
  *
  * Palette follows DESIGN.md: warm orange #F0612A, "warm, not sci-fi cyan".
  * `hue="cyan"` exists only so the two can be compared side by side.
@@ -25,7 +25,7 @@ import { HOLO_HUES, createHoloMaterial, setHoloScale, holoFitScale, holoSweptBou
  * MARKS. Dropping the basecolor also drops the two features that identify the
  * product — the anti-slip grip pad on the palm and the AprilTag on the back of
  * the wrist — so every look composites them back from a separate mask texture,
- * /models/glove-holo/glove-marks.png (see scripts/build-glove-marks.py):
+ * /models/glove-holo/glove-marks.webp (see scripts/build-glove-marks.py):
  *   R = grip-pad mask, G = AprilTag luminance, B = AprilTag quad,
  *   A = glove-fabric mask (where a synthesised grip may land).
  * The tag drawn from G/B is a real, detector-verified tag36h11, replacing the
@@ -34,7 +34,10 @@ import { HOLO_HUES, createHoloMaterial, setHoloScale, holoFitScale, holoSweptBou
  * `marks=0` restores the mesh exactly as delivered.
  */
 
-const MARKS_MAP = "/models/glove-holo/glove-marks.png";
+const MARKS_MAP = "/models/glove-holo/glove-marks.webp";
+// Only the "textured" look wants this, so it is fetched on demand — the
+// hologram never samples it and /products must not pay for it.
+const BASECOLOR_MAP = "/models/glove-holo/glove-basecolor.webp";
 
 // Procedural anti-slip grip, shared by every look so the palm and the fingers
 // cannot drift apart.
@@ -111,7 +114,7 @@ const MARKS_BODY = /* glsl */ `
 `;
 
 export default function HoloGlove({
-  src = "/models/glove-holo/glove-holo.fbx",
+  src = "/models/glove-holo/glove.glb",
   look = "holo", // holo | textured | solid
   hue = "orange",
   wire = false,
@@ -133,10 +136,6 @@ export default function HoloGlove({
   // Lengthen the fingers, as a fraction of model height added at the tips.
   // The mesh's fingers are stubby; 0 leaves them as delivered.
   stretch = 0,
-  // "marks-only" skips the 3.5MB basecolor the FBX references. Only safe when
-  // the caller will never select look="textured" — the /products preview only
-  // ever shows the hologram, the /glove-holo bench needs all three.
-  preload = "all",
   onReady,
   onError,
 }) {
@@ -359,19 +358,13 @@ export default function HoloGlove({
       getTilt: () => tiltX,
     });
 
-    // FBXLoader resolves the basecolor path baked into the file, so the only way
-    // not to pay for it is to intercept the request. A 1x1 transparent GIF keeps
-    // the material's map slot valid without the download.
-    const manager = new THREE.LoadingManager();
-    if (preload === "marks-only") {
-      const STUB = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-      manager.setURLModifier((url) => (/\.(jpe?g|png)$/i.test(url) && url.includes(".fbm") ? STUB : url));
-    }
-    const loader = new FBXLoader(manager);
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
       src,
-      (obj) => {
+      (gltf) => {
         if (disposed) return;
+        const obj = gltf.scene;
         // Normalise: centre the geometry on the origin so the FBX's cm units and
         // Tripo's arbitrary framing stop mattering. Translating the GEOMETRY
         // (not the object) keeps the pivot at the visual centre, so the
@@ -387,18 +380,44 @@ export default function HoloGlove({
         // makes it visit that clone, clone it again, and blow the stack.
         const meshes = [];
         obj.traverse((o) => { if (o.isMesh) meshes.push(o); });
+        // De-interleave and de-quantize before anything touches the buffers.
+        // meshopt stores position as INTERLEAVED normalized Int16 and normal as
+        // Int8, so `attribute.array` is a shared quantized buffer, not per-vertex
+        // floats. Every CPU pass here (the weld, the shrink, the stretch, the
+        // palm calibration) reads and writes `.array` directly, and on quantized
+        // data that reads integers and writes floats back into an Int16Array —
+        // which is exactly how the mesh came out as a ball of spikes. The
+        // accessor API dequantizes correctly, so rebuild through it once.
+        //
+        // The compression is still doing its job: it is a TRANSFER format, and
+        // 418KB over the wire is the point, not the in-memory layout.
+        const toFloat = (attr, itemSize) => {
+          const out = new Float32Array(attr.count * itemSize);
+          for (let i = 0; i < attr.count; i++) {
+            out[i * itemSize] = attr.getX(i);
+            if (itemSize > 1) out[i * itemSize + 1] = attr.getY(i);
+            if (itemSize > 2) out[i * itemSize + 2] = attr.getZ(i);
+          }
+          return new THREE.BufferAttribute(out, itemSize);
+        };
         meshes.forEach((o) => {
-          o.geometry.translate(-c.x, -c.y, -c.z);
-          o.geometry.computeVertexNormals();
-          const mats = Array.isArray(o.material) ? o.material : [o.material];
-          mats.forEach((m) => {
-            // FBX basecolor is authored in sRGB; without this it renders washed out.
-            if (m?.map) m.map.colorSpace = THREE.SRGBColorSpace;
-            if (m) {
-              m.clippingPlanes = [trimPlane];
-              withMarks(m, "deepen");
+          const g = o.geometry;
+          for (const [name, n] of [["position", 3], ["normal", 3], ["uv", 2]]) {
+            const a = g.attributes[name];
+            if (a && (a.isInterleavedBufferAttribute || a.normalized || !(a.array instanceof Float32Array))) {
+              g.setAttribute(name, toFloat(a, n));
             }
-          });
+          }
+          o.geometry.translate(-c.x, -c.y, -c.z);
+          // NO computeVertexNormals here. The GLB carries the source's own
+          // per-vertex smooth normals; recomputing on the old non-indexed FBX
+          // produced FACE normals and faceted the whole glove, which is also
+          // why nothing could be welded (154k corners for 40k real points).
+          const m = Array.isArray(o.material) ? o.material[0] : o.material;
+          if (m) {
+            m.clippingPlanes = [trimPlane];
+            withMarks(m, "deepen");
+          }
           sceneRef.current.originalMats.set(o, o.material);
           const wm = new THREE.Mesh(o.geometry, wireMat);
           wm.visible = false;
@@ -432,7 +451,6 @@ export default function HoloGlove({
           ),
           size: [s.x, s.y, s.z].map((v) => +v.toFixed(2)),
           palm: sceneRef.current.palmDir,
-          weld: sceneRef.current.weldStat,
           axis: sceneRef.current.fingerAxis,
         });
       },
@@ -493,6 +511,8 @@ export default function HoloGlove({
         const rec = { grip: new Float32Array(n), fabric: new Float32Array(n), tag: new Float32Array(n) };
         for (let i = 0; i < n; i++) {
           // three flips textures vertically by default, so v = 0 is the LAST row.
+          // GLTFExporter writes UVs verbatim, so these are the same numbers the
+          // FBX carried and the same convention still applies.
           const x = Math.min(S - 1, Math.max(0, (uv.getX(i) * S) | 0));
           const y = Math.min(S - 1, Math.max(0, ((1 - uv.getY(i)) * S) | 0));
           const p = (y * S + x) * 4;
@@ -603,8 +623,14 @@ export default function HoloGlove({
       if (a) return a;
       const { groupOf, groups } = weldTable(o, base);
       const sets = Array.from({ length: groups }, () => new Set());
-      for (let t = 0; t < groupOf.length; t += 3) {
-        const g0 = groupOf[t], g1 = groupOf[t + 1], g2 = groupOf[t + 2];
+      // Triangles come from the index buffer when there is one. The GLB is
+      // indexed (the FBX was a soup), so walking positions three at a time —
+      // which is what this did — would connect vertices that share nothing.
+      const idx = o.geometry.index;
+      const triCount = idx ? idx.count : groupOf.length;
+      const at = idx ? (i) => groupOf[idx.getX(i)] : (i) => groupOf[i];
+      for (let t = 0; t < triCount; t += 3) {
+        const g0 = at(t), g1 = at(t + 1), g2 = at(t + 2);
         if (g0 !== g1) { sets[g0].add(g1); sets[g1].add(g0); }
         if (g1 !== g2) { sets[g1].add(g2); sets[g2].add(g1); }
         if (g2 !== g0) { sets[g2].add(g0); sets[g0].add(g2); }
@@ -864,16 +890,36 @@ export default function HoloGlove({
     }
     sceneRef.current.fitModel = fitModel;
 
+    // The GLB is geometry only. "Original texture" is the one look that wants
+    // the basecolor, so it is fetched the first time that look is selected and
+    // cached after — /products only ever shows the hologram and never pays.
+    function ensureBasecolor() {
+      const st = sceneRef.current;
+      if (st.basecolor) return st.basecolor;
+      st.basecolor = new THREE.TextureLoader().load(BASECOLOR_MAP, () => {
+        // The mesh may already be showing the untextured material by the time
+        // this lands, so nudge it.
+        st.applyLook?.();
+      });
+      st.basecolor.colorSpace = THREE.SRGBColorSpace;
+      st.basecolor.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return st.basecolor;
+    }
+
     // Swap materials without touching the loaded geometry.
     function applyLook() {
       const st = sceneRef.current;
       if (!st.model) return;
       st.model.traverse((o) => {
         if (!o.isMesh || st.wireMeshes.includes(o)) return;
-        o.material =
-          st.look === "textured" ? st.originalMats.get(o)
-          : st.look === "solid" ? st.solidMat
-          : st.holoMat;
+        if (st.look === "textured") {
+          const m = st.originalMats.get(o);
+          const mat = Array.isArray(m) ? m[0] : m;
+          if (mat && !mat.map) { mat.map = ensureBasecolor(); mat.needsUpdate = true; }
+          o.material = m;
+        } else {
+          o.material = st.look === "solid" ? st.solidMat : st.holoMat;
+        }
       });
       st.wireMeshes.forEach((m) => { m.visible = !!st.wire; });
     }

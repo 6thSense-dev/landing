@@ -226,11 +226,10 @@ export default function GloveHolo() {
           </div>
 
           <pre style={{ background: "#111", border: "1px solid #333", borderRadius: 6, padding: 11, fontSize: 11, whiteSpace: "pre-wrap", lineHeight: 1.6, margin: 0 }}>
-{`source   public/models/glove-holo/glove-holo.fbx
-weight   1.5MB fbx + 3.7MB 4096² basecolor
+{`source   public/models/glove-holo/glove.glb
+weight   418KB glb + 661KB marks (basecolor lazy)
 mesh     ${info ? `${info.verts.toLocaleString()} verts / ${Math.round(info.tris).toLocaleString()} tris` : "…"}
 bbox     ${info ? info.size.join(" × ") : "…"}
-weld     ${info?.weld ?? "…"}
 look     ${look} / ${hue}${wire ? " + wire" : ""}
 palm     ${info?.palm ? info.palm.join(", ") : "…"}
 axis     ${info?.axis ? info.axis.join(", ") : "…"}
