@@ -262,6 +262,7 @@ class CatalogStore:
             "source": self.settings.source,
             "clips": len(clips) if isinstance(clips, list) else 0,
             "generated_utc": doc.get("generated_utc"),
+            "package_tier_ok": True,
         }
 
     def invalidate(self) -> None:
@@ -334,7 +335,8 @@ class S3CatalogStore(CatalogStore):
                 # the signature to the Host header, the redirected request fails
                 # the signature check and every piece of media 403s. Measured
                 # against the real bucket: global host -> 403, virtual -> 200.
-                # It also produces exactly the origin the Caddyfile CSP allowlists.
+                # Keep every catalog/package bucket's regional host in the
+                # Caddyfile CSP allowlist before switching storage tiers.
                 s3={"addressing_style": "virtual"},
                 retries={"max_attempts": 3, "mode": "standard"},
                 connect_timeout=3,
@@ -367,14 +369,57 @@ class S3CatalogStore(CatalogStore):
         except (KeyError, UnicodeDecodeError, ValueError) as exc:
             raise CatalogUnavailable(f"s3 object {key} is not valid JSON") from exc
 
+    def probe(self) -> dict[str, Any]:
+        """Check both catalog documents and one known package-tier object."""
+        info = super().probe()
+        clips = self.manifest().get("clips")
+        first = clips[0] if isinstance(clips, list) and clips else None
+        relative: str | None = None
+        if isinstance(first, dict):
+            contents = first.get("package_contents")
+            if isinstance(contents, list) and contents and isinstance(contents[0], dict):
+                candidate = contents[0].get("url")
+                if isinstance(candidate, str):
+                    relative = candidate
+            if relative is None and isinstance(first.get("id"), str):
+                relative = f"media/{first['id']}/LICENSE.txt"
+        if relative is None:
+            info["package_tier_ok"] = False
+            info["package_tier_error"] = "PackageProbeKeyMissing"
+            return info
+
+        try:
+            bucket, package_key = self._asset_location(relative)
+            if bucket != self.settings.package_bucket:
+                info["package_tier_ok"] = False
+                info["package_tier_error"] = "PackageProbeKeyNotOnPackageTier"
+                return info
+            self._client().head_object(Bucket=bucket, Key=package_key)
+        except Exception as exc:  # UnsafeAssetPath, boto clients and test doubles
+            info["package_tier_ok"] = False
+            info["package_tier_error"] = type(exc).__name__
+        return info
+
+    def _asset_location(self, relative: str) -> tuple[str, str]:
+        if isinstance(relative, str) and relative.startswith("media/"):
+            return self.settings.package_bucket, resolve_key(
+                relative.removeprefix("media/"), self.settings.package_prefix
+            )
+        if isinstance(relative, str) and relative.startswith("archives/"):
+            return self.settings.package_bucket, resolve_key(
+                f"_archives/{relative.removeprefix('archives/')}",
+                self.settings.package_prefix,
+            )
+        return self.settings.bucket, resolve_key(relative, self.settings.prefix)
+
     def sign(self, relative: str, ttl: int, origin: str = "") -> str:
-        key = resolve_key(relative, self.settings.prefix)
+        bucket, key = self._asset_location(relative)
         from botocore.exceptions import BotoCoreError, ClientError
 
         try:
             return self._client().generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.settings.bucket, "Key": key},
+                Params={"Bucket": bucket, "Key": key},
                 ExpiresIn=ttl,
             )
         except (BotoCoreError, ClientError) as exc:
@@ -470,8 +515,10 @@ def _signature_of(cfg: CatalogSettings) -> tuple:
     return (
         cfg.source,
         cfg.bucket,
+        cfg.package_bucket,
         cfg.region,
         cfg.prefix,
+        cfg.package_prefix,
         cfg.manifest_key,
         cfg.access_key_id,
         cfg.endpoint_url,

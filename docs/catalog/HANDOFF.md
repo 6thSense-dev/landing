@@ -15,7 +15,7 @@ you, and exactly what to do when the real clips are ready.
 | What it is | A buyer-facing data catalog behind `6thsense.dev/login`. Guest credential → read-only browse of clips: stereo video, IMU, tactile, segment captions, calibration, QA. |
 | Collection name | **nervous-1** |
 | Where the code is | `feat/data-catalog` in the **landing** repo. Worktree: `~/conductor/workspaces/landing/catalog` |
-| Where the media is | `s3://6thsense-catalog-media/v1/` (us-west-2, AWS account **194680606079**) |
+| Where the media is | Catalog documents/previews: `s3://6thsense-catalog/v2/`; packages: `s3://6thsense-processed/imported/2026-08-24_nervous-1/` (us-west-2, AWS account **194680606079**) |
 | What is live | Nothing. Production `6thsense.dev` still runs `main`, which has none of this. |
 | Corpus today | 30 **synthetic** clips (ffmpeg colour bars), 30–45 s each, ~19 min total, CN + HK, all stereo + tactile |
 | Blocking the launch | Real clips → then a production deploy → then 4 decisions in §6 |
@@ -204,9 +204,11 @@ Ordered runbook is in **[`DEPLOY.md`](./DEPLOY.md)**. The shape:
 4. Set on the **backend** service:
    ```
    CATALOG_SOURCE=s3
-   CATALOG_S3_BUCKET=6thsense-catalog-media
+   CATALOG_S3_BUCKET=6thsense-catalog
    CATALOG_S3_REGION=us-west-2
    CATALOG_S3_PREFIX=v2/
+   CATALOG_PACKAGE_BUCKET=6thsense-processed
+   CATALOG_PACKAGE_PREFIX=imported/2026-08-24_nervous-1/
    CATALOG_AWS_ACCESS_KEY_ID=<catalog-media-reader>
    CATALOG_AWS_SECRET_ACCESS_KEY=<its secret>
    CATALOG_PRESIGN_TTL=900

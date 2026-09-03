@@ -109,9 +109,11 @@ On the **backend** service. Every variable the catalog reads, in full:
 | Variable | Value | Notes |
 |---|---|---|
 | `CATALOG_SOURCE` | `s3` | The default. `local` is for `npm run dev` only. |
-| `CATALOG_S3_BUCKET` | `6thsense-catalog-media` | |
+| `CATALOG_S3_BUCKET` | `6thsense-catalog` | catalog-facing tier: previews only |
 | `CATALOG_S3_REGION` | `us-west-2` | |
-| `CATALOG_S3_PREFIX` | `v1/` | The version prefix. Step 8 flips this. |
+| `CATALOG_S3_PREFIX` | `v2/` | The version prefix. |
+| `CATALOG_PACKAGE_BUCKET` | `6thsense-processed` | processed tier: full packages, signed for `media/` paths |
+| `CATALOG_PACKAGE_PREFIX` | `imported/2026-08-24_nervous-1/` | cohort prefix inside the processed tier |
 | `CATALOG_AWS_ACCESS_KEY_ID` | the **`catalog-media-reader`** key from step 2 | not the writer |
 | `CATALOG_AWS_SECRET_ACCESS_KEY` | the **`catalog-media-reader`** secret from step 2 | not the writer |
 
@@ -205,12 +207,12 @@ the count is the one you expect before uploading.
 ## 5. Upload
 
 ```bash
-export CATALOG_S3_BUCKET=6thsense-catalog-media
+export CATALOG_S3_BUCKET=6thsense-catalog
 export CATALOG_S3_REGION=us-west-2
 export AWS_PROFILE=catalog-upload      # the catalog-media (writer) key — never the Railway one
 
-python3 scripts/catalog/upload_bundle.py --bundle /path/to/bundle --prefix v1/ --dry-run
-python3 scripts/catalog/upload_bundle.py --bundle /path/to/bundle --prefix v1/
+python3 scripts/catalog/upload_bundle.py --bundle /path/to/bundle --prefix v2/ --dry-run
+python3 scripts/catalog/upload_bundle.py --bundle /path/to/bundle --prefix v2/
 ```
 
 Always `--dry-run` first and read the object count. The uploader sets content types
@@ -219,9 +221,9 @@ explicitly — an mp4 served as `application/octet-stream` will not stream in Sa
 **Check**:
 
 ```bash
-aws s3 ls s3://6thsense-catalog-media/v1/ --recursive --summarize | tail -3
+aws s3 ls s3://6thsense-catalog/v2/ --recursive --summarize | tail -3
 curl -s -o /dev/null -w '%{http_code}\n' \
-  https://6thsense-catalog-media.s3.us-west-2.amazonaws.com/v1/catalog.json
+  https://6thsense-catalog.s3.us-west-2.amazonaws.com/v2/catalog.json
 # 403 — the bucket is private. A 200 here means step 1 did not take. Stop and fix it.
 ```
 
@@ -339,7 +341,7 @@ curl -s -b cookies.txt "$API/api/catalog/clips/<id>" \
 
 # b. a raw bucket key, without a signature, is refused
 curl -s -o /dev/null -w '%{http_code}\n' \
-  https://6thsense-catalog-media.s3.us-west-2.amazonaws.com/v1/media/<id>/tactile/left.npz
+  https://6thsense-processed.s3.us-west-2.amazonaws.com/imported/2026-08-24_nervous-1/<id>/tactile/left.npz
 # 403
 ```
 

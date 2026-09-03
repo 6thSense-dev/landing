@@ -8,6 +8,7 @@ credential actually signed the URL.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -30,8 +31,72 @@ from app.core.catalog_store import (
     get_store,
     reset_store,
     resolve_key,
+    _signature_of,
 )
 from app.models.user import ROLES
+
+
+def test_package_tier_defaults_to_the_catalog_tier(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    for name in (
+        "CATALOG_S3_BUCKET",
+        "CATALOG_S3_PREFIX",
+        "CATALOG_PACKAGE_BUCKET",
+        "CATALOG_PACKAGE_PREFIX",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = get_catalog_settings()
+    assert settings.bucket == "6thsense-catalog-media"
+    assert settings.prefix == "v1/"
+    assert settings.package_bucket == settings.bucket == "6thsense-catalog-media"
+    assert settings.package_prefix == f"{settings.prefix}media/" == "v1/media/"
+
+
+def test_explicit_package_tier_overrides_the_safe_defaults(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    monkeypatch.setenv("CATALOG_PACKAGE_BUCKET", "6thsense-processed")
+    monkeypatch.setenv("CATALOG_PACKAGE_PREFIX", "imported/2026-08-24_nervous-1/")
+
+    settings = get_catalog_settings()
+    assert settings.package_bucket == "6thsense-processed"
+    assert settings.package_prefix == "imported/2026-08-24_nervous-1/"
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_package_settings_use_safe_catalog_defaults(monkeypatch, blank):
+    from app.core.config import get_catalog_settings
+
+    monkeypatch.setenv("CATALOG_S3_BUCKET", "catalog")
+    monkeypatch.setenv("CATALOG_S3_PREFIX", "v2/")
+    monkeypatch.setenv("CATALOG_PACKAGE_BUCKET", blank)
+    monkeypatch.setenv("CATALOG_PACKAGE_PREFIX", blank)
+
+    settings = get_catalog_settings()
+    assert settings.package_bucket == "catalog"
+    assert settings.package_prefix == "v2/media/"
+
+
+def test_package_settings_participate_in_store_cache_signature(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    settings = get_catalog_settings()
+    baseline = _signature_of(settings)
+    assert _signature_of(replace(settings, package_bucket="other")) != baseline
+    assert _signature_of(replace(settings, package_prefix="other/")) != baseline
+
+
+def test_package_tier_reuses_the_catalog_credential_pair(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    monkeypatch.setenv("CATALOG_AWS_ACCESS_KEY_ID", "catalog-reader")
+    monkeypatch.delenv("CATALOG_AWS_SECRET_ACCESS_KEY", raising=False)
+    settings = get_catalog_settings()
+
+    assert settings.credentials_half_configured is True
+    assert settings.configured is False
 
 
 # --- Key resolution (pure) -------------------------------------------------------
@@ -151,7 +216,8 @@ class _FakeS3:
     def __init__(self, objects: dict[str, tuple[bytes, str]]):
         self.objects = objects
         self.gets: list[tuple[str, str | None]] = []
-        self.signed: list[tuple[str, int]] = []
+        self.signed: list[tuple[str, str, int]] = []
+        self.heads: list[tuple[str, str]] = []
 
     def get_object(self, Bucket, Key, IfNoneMatch=None):  # noqa: N803 - boto3 casing
         self.gets.append((Key, IfNoneMatch))
@@ -163,8 +229,12 @@ class _FakeS3:
         return {"Body": SimpleNamespace(read=lambda: body), "ETag": etag}
 
     def generate_presigned_url(self, op, Params, ExpiresIn):  # noqa: N803
-        self.signed.append((Params["Key"], ExpiresIn))
+        self.signed.append((Params["Bucket"], Params["Key"], ExpiresIn))
         return f"https://{Params['Bucket']}.s3.amazonaws.com/{Params['Key']}"
+
+    def head_object(self, Bucket, Key):  # noqa: N803 - boto3 casing
+        self.heads.append((Bucket, Key))
+        return {}
 
 
 MANIFEST = b'{"schema":"6s-catalog/1.0","clips":[{"id":"clip-one"}]}'
@@ -174,8 +244,12 @@ MANIFEST = b'{"schema":"6s-catalog/1.0","clips":[{"id":"clip-one"}]}'
 def s3_env(monkeypatch):
     monkeypatch.setenv("CATALOG_SOURCE", "s3")
     monkeypatch.setenv("CATALOG_S3_BUCKET", "6thsense-catalog-media")
+    monkeypatch.setenv("CATALOG_PACKAGE_BUCKET", "6thsense-processed")
     monkeypatch.setenv("CATALOG_S3_REGION", "us-west-2")
     monkeypatch.setenv("CATALOG_S3_PREFIX", "v1/")
+    monkeypatch.setenv(
+        "CATALOG_PACKAGE_PREFIX", "imported/2026-08-24_nervous-1/"
+    )
     monkeypatch.setenv("CATALOG_AWS_ACCESS_KEY_ID", "AKIACATALOGREADER00000")
     monkeypatch.setenv("CATALOG_AWS_SECRET_ACCESS_KEY", "catalog-secret")
     monkeypatch.setenv("CATALOG_PRESIGN_TTL", "900")
@@ -205,6 +279,25 @@ def test_s3_caches_the_manifest(fake_s3):
     assert store.fetch_count == 1
 
 
+def test_s3_probe_checks_a_known_object_in_the_package_tier(fake_s3):
+    info = get_store().probe()
+    assert info["package_tier_ok"] is True
+    assert fake_s3.heads == [(
+        "6thsense-processed",
+        "imported/2026-08-24_nervous-1/clip-one/LICENSE.txt",
+    )]
+
+
+def test_s3_probe_reports_the_package_head_error_class(fake_s3, monkeypatch):
+    def fail(**kwargs):
+        raise _client_error("AccessDenied", 403)
+
+    monkeypatch.setattr(fake_s3, "head_object", fail)
+    info = get_store().probe()
+    assert info["package_tier_ok"] is False
+    assert info["package_tier_error"] == "ClientError"
+
+
 def test_s3_revalidates_with_if_none_match_and_keeps_the_cached_doc(
     fake_s3, monkeypatch
 ):
@@ -218,17 +311,46 @@ def test_s3_revalidates_with_if_none_match_and_keeps_the_cached_doc(
     assert second == first  # the 304 kept the parsed document
 
 
-def test_s3_signs_with_the_prefix_and_the_configured_ttl(fake_s3):
+def test_s3_signs_media_against_the_processed_package_tier(fake_s3):
     store = get_store()
-    url = store.sign("media/clip-one/video/stereo.mp4", 900)
-    assert fake_s3.signed == [("v1/media/clip-one/video/stereo.mp4", 900)]
-    assert url.startswith("https://")
+    url = store.sign("media/clip-one/video/left.mp4", 900)
+    assert fake_s3.signed == [(
+        "6thsense-processed",
+        "imported/2026-08-24_nervous-1/clip-one/video/left.mp4",
+        900,
+    )]
+    assert url.startswith("https://6thsense-processed.s3.")
+
+
+def test_s3_routes_archives_to_the_package_archive_directory(fake_s3):
+    url = get_store().sign("archives/clip-one.tar.gz", 900)
+    assert fake_s3.signed == [(
+        "6thsense-processed",
+        "imported/2026-08-24_nervous-1/_archives/clip-one.tar.gz",
+        900,
+    )]
+    assert url.startswith("https://6thsense-processed.s3.")
+
+
+def test_s3_keeps_preview_assets_on_the_catalog_tier(fake_s3):
+    url = get_store().sign("posters/clip-one.jpg", 900)
+    assert fake_s3.signed == [
+        ("6thsense-catalog-media", "v1/posters/clip-one.jpg", 900)
+    ]
+    assert url.startswith("https://6thsense-catalog-media.s3.")
 
 
 def test_s3_refuses_to_sign_a_path_that_escapes_the_prefix(fake_s3):
     store = get_store()
     with pytest.raises(UnsafeAssetPath):
         store.sign("../../secrets/keys.json", 900)
+    assert fake_s3.signed == []
+
+
+@pytest.mark.parametrize("hostile", ["media/../secret", "media/x/../../secret"])
+def test_s3_refuses_media_paths_that_escape_the_package_prefix(fake_s3, hostile):
+    with pytest.raises(UnsafeAssetPath):
+        get_store().sign(hostile, 900)
     assert fake_s3.signed == []
 
 
@@ -279,6 +401,14 @@ def test_presigning_uses_the_catalog_key_and_not_the_ambient_one(s3_env, monkeyp
     assert "AKIAFIRMWAREPUBLISHER0" not in url
     assert "X-Amz-Expires=900" in url
     assert "X-Amz-Signature=" in url
+
+    package_url = get_store().sign("media/clip-one/video/left.mp4", 900)
+    assert package_url.startswith("https://6thsense-processed.s3.")
+    assert (
+        "/imported/2026-08-24_nervous-1/clip-one/video/left.mp4"
+        in package_url
+    )
+    assert "AKIACATALOGREADER00000" in package_url
 
 
 # --- Self-referential URLs ---------------------------------------------------------
@@ -337,3 +467,12 @@ def test_presigned_urls_use_the_regional_virtual_hosted_endpoint(monkeypatch):
         "signature no longer matches, so all media 403s"
     )
     assert "X-Amz-Signature" in url
+
+
+def test_s3_probe_reports_an_unsafe_manifest_id_instead_of_raising(fake_s3, monkeypatch):
+    """A malformed clip id in catalog.json must degrade the package probe, not 503 /health."""
+    store = get_store()
+    monkeypatch.setattr(store, "manifest", lambda: {"clips": [{"id": "../../other"}]})
+    info = store.probe()
+    assert info["package_tier_ok"] is False
+    assert info["package_tier_error"] == "UnsafeAssetPath"

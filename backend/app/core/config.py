@@ -126,8 +126,10 @@ class CatalogSettings:
 
     source: str
     bucket: str
+    package_bucket: str
     region: str
     prefix: str
+    package_prefix: str
     manifest_key: str
     access_key_id: str | None
     secret_access_key: str | None
@@ -161,18 +163,29 @@ class CatalogSettings:
     def configured(self) -> bool:
         if self.is_local:
             return bool(self.local_dir)
-        return bool(self.bucket) and not self.credentials_half_configured
+        return (
+            bool(self.bucket)
+            and bool(self.package_bucket)
+            and not self.credentials_half_configured
+        )
 
 
 def get_catalog_settings() -> CatalogSettings:
     source = (os.environ.get("CATALOG_SOURCE") or CATALOG_SOURCE_S3).strip().lower()
     if source not in CATALOG_SOURCES:
         source = CATALOG_SOURCE_S3
+    bucket = (os.environ.get("CATALOG_S3_BUCKET") or "6thsense-catalog-media").strip()
+    prefix = _normalise_prefix(os.environ.get("CATALOG_S3_PREFIX", "v1/"))
+    package_bucket = (os.environ.get("CATALOG_PACKAGE_BUCKET") or "").strip() or bucket
+    package_prefix_raw = (os.environ.get("CATALOG_PACKAGE_PREFIX") or "").strip()
+    package_prefix = _normalise_prefix(package_prefix_raw or f"{prefix}media/")
     return CatalogSettings(
         source=source,
-        bucket=(os.environ.get("CATALOG_S3_BUCKET") or "6thsense-catalog-media").strip(),
+        bucket=bucket,
+        package_bucket=package_bucket,
         region=(os.environ.get("CATALOG_S3_REGION") or "us-west-2").strip(),
-        prefix=_normalise_prefix(os.environ.get("CATALOG_S3_PREFIX", "v1/")),
+        prefix=prefix,
+        package_prefix=package_prefix,
         manifest_key=(os.environ.get("CATALOG_MANIFEST_KEY") or "catalog.json").strip(),
         access_key_id=(os.environ.get("CATALOG_AWS_ACCESS_KEY_ID") or "").strip() or None,
         secret_access_key=(os.environ.get("CATALOG_AWS_SECRET_ACCESS_KEY") or "").strip()
