@@ -332,6 +332,14 @@ def test_presigning_uses_the_catalog_key_and_not_the_ambient_one(s3_env, monkeyp
     assert "X-Amz-Expires=900" in url
     assert "X-Amz-Signature=" in url
 
+    package_url = get_store().sign("media/clip-one/video/left.mp4", 900)
+    assert package_url.startswith("https://6thsense-processed.s3.")
+    assert (
+        "/imported/2026-08-24_nervous-1/clip-one/video/left.mp4"
+        in package_url
+    )
+    assert "AKIACATALOGREADER00000" in package_url
+
 
 # --- Self-referential URLs ---------------------------------------------------------
 
@@ -375,7 +383,7 @@ def test_presigned_urls_use_the_regional_virtual_hosted_endpoint(monkeypatch):
     monkeypatch.setenv("CATALOG_SOURCE", "s3")
     monkeypatch.setenv("CATALOG_S3_BUCKET", "example-bucket")
     monkeypatch.setenv("CATALOG_S3_REGION", "us-west-2")
-    monkeypatch.setenv("CATALOG_S3_PREFIX", "v1/")
+    monkeypatch.setenv("CATALOG_S3_PREFIX", "v2/")
     monkeypatch.setenv("CATALOG_AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
     monkeypatch.setenv(
         "CATALOG_AWS_SECRET_ACCESS_KEY",
