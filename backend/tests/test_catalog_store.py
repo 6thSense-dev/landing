@@ -34,6 +34,35 @@ from app.core.catalog_store import (
 from app.models.user import ROLES
 
 
+def test_catalog_settings_default_to_the_catalog_and_processed_tiers(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    for name in (
+        "CATALOG_S3_BUCKET",
+        "CATALOG_S3_PREFIX",
+        "CATALOG_PACKAGE_BUCKET",
+        "CATALOG_PACKAGE_PREFIX",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = get_catalog_settings()
+    assert settings.bucket == "6thsense-catalog-media"
+    assert settings.prefix == "v1/"
+    assert settings.package_bucket == "6thsense-processed"
+    assert settings.package_prefix == "imported/2026-08-24_nervous-1/"
+
+
+def test_package_tier_reuses_the_catalog_credential_pair(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    monkeypatch.setenv("CATALOG_AWS_ACCESS_KEY_ID", "catalog-reader")
+    monkeypatch.delenv("CATALOG_AWS_SECRET_ACCESS_KEY", raising=False)
+    settings = get_catalog_settings()
+
+    assert settings.credentials_half_configured is True
+    assert settings.configured is False
+
+
 # --- Key resolution (pure) -------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -151,7 +180,7 @@ class _FakeS3:
     def __init__(self, objects: dict[str, tuple[bytes, str]]):
         self.objects = objects
         self.gets: list[tuple[str, str | None]] = []
-        self.signed: list[tuple[str, int]] = []
+        self.signed: list[tuple[str, str, int]] = []
 
     def get_object(self, Bucket, Key, IfNoneMatch=None):  # noqa: N803 - boto3 casing
         self.gets.append((Key, IfNoneMatch))
@@ -163,7 +192,7 @@ class _FakeS3:
         return {"Body": SimpleNamespace(read=lambda: body), "ETag": etag}
 
     def generate_presigned_url(self, op, Params, ExpiresIn):  # noqa: N803
-        self.signed.append((Params["Key"], ExpiresIn))
+        self.signed.append((Params["Bucket"], Params["Key"], ExpiresIn))
         return f"https://{Params['Bucket']}.s3.amazonaws.com/{Params['Key']}"
 
 
@@ -174,8 +203,12 @@ MANIFEST = b'{"schema":"6s-catalog/1.0","clips":[{"id":"clip-one"}]}'
 def s3_env(monkeypatch):
     monkeypatch.setenv("CATALOG_SOURCE", "s3")
     monkeypatch.setenv("CATALOG_S3_BUCKET", "6thsense-catalog-media")
+    monkeypatch.setenv("CATALOG_PACKAGE_BUCKET", "6thsense-processed")
     monkeypatch.setenv("CATALOG_S3_REGION", "us-west-2")
     monkeypatch.setenv("CATALOG_S3_PREFIX", "v1/")
+    monkeypatch.setenv(
+        "CATALOG_PACKAGE_PREFIX", "imported/2026-08-24_nervous-1/"
+    )
     monkeypatch.setenv("CATALOG_AWS_ACCESS_KEY_ID", "AKIACATALOGREADER00000")
     monkeypatch.setenv("CATALOG_AWS_SECRET_ACCESS_KEY", "catalog-secret")
     monkeypatch.setenv("CATALOG_PRESIGN_TTL", "900")
@@ -218,17 +251,36 @@ def test_s3_revalidates_with_if_none_match_and_keeps_the_cached_doc(
     assert second == first  # the 304 kept the parsed document
 
 
-def test_s3_signs_with_the_prefix_and_the_configured_ttl(fake_s3):
+def test_s3_signs_media_against_the_processed_package_tier(fake_s3):
     store = get_store()
-    url = store.sign("media/clip-one/video/stereo.mp4", 900)
-    assert fake_s3.signed == [("v1/media/clip-one/video/stereo.mp4", 900)]
-    assert url.startswith("https://")
+    url = store.sign("media/clip-one/video/left.mp4", 900)
+    assert fake_s3.signed == [(
+        "6thsense-processed",
+        "imported/2026-08-24_nervous-1/clip-one/video/left.mp4",
+        900,
+    )]
+    assert url.startswith("https://6thsense-processed.s3.")
+
+
+def test_s3_keeps_preview_assets_on_the_catalog_tier(fake_s3):
+    url = get_store().sign("posters/clip-one.jpg", 900)
+    assert fake_s3.signed == [
+        ("6thsense-catalog-media", "v1/posters/clip-one.jpg", 900)
+    ]
+    assert url.startswith("https://6thsense-catalog-media.s3.")
 
 
 def test_s3_refuses_to_sign_a_path_that_escapes_the_prefix(fake_s3):
     store = get_store()
     with pytest.raises(UnsafeAssetPath):
         store.sign("../../secrets/keys.json", 900)
+    assert fake_s3.signed == []
+
+
+@pytest.mark.parametrize("hostile", ["media/../secret", "media/x/../../secret"])
+def test_s3_refuses_media_paths_that_escape_the_package_prefix(fake_s3, hostile):
+    with pytest.raises(UnsafeAssetPath):
+        get_store().sign(hostile, 900)
     assert fake_s3.signed == []
 
 
