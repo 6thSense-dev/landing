@@ -388,9 +388,7 @@ class S3CatalogStore(CatalogStore):
             info["package_tier_error"] = "PackageProbeKeyMissing"
             return info
 
-        package_key = resolve_key(
-            relative.removeprefix("media/"), self.settings.package_prefix
-        )
+        _, package_key = self._asset_location(relative)
         try:
             self._client().head_object(
                 Bucket=self.settings.package_bucket, Key=package_key
@@ -400,13 +398,20 @@ class S3CatalogStore(CatalogStore):
             info["package_tier_error"] = type(exc).__name__
         return info
 
-    def sign(self, relative: str, ttl: int, origin: str = "") -> str:
+    def _asset_location(self, relative: str) -> tuple[str, str]:
         if isinstance(relative, str) and relative.startswith("media/"):
-            bucket = self.settings.package_bucket
-            key = resolve_key(relative.removeprefix("media/"), self.settings.package_prefix)
-        else:
-            bucket = self.settings.bucket
-            key = resolve_key(relative, self.settings.prefix)
+            return self.settings.package_bucket, resolve_key(
+                relative.removeprefix("media/"), self.settings.package_prefix
+            )
+        if isinstance(relative, str) and relative.startswith("archives/"):
+            return self.settings.package_bucket, resolve_key(
+                f"_archives/{relative.removeprefix('archives/')}",
+                self.settings.package_prefix,
+            )
+        return self.settings.bucket, resolve_key(relative, self.settings.prefix)
+
+    def sign(self, relative: str, ttl: int, origin: str = "") -> str:
+        bucket, key = self._asset_location(relative)
         from botocore.exceptions import BotoCoreError, ClientError
 
         try:

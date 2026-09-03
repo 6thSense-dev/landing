@@ -297,6 +297,16 @@ def test_s3_signs_media_against_the_processed_package_tier(fake_s3):
     assert url.startswith("https://6thsense-processed.s3.")
 
 
+def test_s3_routes_archives_to_the_package_archive_directory(fake_s3):
+    url = get_store().sign("archives/clip-one.tar.gz", 900)
+    assert fake_s3.signed == [(
+        "6thsense-processed",
+        "imported/2026-08-24_nervous-1/_archives/clip-one.tar.gz",
+        900,
+    )]
+    assert url.startswith("https://6thsense-processed.s3.")
+
+
 def test_s3_keeps_preview_assets_on_the_catalog_tier(fake_s3):
     url = get_store().sign("posters/clip-one.jpg", 900)
     assert fake_s3.signed == [
