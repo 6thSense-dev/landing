@@ -262,6 +262,7 @@ class CatalogStore:
             "source": self.settings.source,
             "clips": len(clips) if isinstance(clips, list) else 0,
             "generated_utc": doc.get("generated_utc"),
+            "package_tier_ok": True,
         }
 
     def invalidate(self) -> None:
@@ -367,6 +368,37 @@ class S3CatalogStore(CatalogStore):
             return json.loads(body.decode("utf-8")), obj.get("ETag")
         except (KeyError, UnicodeDecodeError, ValueError) as exc:
             raise CatalogUnavailable(f"s3 object {key} is not valid JSON") from exc
+
+    def probe(self) -> dict[str, Any]:
+        """Check both catalog documents and one known package-tier object."""
+        info = super().probe()
+        clips = self.manifest().get("clips")
+        first = clips[0] if isinstance(clips, list) and clips else None
+        relative: str | None = None
+        if isinstance(first, dict):
+            contents = first.get("package_contents")
+            if isinstance(contents, list) and contents and isinstance(contents[0], dict):
+                candidate = contents[0].get("url")
+                if isinstance(candidate, str):
+                    relative = candidate
+            if relative is None and isinstance(first.get("id"), str):
+                relative = f"media/{first['id']}/LICENSE.txt"
+        if relative is None:
+            info["package_tier_ok"] = False
+            info["package_tier_error"] = "PackageProbeKeyMissing"
+            return info
+
+        package_key = resolve_key(
+            relative.removeprefix("media/"), self.settings.package_prefix
+        )
+        try:
+            self._client().head_object(
+                Bucket=self.settings.package_bucket, Key=package_key
+            )
+        except Exception as exc:  # boto clients and test doubles expose several classes
+            info["package_tier_ok"] = False
+            info["package_tier_error"] = type(exc).__name__
+        return info
 
     def sign(self, relative: str, ttl: int, origin: str = "") -> str:
         if isinstance(relative, str) and relative.startswith("media/"):

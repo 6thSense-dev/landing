@@ -192,6 +192,7 @@ class _FakeS3:
         self.objects = objects
         self.gets: list[tuple[str, str | None]] = []
         self.signed: list[tuple[str, str, int]] = []
+        self.heads: list[tuple[str, str]] = []
 
     def get_object(self, Bucket, Key, IfNoneMatch=None):  # noqa: N803 - boto3 casing
         self.gets.append((Key, IfNoneMatch))
@@ -205,6 +206,10 @@ class _FakeS3:
     def generate_presigned_url(self, op, Params, ExpiresIn):  # noqa: N803
         self.signed.append((Params["Bucket"], Params["Key"], ExpiresIn))
         return f"https://{Params['Bucket']}.s3.amazonaws.com/{Params['Key']}"
+
+    def head_object(self, Bucket, Key):  # noqa: N803 - boto3 casing
+        self.heads.append((Bucket, Key))
+        return {}
 
 
 MANIFEST = b'{"schema":"6s-catalog/1.0","clips":[{"id":"clip-one"}]}'
@@ -247,6 +252,25 @@ def test_s3_caches_the_manifest(fake_s3):
     store.manifest()
     assert len(fake_s3.gets) == 1
     assert store.fetch_count == 1
+
+
+def test_s3_probe_checks_a_known_object_in_the_package_tier(fake_s3):
+    info = get_store().probe()
+    assert info["package_tier_ok"] is True
+    assert fake_s3.heads == [(
+        "6thsense-processed",
+        "imported/2026-08-24_nervous-1/clip-one/LICENSE.txt",
+    )]
+
+
+def test_s3_probe_reports_the_package_head_error_class(fake_s3, monkeypatch):
+    def fail(**kwargs):
+        raise _client_error("AccessDenied", 403)
+
+    monkeypatch.setattr(fake_s3, "head_object", fail)
+    info = get_store().probe()
+    assert info["package_tier_ok"] is False
+    assert info["package_tier_error"] == "ClientError"
 
 
 def test_s3_revalidates_with_if_none_match_and_keeps_the_cached_doc(

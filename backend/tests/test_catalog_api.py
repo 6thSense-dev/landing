@@ -651,5 +651,8 @@ async def test_health_gives_staff_the_operational_detail(app, db_session):
     admin = await _session_for(db_session, "admin")
     body = (await _get(app, "/api/catalog/health", admin)).json()
     assert body["bucket"] == "6thsense-catalog-media"
+    assert body["package_bucket"] == "6thsense-catalog-media"
+    assert body["package_prefix"] == "v1/media/"
+    assert body["package_tier_ok"] is True
     assert body["region"] == "us-west-2"
     assert body["backend_fetches"] >= 1

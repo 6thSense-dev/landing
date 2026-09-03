@@ -206,6 +206,8 @@ async def catalog_health(user: User = Depends(catalog_reader)) -> Response:
         info["fetches"] = store.fetch_count
         info["bucket"] = store.settings.bucket
         info["prefix"] = store.settings.prefix
+        info["package_bucket"] = store.settings.package_bucket
+        info["package_prefix"] = store.settings.package_prefix
         info["region"] = store.settings.region
         return info
 
@@ -230,7 +232,12 @@ async def catalog_health(user: User = Depends(catalog_reader)) -> Response:
             "prefix": info["prefix"],
             "region": info["region"],
             "backend_fetches": info["fetches"],
+            "package_bucket": info["package_bucket"],
+            "package_prefix": info["package_prefix"],
+            "package_tier_ok": info["package_tier_ok"],
         }
+        if "package_tier_error" in info:
+            body["package_tier_error"] = info["package_tier_error"]
     return JSONResponse(content=body, headers={"Cache-Control": "private, no-store"})
 
 
