@@ -171,9 +171,9 @@ aws iam create-access-key --user-name catalog-media
 Set these on the Railway **backend** service and in your local `.env`:
 
 ```
-CATALOG_S3_BUCKET=6thsense-catalog-media
+CATALOG_S3_BUCKET=6thsense-catalog
 CATALOG_S3_REGION=us-west-2
-CATALOG_S3_PREFIX=v1/
+CATALOG_S3_PREFIX=v2/
 CATALOG_PACKAGE_BUCKET=6thsense-processed
 CATALOG_PACKAGE_PREFIX=imported/2026-08-24_nervous-1/
 CATALOG_AWS_ACCESS_KEY_ID=…
@@ -185,6 +185,17 @@ The two tiers use the same region and read-only `CATALOG_AWS_*` credential pair.
 needs `GetObject` access to the catalog prefix and configured processed-package prefix.
 Nothing in `scripts/catalog/` needs the secret key except `upload_bundle.py`, and it will also
 take a plain `AWS_PROFILE`.
+
+### Safe rollout order
+
+1. Ship the `frontend/Caddyfile` CSP additions first.
+2. Deploy backend code with the environment unchanged; package storage defaults to the
+   existing catalog tier, so this step is a no-op.
+3. Set `CATALOG_S3_BUCKET`, `CATALOG_S3_PREFIX`, `CATALOG_PACKAGE_BUCKET`, and
+   `CATALOG_PACKAGE_PREFIX` together in one update, then redeploy.
+4. Verify health, a catalog preview URL, and a processed-package URL.
+5. To roll back, restore `CATALOG_S3_BUCKET=6thsense-catalog-media` and
+   `CATALOG_S3_PREFIX=v2/` first, then redeploy the previous revision.
 
 ---
 
