@@ -334,7 +334,8 @@ class S3CatalogStore(CatalogStore):
                 # the signature to the Host header, the redirected request fails
                 # the signature check and every piece of media 403s. Measured
                 # against the real bucket: global host -> 403, virtual -> 200.
-                # It also produces exactly the origin the Caddyfile CSP allowlists.
+                # Keep every catalog/package bucket's regional host in the
+                # Caddyfile CSP allowlist before switching storage tiers.
                 s3={"addressing_style": "virtual"},
                 retries={"max_attempts": 3, "mode": "standard"},
                 connect_timeout=3,
