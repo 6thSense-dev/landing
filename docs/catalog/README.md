@@ -102,7 +102,7 @@ Or one step at a time:
 | `make -C scripts/catalog validate` | re-validate the emitted bundle | — |
 | `make -C scripts/catalog stats` | totals and facet counts | — |
 | `make -C scripts/catalog test` | 74 unit tests | — |
-| `make -C scripts/catalog upload` | sync the bundle to S3 | `s3://…/v1/` |
+| `make -C scripts/catalog upload` | sync the bundle to S3 | `s3://6thsense-catalog/v2/` |
 | `make -C scripts/catalog clean` | delete `sample/` | — |
 
 Override any of `CLIPS SEED MIN_S MAX_S TAKES BUNDLE PREFIX`:
@@ -202,12 +202,12 @@ take a plain `AWS_PROFILE`.
 ## 4. Upload
 
 ```bash
-python3 scripts/catalog/upload_bundle.py --bundle /data/real/bundle --prefix v1/ --dry-run
-python3 scripts/catalog/upload_bundle.py --bundle /data/real/bundle --prefix v1/
+python3 scripts/catalog/upload_bundle.py --bundle /data/real/bundle --prefix v2/ --dry-run
+python3 scripts/catalog/upload_bundle.py --bundle /data/real/bundle --prefix v2/
 ```
 
 It mirrors preview files under the prefix, key for key, so `clips/abc.json` in the bundle is
-`v1/clips/abc.json` in the bucket. It refuses `media/` and `archives/` by default: package
+`v2/clips/abc.json` in the bucket. It refuses `media/` and `archives/` by default: package
 files must be published to `s3://6thsense-processed/imported/<cohort>/` by the pipeline.
 Content types are set explicitly — a `video/mp4` served as
 `application/octet-stream` will not stream in Safari — and `Cache-Control` is `no-cache` for

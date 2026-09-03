@@ -467,3 +467,12 @@ def test_presigned_urls_use_the_regional_virtual_hosted_endpoint(monkeypatch):
         "signature no longer matches, so all media 403s"
     )
     assert "X-Amz-Signature" in url
+
+
+def test_s3_probe_reports_an_unsafe_manifest_id_instead_of_raising(fake_s3, monkeypatch):
+    """A malformed clip id in catalog.json must degrade the package probe, not 503 /health."""
+    store = get_store()
+    monkeypatch.setattr(store, "manifest", lambda: {"clips": [{"id": "../../other"}]})
+    info = store.probe()
+    assert info["package_tier_ok"] is False
+    assert info["package_tier_error"] == "UnsafeAssetPath"

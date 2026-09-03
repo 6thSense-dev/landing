@@ -388,12 +388,14 @@ class S3CatalogStore(CatalogStore):
             info["package_tier_error"] = "PackageProbeKeyMissing"
             return info
 
-        _, package_key = self._asset_location(relative)
         try:
-            self._client().head_object(
-                Bucket=self.settings.package_bucket, Key=package_key
-            )
-        except Exception as exc:  # boto clients and test doubles expose several classes
+            bucket, package_key = self._asset_location(relative)
+            if bucket != self.settings.package_bucket:
+                info["package_tier_ok"] = False
+                info["package_tier_error"] = "PackageProbeKeyNotOnPackageTier"
+                return info
+            self._client().head_object(Bucket=bucket, Key=package_key)
+        except Exception as exc:  # UnsafeAssetPath, boto clients and test doubles
             info["package_tier_ok"] = False
             info["package_tier_error"] = type(exc).__name__
         return info
