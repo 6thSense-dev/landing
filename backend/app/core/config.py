@@ -174,18 +174,16 @@ def get_catalog_settings() -> CatalogSettings:
     source = (os.environ.get("CATALOG_SOURCE") or CATALOG_SOURCE_S3).strip().lower()
     if source not in CATALOG_SOURCES:
         source = CATALOG_SOURCE_S3
+    bucket = (os.environ.get("CATALOG_S3_BUCKET") or "6thsense-catalog-media").strip()
+    prefix = _normalise_prefix(os.environ.get("CATALOG_S3_PREFIX", "v1/"))
     return CatalogSettings(
         source=source,
-        bucket=(os.environ.get("CATALOG_S3_BUCKET") or "6thsense-catalog-media").strip(),
-        package_bucket=(
-            os.environ.get("CATALOG_PACKAGE_BUCKET") or "6thsense-processed"
-        ).strip(),
+        bucket=bucket,
+        package_bucket=(os.environ.get("CATALOG_PACKAGE_BUCKET") or bucket).strip(),
         region=(os.environ.get("CATALOG_S3_REGION") or "us-west-2").strip(),
-        prefix=_normalise_prefix(os.environ.get("CATALOG_S3_PREFIX", "v1/")),
+        prefix=prefix,
         package_prefix=_normalise_prefix(
-            os.environ.get(
-                "CATALOG_PACKAGE_PREFIX", "imported/2026-08-24_nervous-1/"
-            )
+            os.environ.get("CATALOG_PACKAGE_PREFIX", f"{prefix}media/")
         ),
         manifest_key=(os.environ.get("CATALOG_MANIFEST_KEY") or "catalog.json").strip(),
         access_key_id=(os.environ.get("CATALOG_AWS_ACCESS_KEY_ID") or "").strip() or None,

@@ -34,7 +34,7 @@ from app.core.catalog_store import (
 from app.models.user import ROLES
 
 
-def test_catalog_settings_default_to_the_catalog_and_processed_tiers(monkeypatch):
+def test_package_tier_defaults_to_the_catalog_tier(monkeypatch):
     from app.core.config import get_catalog_settings
 
     for name in (
@@ -48,6 +48,17 @@ def test_catalog_settings_default_to_the_catalog_and_processed_tiers(monkeypatch
     settings = get_catalog_settings()
     assert settings.bucket == "6thsense-catalog-media"
     assert settings.prefix == "v1/"
+    assert settings.package_bucket == settings.bucket == "6thsense-catalog-media"
+    assert settings.package_prefix == f"{settings.prefix}media/" == "v1/media/"
+
+
+def test_explicit_package_tier_overrides_the_safe_defaults(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    monkeypatch.setenv("CATALOG_PACKAGE_BUCKET", "6thsense-processed")
+    monkeypatch.setenv("CATALOG_PACKAGE_PREFIX", "imported/2026-08-24_nervous-1/")
+
+    settings = get_catalog_settings()
     assert settings.package_bucket == "6thsense-processed"
     assert settings.package_prefix == "imported/2026-08-24_nervous-1/"
 
