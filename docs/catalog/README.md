@@ -150,8 +150,9 @@ object by ETag.
 
 ## 3. Provision S3 (once)
 
-Media lives in a **private** bucket. It is never public-read; the only way in is a short-lived
-presigned URL minted by the API.
+Both storage tiers are private. The catalog tier holds JSON and preview assets; full sellable
+packages live in the processed tier. Neither is public-read: the browser receives short-lived
+presigned URLs minted by the API.
 
 ```bash
 AWS_PROFILE=6thsense-admin ./scripts/catalog/provision_s3.sh
@@ -173,11 +174,15 @@ Set these on the Railway **backend** service and in your local `.env`:
 CATALOG_S3_BUCKET=6thsense-catalog-media
 CATALOG_S3_REGION=us-west-2
 CATALOG_S3_PREFIX=v1/
+CATALOG_PACKAGE_BUCKET=6thsense-processed
+CATALOG_PACKAGE_PREFIX=imported/2026-08-24_nervous-1/
 CATALOG_AWS_ACCESS_KEY_ID=…
 CATALOG_AWS_SECRET_ACCESS_KEY=…
 CATALOG_PRESIGN_TTL=900
 ```
 
+The two tiers use the same region and read-only `CATALOG_AWS_*` credential pair. That identity
+needs `GetObject` access to the catalog prefix and configured processed-package prefix.
 Nothing in `scripts/catalog/` needs the secret key except `upload_bundle.py`, and it will also
 take a plain `AWS_PROFILE`.
 
@@ -190,8 +195,10 @@ python3 scripts/catalog/upload_bundle.py --bundle /data/real/bundle --prefix v1/
 python3 scripts/catalog/upload_bundle.py --bundle /data/real/bundle --prefix v1/
 ```
 
-It mirrors the bundle tree under the prefix, key for key, so `clips/abc.json` in the bundle is
-`v1/clips/abc.json` in the bucket. Content types are set explicitly — a `video/mp4` served as
+It mirrors preview files under the prefix, key for key, so `clips/abc.json` in the bundle is
+`v1/clips/abc.json` in the bucket. It refuses `media/` and `archives/` by default: package
+files must be published to `s3://6thsense-processed/imported/<cohort>/` by the pipeline.
+Content types are set explicitly — a `video/mp4` served as
 `application/octet-stream` will not stream in Safari — and `Cache-Control` is `no-cache` for
 JSON and one immutable year for everything else. Files already present with a matching ETag
 are skipped, so a re-upload after a small re-cut moves only what changed.
@@ -207,6 +214,9 @@ The API reads the **documents** and presigns the **bytes**. Media never passes t
 | `GET /api/catalog` | fetch `<prefix>catalog.json` from S3, apply the role's redaction policy, return JSON |
 | `GET /api/catalog/clips/{id}` | same for `<prefix>clips/{id}.json` |
 | `GET /api/catalog/media/{path}` | check the role, then **302 to a presigned GET URL** valid for `CATALOG_PRESIGN_TTL` seconds |
+
+Preview links remain under `6thsense-catalog-media/<prefix>`; bundle-relative `media/…`
+links are signed from `CATALOG_PACKAGE_BUCKET/CATALOG_PACKAGE_PREFIX`.
 
 Two consequences worth stating plainly:
 
