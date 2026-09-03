@@ -383,7 +383,7 @@ def test_presigned_urls_use_the_regional_virtual_hosted_endpoint(monkeypatch):
     monkeypatch.setenv("CATALOG_SOURCE", "s3")
     monkeypatch.setenv("CATALOG_S3_BUCKET", "example-bucket")
     monkeypatch.setenv("CATALOG_S3_REGION", "us-west-2")
-    monkeypatch.setenv("CATALOG_S3_PREFIX", "v2/")
+    monkeypatch.setenv("CATALOG_S3_PREFIX", "v1/")
     monkeypatch.setenv("CATALOG_AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
     monkeypatch.setenv(
         "CATALOG_AWS_SECRET_ACCESS_KEY",
