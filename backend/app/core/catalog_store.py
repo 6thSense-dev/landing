@@ -368,13 +368,18 @@ class S3CatalogStore(CatalogStore):
             raise CatalogUnavailable(f"s3 object {key} is not valid JSON") from exc
 
     def sign(self, relative: str, ttl: int, origin: str = "") -> str:
-        key = resolve_key(relative, self.settings.prefix)
+        if isinstance(relative, str) and relative.startswith("media/"):
+            bucket = self.settings.package_bucket
+            key = resolve_key(relative.removeprefix("media/"), self.settings.package_prefix)
+        else:
+            bucket = self.settings.bucket
+            key = resolve_key(relative, self.settings.prefix)
         from botocore.exceptions import BotoCoreError, ClientError
 
         try:
             return self._client().generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.settings.bucket, "Key": key},
+                Params={"Bucket": bucket, "Key": key},
                 ExpiresIn=ttl,
             )
         except (BotoCoreError, ClientError) as exc:
@@ -470,8 +475,10 @@ def _signature_of(cfg: CatalogSettings) -> tuple:
     return (
         cfg.source,
         cfg.bucket,
+        cfg.package_bucket,
         cfg.region,
         cfg.prefix,
+        cfg.package_prefix,
         cfg.manifest_key,
         cfg.access_key_id,
         cfg.endpoint_url,
