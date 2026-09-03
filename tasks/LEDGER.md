@@ -13,3 +13,4 @@
 - Routed bundle-relative `media/` assets to the configured processed-package bucket and prefix while retaining catalog documents and previews on the catalog tier.
 - Added a package-file refusal guard to the catalog preview uploader, rollout documentation, and routing/presigning tests.
 - Verification and mutation evidence: `tasks/CATALOG-TIER-BUCKETS-2026-09-03.md`.
+- 2026-09-03 round-1 fixes: corrected v2 rollout/rollback docs, safe tier defaults, CSP hosts, package health probe, archive routing, blank env handling, and cache invalidation coverage (`tasks/REVIEW-CATALOG-TIERS-1-RESPONSE.md`).

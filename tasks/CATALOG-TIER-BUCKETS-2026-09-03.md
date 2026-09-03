@@ -54,58 +54,55 @@ the preceding application revision. The previous code ignores the package variab
 Branch command:
 
 ```text
-$ python3 -m pytest backend/tests -q -p no:cacheprovider
-300 passed, 96 warnings in 72.06s (0:01:12)
+$ python3 -m pytest backend/tests/test_catalog_store.py backend/tests/test_catalog_upload_bundle.py backend/tests/test_catalog_api.py -q -p no:cacheprovider
+104 passed, 58 warnings in 14.68s
 ```
 
-Detached `origin/main` scratch-worktree baseline at
-`4f47e70bc053f57808113bc3e23f336b8b4b358f`:
-
-```text
-$ python3 -m pytest backend/tests -q -p no:cacheprovider
-291 passed, 96 warnings in 70.14s (0:01:10)
-```
-
-Failing-test name diff: empty. The branch adds nine passing tests.
+Docker/testcontainers was available, so the API tests ran rather than being skipped or
+reported as environment-blocked.
 
 ### Mutation proof
 
-Planted two bugs together: package `media/` URLs used `settings.bucket` instead of
-`settings.package_bucket`, and the upload guard returned early unconditionally. The targeted
-run went red with these failures:
+Planted unsafe hardcoded processed-tier defaults and blank handling. The targeted run went
+red with the default case and both blank/whitespace cases:
 
 ```text
-FAILED backend/tests/test_catalog_store.py::test_s3_signs_media_against_the_processed_package_tier
-FAILED backend/tests/test_catalog_upload_bundle.py::test_package_directories_are_refused_without_override[media]
-FAILED backend/tests/test_catalog_upload_bundle.py::test_package_directories_are_refused_without_override[archives]
-3 failed, 2 passed, 1 warning in 0.52s
+3 failed, 1 warning in 0.33s
 ```
 
-After restoring the implementation, the same targeted command returned:
+Then planted three routing/health/cache regressions together: skipped the package
+`head_object`, routed `archives/` with the catalog bucket, and removed package bucket/prefix
+from `_signature_of`. All four guards went red:
 
 ```text
-5 passed, 1 warning in 0.46s
+4 failed, 1 warning in 0.36s
+```
+
+After restoring the implementation, the combined targeted run returned:
+
+```text
+7 passed, 1 warning in 0.30s
 ```
 
 ### Adversarial review
 
-Attacked `media/../secret` and `media/x/../../secret`, preview routing, an empty package bucket,
-half-configured credentials, accidental `media/` and `archives/` uploads, and the explicit
-emergency override. Path validation remains centralized in `resolve_key`; preview paths keep
-the current catalog bucket and `v1/` prefix; package configuration participates in store-cache
-invalidation. The override remains an intentional operational escape hatch and is called out
-as requiring explicit review. No untested change outside the nine allowlisted files remains.
+Attacked empty and whitespace env vars, empty/odd manifests, null `package_contents`, package
+head denial, archive traversal, local mode, cache invalidation, all regional/global CSP hosts,
+and stale old-tier documentation. Found and fixed one stale README sentence that still named
+the rollback bucket for previews. Path validation remains centralized in `resolve_key`; package
+probe failures expose only the exception class to staff; local health remains successful. The
+known cross-region limitation remains unchanged because both configured buckets are in
+`us-west-2` and this task did not add a package-region setting.
 
 ### Demo
 
-The presigning test exercises botocore's real SigV4 URL generation and verifies that the same
-catalog credential signs both hosts:
-
 ```text
-$ python3 -m pytest backend/tests/test_catalog_store.py::test_presigning_uses_the_catalog_key_and_not_the_ambient_one -q -p no:cacheprovider
-1 passed, 1 warning in 0.52s
+code-only: 6thsense-catalog-media v2/media/
+posters/clip.jpg -> 6thsense-catalog/v2/posters/clip.jpg
+media/clip/video/left.mp4 -> 6thsense-processed/imported/2026-08-24_nervous-1/clip/video/left.mp4
+archives/clip.tar.gz -> 6thsense-processed/imported/2026-08-24_nervous-1/_archives/clip.tar.gz
 ```
 
-It asserts preview output on `https://6thsense-catalog-media.s3.../v1/...` and package output
-on `https://6thsense-processed.s3.../imported/2026-08-24_nervous-1/...`, with
-`AKIACATALOGREADER00000` embedded in both signatures and the ambient firmware credential absent.
+This was generated directly from `get_catalog_settings()` and
+`S3CatalogStore._asset_location()` with the code-only environment followed by the four-variable
+production environment. No network or AWS credentials were used.
