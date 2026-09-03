@@ -14,7 +14,9 @@ The bundle is whatever ``catalog_ingest build`` produced::
 Everything lands under ``--prefix`` (default ``v1/``) so a re-cut of the
 corpus can be staged as ``v2/`` and switched over atomically by flipping
 ``CATALOG_S3_PREFIX`` -- no destructive overwrite of a bundle a buyer is
-currently browsing.
+currently browsing. Full packages under ``media/`` or ``archives/`` belong in
+the processed tier and are refused by default; the ingestion pipeline publishes
+those files.
 
 Content types matter: S3 serves what we tell it, and a video/mp4 served as
 application/octet-stream will not stream in Safari.
@@ -165,6 +167,11 @@ def main() -> int:
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument(
+        "--allow-media",
+        action="store_true",
+        help="override the package-tier guard (migration/emergency use only)",
+    )
+    ap.add_argument(
         "--allow-synthetic", action="store_true",
         help="permit a bundle whose collection.provenance_class is not 'recorded'. "
              "Without this flag such a bundle is REFUSED: `make -C scripts/catalog` "
@@ -185,17 +192,6 @@ def main() -> int:
     prefix = args.prefix.strip("/")
     prefix = f"{prefix}/" if prefix else ""
 
-    session = boto3.Session(profile_name=args.profile) if args.profile else boto3.Session()
-    client = session.client(
-        "s3",
-        region_name=args.region,
-        config=BotoConfig(
-            retries={"max_attempts": 10, "mode": "adaptive"},
-            connect_timeout=30,
-            read_timeout=180,
-        ),
-    )
-
     # catalog.json LAST. It is the manifest the website reads: it is small, it uploads in
     # milliseconds, and under a plain alphabetical walk it lands before almost all of the
     # media it points at. For the rest of the run -- 6 GB over a link that lost 49 objects
@@ -206,6 +202,20 @@ def main() -> int:
     files = sorted(_all, key=lambda p: (p.name == "catalog.json", p.as_posix()))
     if not files:
         return _fail(f"no files under {bundle}")
+    guard = _package_tier_guard(files, bundle, allow_media=args.allow_media)
+    if guard is not None:
+        return guard
+
+    session = boto3.Session(profile_name=args.profile) if args.profile else boto3.Session()
+    client = session.client(
+        "s3",
+        region_name=args.region,
+        config=BotoConfig(
+            retries={"max_attempts": 10, "mode": "adaptive"},
+            connect_timeout=30,
+            read_timeout=180,
+        ),
+    )
 
     total_bytes = sum(p.stat().st_size for p in files)
     print(f"bundle : {bundle}")
@@ -277,6 +287,25 @@ def _provenance_guard(manifest_path: Path, *, allow_synthetic: bool) -> int | No
         f"the one mistake that ends a procurement conversation. Build from real takes, or "
         f"re-run with --allow-synthetic if a generated drop is genuinely what you intend "
         f"to ship (the catalog will banner it as such).")
+
+
+def _package_tier_guard(
+    files: list[Path], bundle: Path, *, allow_media: bool
+) -> int | None:
+    package_paths = [
+        path.relative_to(bundle).as_posix()
+        for path in files
+        if path.relative_to(bundle).parts[0] in {"media", "archives"}
+    ]
+    if not package_paths or allow_media:
+        return None
+    examples = ", ".join(package_paths[:3])
+    return _fail(
+        f"refusing {len(package_paths)} package-tier file(s) ({examples}). "
+        "The package tier is s3://6thsense-processed/imported/<cohort>/ and needs "
+        "the pipeline, not this catalog upload script. Pass --allow-media only "
+        "for an explicitly reviewed migration."
+    )
 
 
 def _fail(msg: str) -> int:
