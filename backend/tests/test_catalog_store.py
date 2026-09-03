@@ -8,6 +8,7 @@ credential actually signed the URL.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -30,6 +31,7 @@ from app.core.catalog_store import (
     get_store,
     reset_store,
     resolve_key,
+    _signature_of,
 )
 from app.models.user import ROLES
 
@@ -61,6 +63,29 @@ def test_explicit_package_tier_overrides_the_safe_defaults(monkeypatch):
     settings = get_catalog_settings()
     assert settings.package_bucket == "6thsense-processed"
     assert settings.package_prefix == "imported/2026-08-24_nervous-1/"
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_package_settings_use_safe_catalog_defaults(monkeypatch, blank):
+    from app.core.config import get_catalog_settings
+
+    monkeypatch.setenv("CATALOG_S3_BUCKET", "catalog")
+    monkeypatch.setenv("CATALOG_S3_PREFIX", "v2/")
+    monkeypatch.setenv("CATALOG_PACKAGE_BUCKET", blank)
+    monkeypatch.setenv("CATALOG_PACKAGE_PREFIX", blank)
+
+    settings = get_catalog_settings()
+    assert settings.package_bucket == "catalog"
+    assert settings.package_prefix == "v2/media/"
+
+
+def test_package_settings_participate_in_store_cache_signature(monkeypatch):
+    from app.core.config import get_catalog_settings
+
+    settings = get_catalog_settings()
+    baseline = _signature_of(settings)
+    assert _signature_of(replace(settings, package_bucket="other")) != baseline
+    assert _signature_of(replace(settings, package_prefix="other/")) != baseline
 
 
 def test_package_tier_reuses_the_catalog_credential_pair(monkeypatch):
