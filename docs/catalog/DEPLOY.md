@@ -219,9 +219,9 @@ explicitly — an mp4 served as `application/octet-stream` will not stream in Sa
 **Check**:
 
 ```bash
-aws s3 ls s3://6thsense-catalog-media/v1/ --recursive --summarize | tail -3
+aws s3 ls s3://6thsense-catalog/v2/ --recursive --summarize | tail -3
 curl -s -o /dev/null -w '%{http_code}\n' \
-  https://6thsense-catalog-media.s3.us-west-2.amazonaws.com/v1/catalog.json
+  https://6thsense-catalog.s3.us-west-2.amazonaws.com/v2/catalog.json
 # 403 — the bucket is private. A 200 here means step 1 did not take. Stop and fix it.
 ```
 
@@ -339,7 +339,7 @@ curl -s -b cookies.txt "$API/api/catalog/clips/<id>" \
 
 # b. a raw bucket key, without a signature, is refused
 curl -s -o /dev/null -w '%{http_code}\n' \
-  https://6thsense-catalog-media.s3.us-west-2.amazonaws.com/v1/media/<id>/tactile/left.npz
+  https://6thsense-processed.s3.us-west-2.amazonaws.com/imported/2026-08-24_nervous-1/<id>/tactile/left.npz
 # 403
 ```
 

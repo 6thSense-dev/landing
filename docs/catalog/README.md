@@ -31,7 +31,7 @@ the same hostname for both.
 See [`DEPLOY.md`](./DEPLOY.md) for the ordered runbook to ship it.
 
 ```
-capture rig ──► takes/ ──► catalog_ingest build ──► bundle/ ──► upload_bundle.py ──► s3://6thsense-catalog-media/v1/
+capture rig ──► takes/ ──► catalog_ingest build ──► bundle/ ──► upload_bundle.py ──► s3://6thsense-catalog/v2/
                   │                                    │                                        │
              INTAKE.md                         catalog.json                          FastAPI reads the JSON,
              (§ what a take                    clips/<id>.json                       presigns the media, and
@@ -224,10 +224,9 @@ The API reads the **documents** and presigns the **bytes**. Media never passes t
 |---|---|
 | `GET /api/catalog` | fetch `<prefix>catalog.json` from S3, apply the role's redaction policy, return JSON |
 | `GET /api/catalog/clips/{id}` | same for `<prefix>clips/{id}.json` |
-| `GET /api/catalog/media/{path}` | check the role, then **302 to a presigned GET URL** valid for `CATALOG_PRESIGN_TTL` seconds |
 
-Preview links remain under `6thsense-catalog-media/<prefix>`; bundle-relative `media/…`
-links are signed from `CATALOG_PACKAGE_BUCKET/CATALOG_PACKAGE_PREFIX`.
+Preview links remain under `CATALOG_S3_BUCKET/CATALOG_S3_PREFIX`; bundle-relative
+`media/…` links are signed from `CATALOG_PACKAGE_BUCKET/CATALOG_PACKAGE_PREFIX`.
 
 Two consequences worth stating plainly:
 
