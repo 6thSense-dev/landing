@@ -1916,10 +1916,22 @@
   background: var(--accent);
   border: 2px solid var(--accent);
 }
+/* A DASHED border says "there is a hole here". `not_run` earns it: the check applies to
+   this package and we did not run it. */
 .cat-d-overlay .cat-qa-result--not_run {
   color: var(--muted);
   border: 1px dashed var(--line-strong);
   font-weight: var(--cat-w-medium);
+}
+/* `not_applicable` must NOT wear the hole. Nothing is missing — this package does not
+   carry the stream the check tests, which is a fact about which of the two products it
+   is. Quietest state in the table: no border at all, so three n/a rows on a camera-only
+   clip recede instead of reading as three unanswered questions. */
+.cat-d-overlay .cat-qa-result--not_applicable {
+  color: var(--muted);
+  border: 1px solid transparent;
+  font-weight: var(--cat-w-medium);
+  opacity: 0.72;
 }
 .cat-d-overlay .cat-qa-val {
   font-variant-numeric: tabular-nums lining-nums;

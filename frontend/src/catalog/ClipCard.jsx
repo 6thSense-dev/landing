@@ -30,16 +30,21 @@
  *    `sync.maximum_alignment_error_ms` lives on the clip DETAIL record and
  *    `totals.sync_max_alignment_error_ms` on the collection, so putting it on a card would mean
  *    one detail fetch per card. It is one click away in the Calibration & sync tab.
- *  - The thumbnail carries ONE always-on mark, STEREO · TACTILE. The version this replaced
- *    marked only the anomaly — a `Mono` badge when `capture` was anything but stereo — on the
- *    reasoning that a uniform marker distinguishes nothing. That is true of a FILTER and false
- *    of a CLAIM: egocentric stereo plus tactile is the entire product, and a buyer scanning
- *    thirty thumbnails was never told it anywhere in the grid. Worse, the marker was driven by
- *    absence, so one manifest record with a missing `capture` stamped "Mono" on a card and
- *    undercut the one sentence the catalog is selling. It is now driven by presence: the mark
- *    states what the clip IS, and a clip that is NOT stereo-plus-tactile — which this corpus
- *    does not contain and the schema does not forbid — gets the same slot in an alert tone
- *    naming what is missing, because here that is a data fault and not a variant.
+ *  - The thumbnail carries ONE always-on mark naming WHICH PRODUCT the clip is. The version
+ *    this replaced marked only the anomaly — a `Mono` badge when `capture` was anything but
+ *    stereo — on the reasoning that a uniform marker distinguishes nothing. That is true of a
+ *    FILTER and false of a CLAIM: a buyer scanning thirty thumbnails was never told what they
+ *    were looking at anywhere in the grid. It is now driven by presence: the mark states what
+ *    the clip IS.
+ *
+ *    The rig ships TWO products and they are equals — "Stereo · Tactile" (camera plus two
+ *    gloves) and "Stereo · Camera only" (camera, no gloves). Both get the same quiet pill.
+ *    The version before this one rendered camera-only in the ALERT tone with a warning
+ *    triangle and the words "No tactile", which described a sellable product as a defect on
+ *    the first surface a buyer sees. Absence is only marked when it really is a fault: a clip
+ *    that is not stereo (mono is not a product here), or a clip that says a glove was worn and
+ *    then publishes no census for it. Those are the two states where something is wrong;
+ *    shipping without gloves is not one of them.
  *  - Country renders as a NAME ("China"), never the alpha-2 code. See countryLabel() below.
  *  - "Channel yield" is the SAME quantity, under the SAME name, as the header tile and the
  *    Metadata tab. It used to be "Usable tactile" here (a percentage), "Usable tactile" on the
@@ -184,6 +189,8 @@ function ClipCard({ clip, onOpen, collection, countryLabels = EMPTY_LABELS }) {
   const [previewOn, setPreviewOn] = useState(false);
 
   const stereo = clip.capture === "stereo_egocentric";
+  /* Which product this is. `hands: []` is legal, determined and NOT null (CONTRACT §4). */
+  const wornHands = useMemo(() => (Array.isArray(clip.hands) ? clip.hands : []), [clip.hands]);
   const posterPath = clipAssetPath(clip, "poster", collection);
   const previewPath = clipAssetPath(clip, "preview", collection);
   const posterSrc = posterPath ? assetUrl(posterPath) : null;
@@ -214,33 +221,42 @@ function ClipCard({ clip, onOpen, collection, countryLabels = EMPTY_LABELS }) {
     const left = uc && isNum(uc.left) ? uc.left : null;
     const right = uc && isNum(uc.right) ? uc.right : null;
     const cov = qa && isNum(qa.tactile_coverage) ? qa.tactile_coverage : null;
-    const hands = [];
-    if (left != null) hands.push(`L ${left}`);
-    if (right != null) hands.push(`R ${right}`);
-    const present = cov != null || hands.length > 0;
+    const census = [];
+    if (left != null) census.push(`L ${left}`);
+    if (right != null) census.push(`R ${right}`);
+    const present = cov != null || census.length > 0;
+    /* `hands` is never null and [] is a determined answer, so it — not the absence of a
+       census — is what says which of the two products this is. A clip that WORE a glove and
+       published no census is a different, worse state and must not read the same. */
+    const gloveless = wornHands.length === 0;
     return {
       present,
+      gloveless,
       coverage: cov,
-      headline: cov == null ? dash(null) : formatPercent(cov, 0),
-      census: hands.length ? `${hands.join(" · ")} ch` : null,
+      headline: gloveless ? "n/a" : cov == null ? dash(null) : formatPercent(cov, 0),
+      census: gloveless ? "no gloves" : census.length ? `${census.join(" · ")} ch` : null,
       /* clamped so a manifest that ever ships 1.0000001 cannot overflow the track */
       fill: cov == null ? null : `${Math.max(0, Math.min(1, cov)) * 100}%`,
       /* The definition, in the same words the header tile and the Metadata tab use:
          live-and-stable channels on the worst hand over that hand's readout sites. A
          percentage of an unstated denominator is not a fact a buyer can act on. */
-      title: !present
-        ? "This clip publishes no tactile channel census."
-        : [
-            left != null ? `${left} usable channels on the left glove` : null,
-            right != null ? `${right} usable channels on the right glove` : null,
-            cov == null
-              ? null
-              : `channel yield ${formatPercent(cov, 1)} of the worst hand's readout sites`,
-          ]
-            .filter(Boolean)
-            .join(", ") + ".",
+      title: gloveless
+        ? "Camera only: this package ships no tactile gloves, so there is no channel " +
+          "census to report. `hands` is [] and the tactile QA checks read not_applicable " +
+          "rather than not_run — there is nothing here that was left unmeasured."
+        : !present
+          ? "A glove was worn on this clip and it publishes no tactile channel census."
+          : [
+              left != null ? `${left} usable channels on the left glove` : null,
+              right != null ? `${right} usable channels on the right glove` : null,
+              cov == null
+                ? null
+                : `channel yield ${formatPercent(cov, 1)} of the worst hand's readout sites`,
+            ]
+              .filter(Boolean)
+              .join(", ") + ".",
     };
-  }, [qa]);
+  }, [qa, wornHands]);
 
   /**
    * H4 quality. Every clip in a published manifest is dispositioned `accepted`, so the word
@@ -285,33 +301,52 @@ function ClipCard({ clip, onOpen, collection, countryLabels = EMPTY_LABELS }) {
   }, [qa]);
 
   /**
-   * The one always-on thumbnail mark.
+   * The one always-on thumbnail mark: WHICH PRODUCT this clip is.
    *
-   * Presence, not absence. `ok` is the product claim restated per card; anything else is
-   * a data fault in THIS corpus (the ingest ships stereo + both gloves on every take)
-   * and is therefore said loudly rather than left as a missing badge nobody can notice.
+   * Presence, not absence. Two products, one tone between them — egocentric stereo with
+   * gloves and egocentric stereo without are both things this rig sells, so neither is
+   * stamped as a defect. The alert tone is reserved for the two states that really are
+   * defects: a clip that is not stereo (mono is not a product), and a clip that claims a
+   * glove was worn and then publishes no census for it.
    */
   const mark = useMemo(() => {
-    if (stereo && tactile.present) {
+    if (!stereo) {
       return {
-        ok: true,
-        text: "Stereo · Tactile",
+        ok: false,
+        text: "Not stereo",
         title:
-          "Egocentric stereo video and two tactile gloves. Every clip in this collection " +
-          "carries both.",
-        speech: "Egocentric stereo video with tactile",
+          "This clip does not carry stereo video. Both products this rig ships are stereo, " +
+          "so this is a data fault and not a variant.",
+        speech: "Warning: this clip does not carry stereo video",
       };
     }
-    const missing = [!stereo ? "stereo video" : null, !tactile.present ? "tactile" : null]
-      .filter(Boolean)
-      .join(" or ");
+    if (tactile.gloveless) {
+      return {
+        ok: true,
+        text: "Stereo · Camera only",
+        title:
+          "Egocentric stereo video, no tactile gloves. This is one of the two products " +
+          "this rig ships, not a clip with something missing from it.",
+        speech: "Egocentric stereo video, camera only",
+      };
+    }
+    if (!tactile.present) {
+      return {
+        ok: false,
+        text: "Census missing",
+        title:
+          "This clip says a tactile glove was worn and publishes no channel census for it. " +
+          "That is a packaging fault, and it is not the same as the camera-only product.",
+        speech: "Warning: a glove was worn on this clip and no tactile census was published",
+      };
+    }
     return {
-      ok: false,
-      text: !stereo ? "Not stereo" : "No tactile",
-      title: `This clip does not carry ${missing}. Every clip in this collection is meant to.`,
-      speech: `Warning: this clip does not carry ${missing}`,
+      ok: true,
+      text: "Stereo · Tactile",
+      title: "Egocentric stereo video and two tactile gloves.",
+      speech: "Egocentric stereo video with tactile",
     };
-  }, [stereo, tactile.present]);
+  }, [stereo, tactile.gloveless, tactile.present]);
 
   /* The accessible name is fixed by the design contract:
      "${title} — ${category}, ${country}, ${duration}". A null country is spoken rather than

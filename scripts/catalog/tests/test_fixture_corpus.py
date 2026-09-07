@@ -16,6 +16,9 @@ Two corpora, and the difference between them is the point:
     tab, an em-dash for a genuinely unknown value, a one-hand channel census, a mono pane
     with no disparity -- are live code with no other fixture behind them. Delete the only
     input that reaches those branches and they rot until a real take finally has a hole.
+    It ALSO carries the two camera-only takes, which are not holes at all: camera-only is
+    the second product this rig sells, and it sits behind the flag only because this drop
+    happens to contain none of it.
 
 So both are tested here. If the gap corpus ever stops producing a gap, this file fails
 before the UI does.
@@ -74,7 +77,13 @@ def test_every_clip_is_stereo(default):
 
 
 def test_every_clip_carries_both_tactile_hands(default):
-    """A one-handed or video-only clip is not what was sold."""
+    """This DROP is all camera-plus-tactile.
+
+    Not a statement about the product line -- camera-only is the other product and it is
+    an equal, see the camera-only tests below. It is a statement about what was handed to
+    the ingest for this delivery: 30 takes, every one of them with both gloves. A
+    one-handed clip is a fault in either product and is never what was sold.
+    """
     assert [p["take_id"] for p in default if p["hands"] != ["left", "right"]] == []
 
 
@@ -153,9 +162,10 @@ def test_the_article_handles_sound_not_spelling():
 # --------------------------------------------------------------------------- #
 
 def test_with_gaps_restores_every_named_gap(gapped):
-    """Each of these is the only fixture behind a live UI branch."""
+    """Each of these is the only fixture behind a live UI or grader branch."""
     assert {p["gap"] for p in gapped if p["gap"]} == {
-        "right_hand_only", "no_imu", "no_country", "no_segcap", "no_tactile", "mono"}
+        "right_hand_only", "no_imu", "no_country", "no_segcap", "no_tactile", "mono",
+        "camera_only_clean"}
 
 
 def test_the_gap_corpus_exercises_the_mono_pane(gapped):
@@ -168,6 +178,81 @@ def test_the_gap_corpus_exercises_one_hand_and_no_hands(gapped):
     assert [p["hands"] for p in gapped if p["gap"] == "no_tactile"] == [[]]
 
 
+# --------------------------------------------------------------------------- #
+# the second product: camera-only is not a gap                                 #
+# --------------------------------------------------------------------------- #
+
+def test_the_corpus_carries_both_camera_only_ends_of_the_quality_range(gapped):
+    """One camera-only take that must grade DOWN, one that must reach A.
+
+    The grader has to get both right and they fail in opposite directions. A camera-only
+    take that cannot reach A means the grade rule is charging a product for questions
+    about a different product -- that is the defect `not_applicable` was added to fix. A
+    camera-only take with real defects that reaches A anyway means `not_applicable` has
+    become a loophole, which is the defect the fix must not introduce.
+    """
+    cam = {p["gap"]: p for p in gapped if p["gap"] in gf.CAMERA_ONLY}
+    assert set(cam) == {"no_tactile", "camera_only_clean"}
+    assert all(p["hands"] == [] for p in cam.values())
+    assert all(p["stereo"] for p in cam.values()), "both products are stereo; mono is a fault"
+    assert cam["no_tactile"]["prof"] == "caveat"
+    assert cam["camera_only_clean"]["prof"] == "clean"
+
+
+def test_the_clean_camera_only_take_delivers_exactly_one_clocked_stream(gapped):
+    """No gloves AND no IMU, so `sync_max_skew_ms` has nothing to be a skew between.
+
+    That is the only shape in which the two sync checks are honestly inapplicable, and it
+    is the only shape in which this fixture can reach grade A without asserting a
+    common-mode physical event that the take's own metadata says nobody solved.
+    """
+    clean = next(p for p in gapped if p["gap"] == "camera_only_clean")
+    assert clean["hands"] == [] and clean["imu"] is False
+    # ... and the take that keeps its IMU keeps the alignment question with it.
+    assert next(p for p in gapped if p["gap"] == "no_tactile")["imu"] is True
+
+
+def test_a_camera_only_take_is_never_described_as_wearing_a_glove(gapped):
+    """The prose a buyer reads on the Metadata tab.
+
+    The template that fed both products the same sentence produced "the camera share one
+    host clock" on a glove-less take, and sold time alignment as the value of a package
+    with one stream to align.
+    """
+    for p in (x for x in gapped if x["gap"] in gf.CAMERA_ONLY):
+        long = p["spec"]["long"]
+        assert "tactile arrays are worn" not in long, p["take_id"]
+        assert "gloves and the camera share" not in long, p["take_id"]
+        assert "the camera share one host clock" not in long, p["take_id"]
+        assert "camera-only product" in long, p["take_id"]
+    # ... and the tactile takes still say what they always said.
+    worn = next(x for x in gapped if x["hands"] == ["left", "right"])
+    assert "tactile arrays are worn snug" in worn["spec"]["long"]
+
+
+def test_only_a_take_that_wore_a_glove_claims_a_clap():
+    """`validation_method` is rendered verbatim on the Calib & sync tab.
+
+    It describes a BIMANUAL CLAP. A camera-only take has no hands to clap with, so quoting
+    it there would publish a measurement that could not have happened. And a take with
+    neither glove nor IMU has one clocked stream, so there is nothing to corroborate at all
+    -- null, which is what makes the ingest read the check as `not_applicable` rather than
+    as a validation somebody skipped.
+    """
+    both = ["left", "right"]
+    assert "bimanual clap" in gf.validation_method(True, both, True)
+    assert "bimanual clap" in gf.validation_method(True, both, False)
+    # camera + IMU: a real pair, and a real common-mode event that does not involve a glove
+    cam_imu = gf.validation_method(True, [], True)
+    assert "clap" not in cam_imu and "IMU accelerometer" in cam_imu
+    # not corroborated, but there WAS something to corroborate
+    assert "rests on the shared host clock" in gf.validation_method(False, [], True)
+    assert "rests on the shared host clock" in gf.validation_method(False, both, True)
+    # one clocked stream: nothing to validate, so nothing is claimed and nothing is withheld
+    assert gf.validation_method(True, [], False) is None
+    assert gf.validation_method(False, [], False) is None
+
+
 def test_the_gap_corpus_still_only_uses_the_two_countries(gapped):
     """`no_country` drops the value; it never substitutes a third country."""
     assert {p["country"] for p in gapped} == COUNTRIES
@@ -177,7 +262,8 @@ def test_the_gap_corpus_leaves_the_rest_of_the_corpus_alone(gapped, default):
     """A flag that changed 30 takes to prove 6 branches would prove nothing else."""
     changed = [d["take_id"] for d, g in zip(default, gapped)
                if (d["stereo"], d["hands"], d["country"]) != (g["stereo"], g["hands"], g["country"])]
-    assert len(changed) == 3   # mono, right_hand_only, no_tactile; no_country keeps its code
+    # mono, right_hand_only, and the two camera-only takes; no_country keeps its code
+    assert len(changed) == 4
     assert all(d["take_id"] == g["take_id"] for d, g in zip(default, gapped))
 
 

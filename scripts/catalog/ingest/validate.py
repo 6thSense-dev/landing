@@ -50,6 +50,26 @@ COVERAGE_FAIL = 0.25      # under a quarter of the readout working, the glove is
                           # hardware and a spatial contact map cannot be reconstructed
 RECTIFICATION_PREFERRED_PX, RECTIFICATION_FAIL_PX = 0.5, 2.0
 _GRADES = ("A", "B", "C")
+
+#: THE FIFTH CHECK RESULT, AND THE ONLY ONE THAT DOES NOT CAP THE GRADE.
+#:
+#: `not_run` and `not_applicable` are both "no measurement", and collapsing them is what made
+#: grade A unreachable for a camera-only package. They answer different questions:
+#:
+#:   not_run        -- the check APPLIES to this package and we did not run it. That is a gap
+#:                     in our evidence and it caps the grade, forever, by design.
+#:   not_applicable -- there is nothing for this check to measure, because the package does
+#:                     not carry the thing it checks. A tactile CRC rate on a package with no
+#:                     gloves is not an unmeasured number; it is not a number. Charging it
+#:                     against the grade prices the product for a question about a different
+#:                     product.
+#:
+#: This rig ships TWO products -- camera-only, and camera plus two gloves -- and they are
+#: equals. Every use of this value below is gated on a structural fact that is published in
+#: the same clip record (`hands == []`, `sync == null`), never on a measurement coming back
+#: None. That gating is the whole safety property: a glove that WAS worn and produced no CRC
+#: number still reads `not_run` and still caps the grade.
+NOT_APPLICABLE = "not_applicable"
 _ASSET_EXTENSIONS = frozenset((
     "json", "jsonl", "csv", "f32", "npz", "npy", "parquet", "mp4", "mkv", "mov", "webm",
     "jpg", "jpeg", "png", "webp", "md", "txt", "pdf", "sha256", "py", "zip", "tar", "gz", "zst"))
@@ -312,10 +332,20 @@ _BY_DESIGN: set[str] = set()
 
 def _check(cid: str, category: str, result: str, measured: Any, threshold: Any,
            units: str | None = None, note: str | None = None) -> dict:
-    """One acceptance check. H4 requires the measurement AND the bound it was tested against."""
+    """One acceptance check. H4 requires the measurement AND the bound it was tested against.
+
+    `scope` is `collection` for a check whose answer is the same on every clip by
+    construction -- EXCEPT when this clip reports `not_applicable`. Inapplicability is a
+    property of THIS package (which product it is), not of the programme, so on a mixed
+    drop `sync_independent_validation` is a collection-wide warn on the tactile clips and a
+    per-clip n/a on a single-stream one. Filing that n/a under "collection-wide" would tell
+    a reader it is inapplicable to the whole collection, which is a different and false
+    claim.
+    """
+    programme = cid in _PROGRAMME_SCOPE and result != NOT_APPLICABLE
     return {"check_id": cid, "category": category, "result": result,
             "measured_value": measured, "threshold": threshold, "units": units,
-            "scope": "collection" if cid in _PROGRAMME_SCOPE else "clip",
+            "scope": "collection" if programme else "clip",
             "kind": "by_design" if cid in _BY_DESIGN else "measured",
             "note": trim(note, 500)}
 
@@ -374,10 +404,26 @@ def _permission_evidence(rights: dict, privacy: dict) -> tuple[str, Any, str | N
 
 
 def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
-             rights: dict, privacy: dict) -> tuple[dict, list[str]]:
+             rights: dict, privacy: dict, streams: list[str]) -> tuple[dict, list[str]]:
     """The H2/H4 record: every check with its measurement and threshold, then the grade."""
     warn: list[str] = []
     hands, stamps = ci.tactile.hands, ci.frame_timestamps
+    # THE TWO STRUCTURAL FACTS THAT MAKE A CHECK INAPPLICABLE, and nothing else does.
+    #
+    # Both are properties of the delivered package, both are published in the same clip
+    # record a buyer reads (`hands`, and `sync` being null), and neither can be reached by a
+    # measurement simply coming back None. See NOT_APPLICABLE.
+    gloves_shipped = bool(hands)
+    # Inter-stream alignment needs two streams to be between. The operative fact is `sync`
+    # being null, NOT the stream count, because `sync` is the field that ships in the clip
+    # record -- a buyer reading the JSON verifies the `not_applicable` claim against that.
+    # A rule keyed on something the buyer cannot see is not a published rule. `streams` is
+    # still taken, to name the single stream in the note and to lock the two together.
+    pairable = sync is not None
+    if pairable != (len(streams) >= 2):
+        warn.append(f"internal: sync record is {'present' if pairable else 'null'} but the "
+                    f"take delivers {len(streams)} stream(s). The QA record's inapplicability "
+                    f"follows `sync`; check build_sync's gate.")
     delivered = ci.probe.frames if ci.probe else None
     # The producer's own counter, and it counts what the WRITER lost. On this rig the loss
     # happens upstream of the writer -- the device's own metadata says `lost_before_writer:
@@ -427,15 +473,25 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
     imu_declared = imu_cal.get("status") in ("operational", "unverified", "failed")
 
     checks = [
-        _check("sync_max_skew_ms", "sync", _tiered(skew, SKEW_THRESHOLD_MS, SKEW_FAIL_MS,
-               higher_is_better=False), skew, SKEW_THRESHOLD_MS, "ms",
-               f"Acceptance bound {SKEW_FAIL_MS:.0f} ms (two camera frames); above it the clip "
-               f"is quarantined." if skew is not None else
-               "No measured inter-stream skew ships with this take."),
+        _check("sync_max_skew_ms", "sync",
+               _tiered(skew, SKEW_THRESHOLD_MS, SKEW_FAIL_MS, higher_is_better=False)
+               if pairable else NOT_APPLICABLE,
+               skew, SKEW_THRESHOLD_MS, "ms",
+               (f"Acceptance bound {SKEW_FAIL_MS:.0f} ms (two camera frames); above it the clip "
+                f"is quarantined." if skew is not None else
+                "No measured inter-stream skew ships with this take.") if pairable else
+               f"This package delivers one clocked stream ({streams[0] if streams else 'none'}), "
+               f"so there is no second stream for it to be out of step with and no inter-stream "
+               f"skew exists to measure. H1 is a relation between streams. The single delivered "
+               f"stream's own timeline is still checked, by video_frame_timestamp_parity."),
         _check("sync_independent_validation", "sync",
-               "pass" if validation == "pass" else
-               ("fail" if validation == "fail" else "not_run" if sync is None else "warn"),
+               NOT_APPLICABLE if not pairable else
+               ("pass" if validation == "pass" else
+                ("fail" if validation == "fail" else "warn")),
                validation, "pass", None,
+               "There is one clocked stream in this package, so there is no cross-stream "
+               "alignment for a common-mode physical event to corroborate. Nothing is being "
+               "claimed here and nothing is being withheld." if not pairable else
                None if validation == "pass" else
                "The alignment IS measured -- see sync.maximum_alignment_error_ms -- but nothing "
                "physical corroborates it. A shared host clock gives every stream the same ruler, "
@@ -451,26 +507,36 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
                "not_run" if parity is None else ("pass" if parity else "fail"), parity, True, None,
                "H2: delivered frame count must equal the per-frame timestamp row count."),
         _check("tactile_crc_pass_rate", "tactile",
-               "not_run" if not hands else _tiered(crc, CRC_A, CRC_FAIL, higher_is_better=True),
+               _tiered(crc, CRC_A, CRC_FAIL, higher_is_better=True) if gloves_shipped
+               else NOT_APPLICABLE,
                crc, CRC_A, "fraction",
-               "VENDOR-REPORTED: this counts the `crc_ok` flag column the capture daemon "
-               "wrote. The on-wire bytes are not in the delivered array, so the ingest cannot "
-               f"recompute it. Acceptance bound {CRC_FAIL}."),
+               ("VENDOR-REPORTED: this counts the `crc_ok` flag column the capture daemon "
+                "wrote. The on-wire bytes are not in the delivered array, so the ingest cannot "
+                f"recompute it. Acceptance bound {CRC_FAIL}.") if gloves_shipped else
+               "No glove was worn on this take (`hands` is []), so no tactile frame exists to "
+               "have carried a CRC. This is the camera-only product, not a glove whose CRC we "
+               "failed to read -- that would read `not_run` and would cap the grade."),
         _check("tactile_census_reproducible", "tactile",
+               NOT_APPLICABLE if not gloves_shipped else
                "not_run" if not repro.get("hands_compared") else
                ("pass" if repro.get("agree") else
                 "fail" if _census_flattered(repro) else "warn"),
                _census_measured(repro), "shipped masks == masks re-derived from counts", None,
+               "No glove was worn on this take, so there is no channel census to re-derive."
+               if not gloves_shipped else
                "The published census uses the producer's shipped taxel masks; it is "
                "independently re-derived here from `counts` with the stated rules and "
                "compared. A published `stable` count HIGHER than the re-derived one is a "
                "flattered coverage figure and fails."),
         _check("tactile_channel_coverage", "coverage",
-               "not_run" if not hands else _tiered(coverage, COVERAGE_A, COVERAGE_FAIL,
-                                                   higher_is_better=True),
+               _tiered(coverage, COVERAGE_A, COVERAGE_FAIL, higher_is_better=True)
+               if gloves_shipped else NOT_APPLICABLE,
                coverage, COVERAGE_A, "fraction",
-               "Live AND stable channels on the worst hand, over readout sites. Acceptance "
-               f"bound {COVERAGE_FAIL:.0%}; below it the glove is broken hardware."),
+               ("Live AND stable channels on the worst hand, over readout sites. Acceptance "
+                f"bound {COVERAGE_FAIL:.0%}; below it the glove is broken hardware.")
+               if gloves_shipped else
+               "No glove was worn on this take, so there are no readout sites to be covered. "
+               "A dead glove is a coverage of zero and fails; an absent one has no coverage."),
         _check("package_checksums", "integrity",
                "not_run" if ci.checksums_verified is None else
                ("pass" if ci.checksums_verified else "fail"), ci.checksums_verified, True),
@@ -543,7 +609,9 @@ def build_qa(ci: Any, *, sync: dict | None, calibration: dict | None,
     ]
 
     results = {c["result"] for c in checks}
-    grade = _grade(results, dropped=dropped, dropout=dropout, crc=crc, hands=hands,
+    grade = _grade(results, dropped=dropped, dropout=dropout, crc=crc,
+                   inapplicable={c["check_id"] for c in checks
+                                 if c["result"] == NOT_APPLICABLE},
                    coverage=coverage, skew=skew,
                    cap_c=ci.metadata is None or (ci.probe and ci.layout.frame_times is None))
     override = ci.cfg.get("grade_override")
@@ -603,7 +671,8 @@ def _census_flattered(repro: dict) -> bool:
 
 
 def _grade(results: set[str], *, dropped: int | None, dropout: float | None, crc: float | None,
-           hands: list[str], coverage: float | None, skew: float | None, cap_c: bool) -> str:
+           coverage: float | None, skew: float | None, cap_c: bool,
+           inapplicable: frozenset[str] | set[str] = frozenset()) -> str:
     """The published, deterministic grade rule from CONTRACT.md section 4.2.
 
     A human may override this downward, never upward. `cap_c` carries the two documented
@@ -614,15 +683,37 @@ def _grade(results: set[str], *, dropped: int | None, dropout: float | None, crc
     24% over the single most common rejection cause on a new rig could be labelled "within
     tolerance". A clip that misses the H1 bound is grade C: accepted, with the exceedance
     named in known_limitations, which is what grade C is for.
+
+    `inapplicable` is the set of `check_id`s this package reported as `not_applicable` --
+    checks with nothing to measure because the product does not carry the stream they test.
+    They are excluded from the set-membership gate AND they are what switches off the
+    matching numeric gate. The two used to disagree: the numeric bounds were bypassed on
+    `hands == []` while the set membership was not, so a flawless camera-only clip failed A
+    on three tactile checks it could never have run and no amount of good capture could fix
+    it. That is the bug this argument exists to close.
+
+    The numeric bypasses are keyed on the PUBLISHED check result rather than on `hands` or
+    `sync` directly, and that is deliberate: it means a buyer holding only the clip record
+    can re-derive this grade exactly. A rule whose inputs are not all in the document is not
+    a published rule.
     """
-    crc_ok_a = (crc is not None and crc >= CRC_A) if hands else True
-    crc_ok_b = (crc is not None and crc >= CRC_B) if hands else True
-    cov_a = (coverage is not None and coverage >= COVERAGE_A) if hands else True
-    cov_b = (coverage is not None and coverage >= COVERAGE_B) if hands else True
-    skew_ok = skew is not None and skew <= SKEW_THRESHOLD_MS
-    if cap_c or "fail" in results:
+    def _bypass(check_id: str, bound: float | None, value: float | None) -> bool:
+        """True when the bound is met, or when this package has nothing to meet it with."""
+        if check_id in inapplicable:
+            return True
+        return value is not None and bound is not None and value >= bound
+
+    crc_ok_a = _bypass("tactile_crc_pass_rate", CRC_A, crc)
+    crc_ok_b = _bypass("tactile_crc_pass_rate", CRC_B, crc)
+    cov_a = _bypass("tactile_channel_coverage", COVERAGE_A, coverage)
+    cov_b = _bypass("tactile_channel_coverage", COVERAGE_B, coverage)
+    skew_ok = ("sync_max_skew_ms" in inapplicable
+               or (skew is not None and skew <= SKEW_THRESHOLD_MS))
+    # `not_applicable` is the one result that does not gate. `not_run` still does.
+    graded = results - {NOT_APPLICABLE}
+    if cap_c or "fail" in graded:
         return "C"
-    if (not results & {"warn", "not_run"} and dropped == 0 and crc_ok_a and cov_a and skew_ok):
+    if (not graded & {"warn", "not_run"} and dropped == 0 and crc_ok_a and cov_a and skew_ok):
         return "A"
     if ((dropout is not None and dropout <= DROPOUT_THRESHOLD) and crc_ok_b and cov_b
             and skew_ok):

@@ -24,6 +24,7 @@ from ingest.records import MODALITIES  # noqa: E402
 from ingest.validate import (  # noqa: E402
     COVERAGE_FAIL,
     CRC_FAIL,
+    NOT_APPLICABLE,
     SKEW_FAIL_MS,
     SKEW_THRESHOLD_MS,
     _grade,
@@ -129,18 +130,85 @@ def test_every_measured_check_can_reach_fail():
 
 def test_grade_b_tests_the_h1_skew_bound():
     """A clip 24% over the most common rejection cause is not "within tolerance"."""
-    common = dict(dropped=0, dropout=0.0, crc=1.0, hands=["left"], coverage=0.5, cap_c=False)
+    common = dict(dropped=0, dropout=0.0, crc=1.0, coverage=0.5, cap_c=False)
     assert _grade({"pass"}, skew=20.0, **common) == "B"        # cov 0.5 < 0.60, so not A
     assert _grade({"pass"}, skew=40.0, **common) == "C"        # over H1: caveated, not B
     assert _grade({"pass"}, skew=None, **common) == "C"        # unmeasured is not a pass
 
 
 def test_grade_a_needs_a_clean_check_table_as_well_as_clean_numbers():
-    common = dict(dropped=0, dropout=0.0, crc=1.0, hands=["left"], coverage=0.9, cap_c=False)
+    common = dict(dropped=0, dropout=0.0, crc=1.0, coverage=0.9, cap_c=False)
     assert _grade({"pass"}, skew=10.0, **common) == "A"
     assert _grade({"pass", "warn"}, skew=10.0, **common) == "B"
     assert _grade({"pass", "not_run"}, skew=10.0, **common) == "B"
     assert _grade({"pass", "fail"}, skew=10.0, **common) == "C"
+
+
+# --------------------------------------------------------------------------- #
+# validate.py — inapplicable is not the same answer as unmeasured              #
+# --------------------------------------------------------------------------- #
+
+#: What a camera-only package reports: the three tactile checks have nothing to measure.
+_CAMERA_ONLY = {"tactile_crc_pass_rate", "tactile_channel_coverage",
+                "tactile_census_reproducible"}
+
+
+def test_a_flawless_camera_only_clip_can_reach_grade_a():
+    """The defect this value exists to fix.
+
+    Camera-only is one of the two products this rig ships, not a degraded capture. Its
+    three tactile checks report `not_applicable` because there is no glove to measure,
+    and `crc`/`coverage` are therefore None. Before `not_applicable` existed those rows
+    read `not_run`, the A gate rejected the whole result set on set membership, and no
+    amount of good capture could lift the clip above B. It could not reach A on any input.
+    """
+    assert _grade({"pass", NOT_APPLICABLE}, dropped=0, dropout=0.0, crc=None, coverage=None,
+                  skew=10.0, cap_c=False, inapplicable=_CAMERA_ONLY) == "A"
+
+
+def test_a_camera_only_clip_with_a_real_defect_still_grades_down():
+    """Inapplicable switches off the tactile gates and NOTHING else."""
+    common = dict(dropped=0, dropout=0.0, crc=None, coverage=None, cap_c=False,
+                  inapplicable=_CAMERA_ONLY)
+    assert _grade({"pass", "warn", NOT_APPLICABLE}, skew=10.0, **common) == "B"
+    assert _grade({"pass", "fail", NOT_APPLICABLE}, skew=10.0, **common) == "C"
+    assert _grade({"pass", "not_run", NOT_APPLICABLE}, skew=10.0, **common) == "B"
+    assert _grade({"pass", NOT_APPLICABLE}, skew=40.0, **common) == "C"     # over H1
+    assert _grade({"pass", NOT_APPLICABLE}, **{**common, "dropped": 3, "dropout": 0.004},
+                  skew=10.0) == "B"                                        # frames lost
+    assert _grade({"pass", NOT_APPLICABLE}, **{**common, "cap_c": True}, skew=10.0) == "C"
+
+
+def test_a_package_with_one_clocked_stream_is_not_charged_for_inter_stream_skew():
+    """H1 is a relation between streams. With one stream there is no relation to measure,
+    and `skew is None` there is an absence of a question, not an unmeasured answer."""
+    common = dict(dropped=0, dropout=0.0, crc=None, coverage=None, cap_c=False, skew=None)
+    single = _CAMERA_ONLY | {"sync_max_skew_ms", "sync_independent_validation"}
+    assert _grade({"pass", NOT_APPLICABLE}, inapplicable=single, **common) == "A"
+    # ... but a package that DOES pair two streams and shipped no skew number is unmeasured.
+    assert _grade({"pass", "not_run"}, inapplicable=frozenset(), **common) == "C"
+
+
+def test_an_unmeasured_tactile_check_still_caps_a_clip_that_wore_gloves():
+    """The distinction that makes `not_applicable` honest rather than convenient.
+
+    A glove was worn and its CRC rate could not be read. That is a gap in our evidence,
+    it reads `not_run`, and it caps the grade exactly as it always did. Only the ABSENCE
+    of the glove is inapplicable.
+    """
+    common = dict(dropped=0, dropout=0.0, coverage=0.9, skew=10.0, cap_c=False)
+    assert _grade({"pass", "not_run"}, crc=None, inapplicable=frozenset(), **common) == "C"
+    assert _grade({"pass"}, crc=None, inapplicable=frozenset(), **common) == "C"
+    assert _grade({"pass"}, crc=1.0, inapplicable=frozenset(), **common) == "A"
+
+
+def test_inapplicable_is_the_only_result_that_does_not_gate():
+    """One assertion per non-gating claim, so a future edit cannot widen this quietly."""
+    common = dict(dropped=0, dropout=0.0, crc=1.0, coverage=0.9, skew=10.0, cap_c=False)
+    assert _grade({"pass", NOT_APPLICABLE}, **common) == "A"
+    for gating in ("warn", "not_run"):
+        assert _grade({"pass", gating, NOT_APPLICABLE}, **common) == "B", gating
+    assert _grade({"pass", "fail", NOT_APPLICABLE}, **common) == "C"
 
 
 # --------------------------------------------------------------------------- #
