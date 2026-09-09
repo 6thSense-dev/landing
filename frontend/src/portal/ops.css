@@ -15,26 +15,39 @@
   --o-danger: #e0705f;
   --o-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  --o-head: 54px;                       /* the sticky bar's height */
+
   min-height: 100vh;
-  padding: 28px 24px 64px;
+  padding: 0;
   background: var(--o-ground);
   color: var(--o-text);
   font-family: "General Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-.ops-head h1 { margin: 0 0 4px; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+/* One sticky bar: what this is, where it reads from, and how much of it you are
+   looking at. It stays put because the table under it is longer than a screen
+   and an operator scrolling row 60 still needs to know what the filter says. */
+.ops-head {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: baseline; gap: 14px;
+  min-height: var(--o-head); padding: 14px 24px;
+  background: var(--o-ground); border-bottom: 1px solid var(--o-line);
+}
+.ops-head h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.ops-main { padding: 18px 24px 64px; }
 .ops-muted { color: var(--o-muted); font-size: 13px; margin: 0; }
-.ops-head code { font-family: var(--o-mono); color: var(--o-accent); }
+.ops-src { color: var(--o-muted); font-size: 12px; white-space: nowrap; }
+.ops-head code, .ops-src code { font-family: var(--o-mono); color: var(--o-accent); }
 .ops-error {
-  margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+  margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; font-size: 13px;
   background: rgba(224, 112, 95, 0.12); border: 1px solid var(--o-danger); color: #f6cfc8;
 }
 
 /* Tiles */
 .ops-tiles {
-  display: grid; gap: 10px; margin: 20px 0;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  display: grid; gap: 10px; margin: 0 0 18px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 }
 .ops-tile {
   background: var(--o-surface); border: 1px solid var(--o-line);
@@ -45,13 +58,94 @@
 
 /* Controls */
 .ops-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* Two columns: the ledger, and the panels that read across all of it.
+   MEASURED, not guessed. This table carries twelve columns to the laptop
+   tool's ten -- wearer, task, quality and delete are all extra -- and it needs
+   ~1230px before Approved and Paid start disappearing behind a horizontal
+   scrollbar. Those two are the controls the whole board exists to click, so
+   they win: below 1600 the panels go UNDER the ledger and the table takes the
+   full width, which is what a 1440 or 1512 laptop actually gets. The side-by
+   -side layout is for a desktop monitor, where it fits without costing a
+   column. Raising this number without re-measuring the table will hide them. */
+.ops-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+@media (max-width: 1599px) { .ops-cols { grid-template-columns: minmax(0, 1fr); } }
+/* Users carries nine narrow columns to Operations' twelve wide ones, so it keeps
+   its sidebar ~500px sooner. Sharing one breakpoint pushed "Add a person" below
+   the fold on every laptop, which is the one control that screen exists for. */
+.ops-cols--narrow { grid-template-columns: minmax(0, 1fr) 300px; }
+@media (max-width: 1100px) { .ops-cols--narrow { grid-template-columns: minmax(0, 1fr); } }
+.ops-side { display: grid; gap: 14px; }
+
+.ops-panel {
+  background: var(--o-surface); border: 1px solid var(--o-line);
+  border-radius: 10px; overflow: hidden;
+}
+.ops-phead {
+  display: flex; gap: 10px; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid var(--o-line);
+}
+.ops-phead h2 {
+  margin: 0; font-size: 11px; font-weight: 500; color: var(--o-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.ops-pbody { padding: 14px; display: grid; gap: 10px; }
+.ops-pbody label { font-size: 12px; color: var(--o-muted); }
+.ops-hint { color: var(--o-muted); font-size: 12px; line-height: 1.5; margin: 0; }
+.ops-hint b { color: var(--o-text); font-weight: 500; }
+
+/* Filters sit in the panel head rather than above the panel, so the
+   controls and the rows they govern read as one object. */
+.ops-filters {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid var(--o-line);
+}
+.ops-filters .ops-q { min-width: 220px; flex: 1 1 220px; }
+.ops-dategrp { display: flex; gap: 6px; align-items: center; }
+.ops-sl {
+  color: var(--o-muted); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* Twelve columns do not fit beside a sidebar on a laptop. Scrolling the
+   table sideways beats dropping a column or wrapping every cell. */
+.ops-tablewrap { overflow-x: auto; }
+/* Tightened against the stock .ops-table: twelve columns only fit if the two
+   dropdowns stop sizing themselves to their longest option. Truncated is fine
+   -- opening the select shows the full list, and the value is searchable. */
+.ops-tablewrap td { padding: 8px; }
+/* Ellipsis, not a hard cut: "unassignec" reads as a rendering bug where
+   "unassign…" reads as a name that did not fit. */
+.ops-tablewrap select {
+  max-width: 104px; padding: 5px 7px; font-size: 12px; text-overflow: ellipsis;
+}
+.ops-tablewrap .mono { font-size: 11px; }
+/* The session chip is longer than the recording name above it
+   ("2026-09-03_korea-datafarm-mp4-only"), so left alone it, not the recording,
+   sets the width of the widest column on the board. The full name is on the
+   title, and the session filter is the way anybody actually reads it. */
+.ops-tablewrap .ops-chip {
+  max-width: 168px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; vertical-align: bottom;
+}
+.ops-tablewrap .ops-nowrap { white-space: nowrap; }
+.ops-empty { padding: 40px; text-align: center; color: var(--o-muted); font-size: 13px; }
 .ops-spacer { flex: 1; }
 .ops-check { display: inline-flex; gap: 6px; align-items: center; color: var(--o-muted); font-size: 13px; }
-.ops select, .ops input[type="text"], .ops input:not([type]) {
+/* color-scheme is what makes the NATIVE date picker render dark as well;
+   without it Chrome draws a white calendar panel and a light glyph on the two
+   range fields, on a board that is otherwise black. */
+.ops select,
+.ops input[type="text"],
+.ops input[type="date"],
+.ops input[type="number"],
+.ops input:not([type]) {
+  color-scheme: dark;
   background: var(--o-surface-2); color: var(--o-text);
   border: 1px solid var(--o-line); border-radius: 7px; padding: 6px 9px; font-size: 13px;
   font-family: inherit;
 }
+.ops input[type="number"] { font-family: var(--o-mono); }
+.ops input[type="checkbox"] { accent-color: var(--o-accent); cursor: pointer; }
 .ops button {
   background: var(--o-surface-2); color: var(--o-text); border: 1px solid var(--o-line);
   border-radius: 7px; padding: 6px 11px; font-size: 12px; cursor: pointer; font-family: inherit;
@@ -67,6 +161,7 @@
   text-align: left; padding: 8px 10px; color: var(--o-muted); font-weight: 500;
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
   border-bottom: 1px solid var(--o-line); white-space: nowrap;
+  position: sticky; top: 0; z-index: 1; background: var(--o-surface);
 }
 .ops-table td { padding: 9px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); vertical-align: middle; }
 .ops-table .num { text-align: right; font-family: var(--o-mono); white-space: nowrap; }
@@ -122,3 +217,91 @@
 }
 .ops-modal .ops-muted { margin-top: 8px; }
 .ops-modal code { font-family: var(--o-mono); color: var(--o-accent); }
+
+/* Per-person roll-up. A borderless four-column read, not a second table with
+   headings: the labels belong to the numbers, and repeating a header row in a
+   330px column costs more width than it explains. */
+.ops-sum { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ops-sum td { padding: 7px 6px; vertical-align: top; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.ops-sum tr:last-child td { border-bottom: 0; }
+.ops-sum td:first-child { max-width: 118px; padding-left: 14px; }
+.ops-sum td:last-child { padding-right: 14px; }
+.ops-sum .num { text-align: right; font-family: var(--o-mono); white-space: nowrap; }
+.ops-sum .ops-who { font-weight: 500; }
+/* A collector holds one or two cameras; "(unassigned)" can hold dozens, and
+   spilling all of them sideways pushes the numbers off the panel. */
+.ops-sum .ops-devs {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Tabs + the way out. The header is the only chrome shared by both screens, so
+   identity and logout live here rather than being repeated per tab. */
+.ops-tabs { display: flex; gap: 4px; margin-left: 6px; }
+.ops-tab {
+  background: transparent; border: 1px solid transparent; border-radius: 7px;
+  padding: 5px 12px; font-size: 13px; color: var(--o-muted); cursor: pointer;
+  font-family: inherit;
+}
+.ops-tab:hover { color: var(--o-text); }
+.ops-tab.is-on {
+  background: var(--o-surface-2); border-color: var(--o-line); color: var(--o-text);
+}
+/* The email is the least important thing in the bar and the first thing to go
+   when the window is narrow -- the tabs and the logout must never wrap. */
+.ops-who-am-i { overflow: hidden; text-overflow: ellipsis; max-width: 22ch; }
+.ops-logout {
+  background: var(--o-surface-2); color: var(--o-muted); border: 1px solid var(--o-line);
+  border-radius: 7px; padding: 5px 11px; font-size: 12px; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
+.ops-logout:hover { border-color: var(--o-accent); color: var(--o-accent); }
+
+/* Users */
+.ops-users-title {
+  margin: 0; font-size: 11px; font-weight: 500; color: var(--o-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+/* Text inputs only. An unscoped `input` here stretched the Approved and Paid
+   checkboxes to 97x13 -- the two most-clicked controls on the board. */
+.ops-tablewrap input[type="text"],
+.ops-tablewrap input:not([type]) { width: 100%; min-width: 90px; }
+
+/* ── Narrow screens ──────────────────────────────────────────────────────────
+   Measured at 375px the header ran to 518px and the date group to 399px, which
+   dragged the whole PAGE sideways and pushed Log out off the right edge. A data
+   table is allowed to scroll inside its own panel; the page is not, and the way
+   out must never be the thing that falls off. */
+@media (max-width: 720px) {
+  .ops-head {
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 8px;
+    padding: 10px 14px;
+    /* Sticky + wrapping means the bar can grow to two rows; the table header
+       offset is relative to the wrap, not a fixed height, so nothing is hidden. */
+    position: static;
+  }
+  .ops-head h1 { font-size: 15px; }
+  /* The bucket name is orientation, not a control. First thing to go. */
+  .ops-head .ops-src:not(.ops-who-am-i) { display: none; }
+  .ops-who-am-i { max-width: 14ch; }
+  .ops-spacer { flex: 1 1 auto; }
+  .ops-main { padding: 14px 12px 48px; }
+
+  /* Let every filter shrink rather than forcing the row wider than the screen. */
+  .ops-filters { padding: 10px 12px; }
+  .ops-filters .ops-q { min-width: 0; flex: 1 1 100%; }
+  .ops-filters select,
+  .ops-filters input[type="date"] { min-width: 0; flex: 1 1 auto; max-width: 100%; }
+  .ops-dategrp { flex-wrap: wrap; width: 100%; }
+  .ops-dategrp input[type="date"] { flex: 1 1 130px; }
+
+  .ops-tiles { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+  .ops-tile { padding: 10px; }
+  .ops-tile-n { font-size: 17px; }
+}
+
+/* Belt and braces: nothing may widen the page itself. The table keeps its own
+   horizontal scroll, so this hides no content -- it only stops a stray wide
+   child from dragging the document sideways. */
+.ops { overflow-x: clip; }

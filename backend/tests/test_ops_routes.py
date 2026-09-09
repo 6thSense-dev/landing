@@ -279,3 +279,202 @@ async def test_retiring_a_task_does_not_delete_its_episodes(app, db_session):
     row = next(e for e in after.json()["episodes"] if e["recording"] == "ego_test_0001")
     assert row["task_id"] is None          # label gone
     assert row["recording"] == "ego_test_0001"   # episode still here
+
+
+# --- the rate and settling a batch --------------------------------------------
+
+@pytest.mark.asyncio
+async def test_rate_persists_and_prices_a_payment(app, db_session):
+    """A payment with no explicit amount is stamped with the board's rate.
+
+    The old default was 0, so a client that forgot the field recorded a payment
+    of zero -- indistinguishable in the ledger from a shift that was not paid.
+    """
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_rate_1", duration_s=600, approved=True)
+    async with _client(app) as c:
+        r = await c.post("/api/ops/rate", json={"rate_krw": 11000},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        assert r.json()["rate_krw"] == 11000
+
+        r = await c.post("/api/ops/episodes/ego_rate_1/pay", json={"value": True},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_rate_1")
+        assert row["paid"] is True and row["amount_krw"] == 11000
+
+        # And the rate survives a reload rather than living in one browser.
+        assert (await c.get("/api/ops/state",
+                            cookies={"sid": sid})).json()["rate_krw"] == 11000
+
+
+@pytest.mark.asyncio
+async def test_bulk_pay_settles_the_batch_at_the_rate(app, db_session):
+    sid = await _sid(db_session, "ops")
+    for rec in ("ego_b1", "ego_b2"):
+        await _episode(db_session, rec, duration_s=300, approved=True)
+    async with _client(app) as c:
+        await c.post("/api/ops/rate", json={"rate_krw": 9000},
+                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        r = await c.post("/api/ops/pay-bulk",
+                         json={"recordings": ["ego_b1", "ego_b2", "ego_b1"]},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        assert r.json()["changed"] == 2                  # de-duplicated
+        rows = {e["recording"]: e for e in r.json()["episodes"]}
+        assert all(rows[k]["paid"] and rows[k]["amount_krw"] == 9000
+                   for k in ("ego_b1", "ego_b2"))
+
+
+@pytest.mark.asyncio
+async def test_bulk_pay_is_all_or_nothing(app, db_session):
+    """One unapproved row fails the batch. A partial run would leave the
+    operator believing somebody was paid who was not."""
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_ok", duration_s=300, approved=True)
+    await _episode(db_session, "ego_notyet", duration_s=300, approved=False)
+    async with _client(app) as c:
+        r = await c.post("/api/ops/pay-bulk",
+                         json={"recordings": ["ego_ok", "ego_notyet"]},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 409
+        assert "not approved" in r.json()["detail"]
+
+        r = await c.post("/api/ops/pay-bulk", json={"recordings": ["ego_ok", "ego_ghost"]},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 404
+
+        # Neither attempt paid the approved one.
+        rows = {e["recording"]: e
+                for e in (await c.get("/api/ops/state",
+                                      cookies={"sid": sid})).json()["episodes"]}
+        assert rows["ego_ok"]["paid"] is False
+
+
+# --- the Users tab -------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_wearer_details_round_trip_and_retire(app, db_session):
+    """Contact and note are storable and editable, and retiring keeps the row."""
+    sid = await _sid(db_session, "ops")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/wearers",
+                         json={"name": "김민준", "contact": "010-0000-0000",
+                               "note": "파이가게 성수"},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        w = next(x for x in r.json()["wearers"] if x["name"] == "김민준")
+        assert w["contact"] == "010-0000-0000" and w["note"] == "파이가게 성수"
+        assert w["is_active"] is True
+
+        r = await c.post(f"/api/ops/wearers/{w['id']}",
+                         json={"contact": "010-1111-2222", "is_active": False},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        w2 = next(x for x in r.json()["wearers"] if x["id"] == w["id"])
+        # The untouched field survives a one-field save.
+        assert w2["contact"] == "010-1111-2222"
+        assert w2["note"] == "파이가게 성수"
+        assert w2["is_active"] is False
+
+
+@pytest.mark.asyncio
+async def test_retiring_a_wearer_keeps_their_episodes_attributed(app, db_session):
+    """The reason there is no DELETE: a settled payment must keep its name."""
+    sid = await _sid(db_session, "ops")
+    w = Wearer(name="박지훈")
+    db_session.add(w)
+    await db_session.commit()
+    await _episode(db_session, "ego_keepme", duration_s=600, approved=True,
+                   paid=True, amount_krw=11000, wearer_id=w.id)
+    async with _client(app) as c:
+        r = await c.post(f"/api/ops/wearers/{w.id}", json={"is_active": False},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_keepme")
+        assert row["wearer_id"] == w.id and row["paid"] is True
+
+
+@pytest.mark.asyncio
+async def test_updating_an_unknown_person_is_404(app, db_session):
+    sid = await _sid(db_session, "ops")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/wearers/999999", json={"name": "ghost"},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 404
+
+
+# --- regressions found in the pre-deploy audit ---------------------------------
+
+@pytest.mark.asyncio
+async def test_a_rate_change_cannot_reprice_an_already_paid_episode(app, db_session):
+    """Settling is a one-way stamp. Re-ticking after the rate moved must not
+    rewrite what the ledger says somebody was paid."""
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_stamp", duration_s=600, approved=True)
+    async with _client(app) as c:
+        await c.post("/api/ops/rate", json={"rate_krw": 10320},
+                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        await c.post("/api/ops/episodes/ego_stamp/pay", json={"value": True},
+                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        await c.post("/api/ops/rate", json={"rate_krw": 11000},
+                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        # Tick it again at the new rate: the recorded amount must not move.
+        r = await c.post("/api/ops/episodes/ego_stamp/pay", json={"value": True},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_stamp")
+        assert row["amount_krw"] == 10320
+
+
+@pytest.mark.asyncio
+async def test_bulk_pay_refuses_deleted_episodes(app, db_session):
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_live", duration_s=300, approved=True)
+    await _episode(db_session, "ego_dead", duration_s=300, approved=True)
+    async with _client(app) as c:
+        await c.post("/api/ops/episodes/ego_dead/delete",
+                     json={"kind": "soft", "reason": "test clip"},
+                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        r = await c.post("/api/ops/pay-bulk",
+                         json={"recordings": ["ego_live", "ego_dead"]},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 409 and "deleted" in r.json()["detail"]
+        rows = {e["recording"]: e
+                for e in (await c.get("/api/ops/state", cookies={"sid": sid})).json()["episodes"]}
+        assert rows["ego_live"]["paid"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_negative_amount_is_rejected_not_clamped(app, db_session):
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_neg", duration_s=300, approved=True)
+    async with _client(app) as c:
+        r = await c.post("/api/ops/episodes/ego_neg/pay",
+                         json={"value": True, "amount_krw": -5000},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_paying_with_no_rate_set_is_refused_not_booked_as_zero(app, db_session):
+    """Migration 0011 seeds the rate at 0, so this is the state of every fresh
+    deploy. A ₩0 settlement is indistinguishable from an unpaid one."""
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_norate", duration_s=600, approved=True)
+    async with _client(app) as c:
+        r = await c.post("/api/ops/episodes/ego_norate/pay", json={"value": True},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 409 and "rate" in r.json()["detail"].lower()
+
+        r = await c.post("/api/ops/pay-bulk", json={"recordings": ["ego_norate"]},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 409
+
+        # Deliberate zero is still allowed, but it has to be said out loud.
+        r = await c.post("/api/ops/episodes/ego_norate/pay",
+                         json={"value": True, "amount_krw": 0},
+                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_norate")
+        assert row["paid"] is True and row["amount_krw"] == 0

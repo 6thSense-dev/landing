@@ -196,3 +196,25 @@ class Episode(Base):
         Index("ops_episodes_task_idx", "task_id"),
         Index("ops_episodes_started_idx", "started_at"),
     )
+
+
+class OpsSetting(Base):
+    """Board-wide settings for the operations area. Today that is one number.
+
+    WHY A TABLE AND NOT THE OPERATOR'S BROWSER
+      The payment rate is not a display preference -- every payment row is
+      stamped with the rate that was in force when it was ticked. Two operators
+      whose browsers held two different rates would write two different payment
+      records for the same shift, and the ledger would have no way to say which
+      was meant. It lives next to the episodes it prices.
+
+    Keyed rather than a one-row table with a column per setting: the next
+    setting should be an INSERT, not a migration.
+    """
+
+    __tablename__ = "ops_settings"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

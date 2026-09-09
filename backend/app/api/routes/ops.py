@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth_deps import current_user
 from app.core.db import get_session
 from app.core.ops_s3 import OpsS3Unavailable, episode_files
-from app.models import Episode, Task, User, Wearer
+from app.models import Episode, OpsSetting, Task, User, Wearer
 
 
 router = APIRouter(prefix="/api/ops", tags=["ops"])
@@ -41,6 +41,24 @@ async def require_ops(user: User = Depends(current_user)) -> User:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+#: The one board setting there is. See models.OpsSetting for why it is not a
+#: browser preference.
+RATE_KEY = "rate_krw"
+
+
+async def _rate(db: AsyncSession) -> int:
+    """The current amount per approved episode, in KRW. Absent or unparseable
+    reads as 0 -- a board with no rate set must still load and still count."""
+    row = (await db.execute(
+        select(OpsSetting).where(OpsSetting.key == RATE_KEY))).scalar_one_or_none()
+    if row is None:
+        return 0
+    try:
+        return max(0, int(row.value or 0))
+    except ValueError:
+        return 0
 
 
 # --- serialisation ------------------------------------------------------------
@@ -87,6 +105,7 @@ async def _state(db: AsyncSession) -> dict:
     live = [e for e in eps if e.deleted_at is None]
     return {
         "episodes": [_episode_json(e) for e in eps],
+        "rate_krw": await _rate(db),
         "wearers": [_wearer_json(w) for w in wearers],
         "tasks": [_task_json(x) for x in tasks],
         "totals": {
@@ -126,6 +145,42 @@ async def create_wearer(body: WearerIn, _: User = Depends(require_ops),
     return await _state(db)
 
 
+class WearerPatch(BaseModel):
+    """Every field optional: the Users tab saves one field at a time."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    contact: str | None = Field(default=None, max_length=320)
+    note: str | None = None
+    is_active: bool | None = None
+
+
+@router.post("/wearers/{wearer_id}")
+async def update_wearer(wearer_id: int, body: WearerPatch,
+                        _: User = Depends(require_ops),
+                        db: AsyncSession = Depends(get_session)) -> dict:
+    """Edit a person's details.
+
+    There is deliberately no DELETE. A wearer is attached to episodes that were
+    reviewed and possibly paid; removing the row would orphan that history and
+    leave a settled payment with nobody's name on it. `is_active = false`
+    retires them from the pickers and keeps the record intact.
+    """
+    w = (await db.execute(
+        select(Wearer).where(Wearer.id == wearer_id))).scalar_one_or_none()
+    if w is None:
+        raise HTTPException(status_code=404, detail="Unknown person.")
+    if body.name is not None:
+        w.name = body.name.strip()
+    if body.contact is not None:
+        w.contact = body.contact.strip()
+    if body.note is not None:
+        w.note = body.note.strip()
+    if body.is_active is not None:
+        w.is_active = body.is_active
+    await db.commit()
+    return await _state(db)
+
+
 # --- tasks --------------------------------------------------------------------
 
 class TaskIn(BaseModel):
@@ -150,6 +205,27 @@ async def create_task(body: TaskIn, _: User = Depends(require_ops),
 
 
 # --- per-episode actions ------------------------------------------------------
+
+async def _amount_for(db: AsyncSession, explicit: int | None) -> int:
+    """The amount to stamp, or a refusal.
+
+    A payment of zero is indistinguishable in the ledger from a shift that was
+    never paid, and the UI hides the amount chip when it is 0 -- so a ₩0
+    settlement renders exactly like a correct one. Migration 0011 seeds the rate
+    at 0, which means the whole window between deploy and an operator setting a
+    rate is a window in which every tick silently books nothing. Refuse instead.
+    Paying zero deliberately is still possible: send amount_krw: 0 explicitly.
+    """
+    if explicit is not None:
+        return int(explicit)
+    rate = await _rate(db)
+    if rate <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail="No payment rate is set, so this would record a payment of zero. "
+                   "Set the rate under Payment basis first.")
+    return rate
+
 
 async def _episode_or_404(db: AsyncSession, recording: str) -> Episode:
     e = (await db.execute(
@@ -216,7 +292,11 @@ async def approve_episode(recording: str, body: FlagIn,
 
 class PayIn(BaseModel):
     value: bool
-    amount_krw: int = 0
+    #: Omitted means "the board's current rate". Explicit means exactly that,
+    #: including 0. The difference matters: a client that forgot to send an
+    #: amount used to record a payment of zero, which is indistinguishable in
+    #: the ledger from a shift that really was unpaid.
+    amount_krw: int | None = Field(default=None, ge=0, le=100_000_000)
 
 
 @router.post("/episodes/{recording}/pay")
@@ -227,9 +307,99 @@ async def pay_episode(recording: str, body: PayIn,
     # Paying an unapproved episode is almost always a misclick on the wrong row.
     if body.value and not e.approved:
         raise HTTPException(status_code=409, detail="Approve the episode first.")
+    amount = await _amount_for(db, body.amount_krw) if body.value else 0
+    # Settling is a one-way stamp. Re-ticking an already-paid episode after the
+    # rate moved would rewrite what the ledger says somebody was paid, which is
+    # the one thing a payment record must never do.
+    if body.value and not e.paid:
+        e.paid_at = _now()
+        e.amount_krw = max(0, amount)
+    elif not body.value:
+        e.paid_at = None
+        e.amount_krw = 0
     e.paid = body.value
-    e.paid_at = _now() if body.value else None
-    e.amount_krw = int(body.amount_krw or 0) if body.value else 0
+    await db.commit()
+    return await _state(db)
+
+
+class PayBulkIn(BaseModel):
+    recordings: list[str] = Field(default_factory=list, max_length=2000)
+    value: bool = True
+    amount_krw: int | None = Field(default=None, ge=0, le=100_000_000)
+
+
+@router.post("/pay-bulk")
+async def pay_bulk(body: PayBulkIn, _: User = Depends(require_ops),
+                   db: AsyncSession = Depends(get_session)) -> dict:
+    """Settle a whole filtered batch in one write.
+
+    ALL OR NOTHING, and deliberately so. The operator's mental model is "pay
+    this week's approved episodes"; a partial run that quietly skipped four
+    rows leaves them believing a person was paid who was not, and there is
+    nothing in the board that would ever show the difference. So an unknown
+    recording or an unapproved one fails the batch and names the count.
+    """
+    wanted = list(dict.fromkeys(body.recordings))       # de-dup, keep order
+    if not wanted:
+        raise HTTPException(status_code=422, detail="No episodes were selected.")
+
+    eps = (await db.execute(
+        select(Episode).where(Episode.recording.in_(wanted)))).scalars().all()
+    if len(eps) != len(wanted):
+        missing = sorted(set(wanted) - {e.recording for e in eps})
+        raise HTTPException(
+            status_code=404,
+            detail=f"{len(missing)} of these are not in the ledger "
+                   f"(e.g. {missing[0]}). Nothing was paid.")
+
+    if body.value:
+        gone = [e.recording for e in eps if e.deleted_at is not None]
+        if gone:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{len(gone)} of these are deleted (e.g. {gone[0]}). Nothing was paid.")
+        unapproved = [e.recording for e in eps if not e.approved]
+        if unapproved:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{len(unapproved)} of these are not approved "
+                       f"(e.g. {unapproved[0]}). Nothing was paid.")
+
+    amount = await _amount_for(db, body.amount_krw) if body.value else 0
+    now = _now()
+    for e in eps:
+        if body.value and not e.paid:
+            e.paid_at = now
+            e.amount_krw = max(0, amount)
+        elif not body.value:
+            e.paid_at = None
+            e.amount_krw = 0
+        e.paid = body.value
+    await db.commit()
+    out = await _state(db)
+    out["changed"] = len(eps)
+    return out
+
+
+class RateIn(BaseModel):
+    rate_krw: int = Field(ge=0, le=100_000_000)
+
+
+@router.post("/rate")
+async def set_rate(body: RateIn, _: User = Depends(require_ops),
+                   db: AsyncSession = Depends(get_session)) -> dict:
+    """Set the amount per approved episode.
+
+    Changing it does NOT reprice anything already paid. Each payment carries
+    the amount it was settled at, which is the only version of this number a
+    collector could ever be shown and told is what they were paid.
+    """
+    row = (await db.execute(
+        select(OpsSetting).where(OpsSetting.key == RATE_KEY))).scalar_one_or_none()
+    if row is None:
+        db.add(OpsSetting(key=RATE_KEY, value=str(body.rate_krw)))
+    else:
+        row.value = str(body.rate_krw)
     await db.commit()
     return await _state(db)
 
