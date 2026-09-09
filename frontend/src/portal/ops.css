@@ -305,3 +305,20 @@
    horizontal scroll, so this hides no content -- it only stops a stray wide
    child from dragging the document sideways. */
 .ops { overflow-x: clip; }
+
+/* Scan is the only control that reads the bucket, so it gets the accent. It is
+   safe to press at any time -- the merge cannot touch a payment -- and that is
+   why it is a plain button and not behind a confirm. */
+.ops-scan {
+  background: var(--o-accent); color: #1a0d05; border: 1px solid var(--o-accent);
+  border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.ops-scan:hover:not(:disabled) { filter: brightness(1.08); }
+.ops-scan:disabled { opacity: 0.55; cursor: default; }
+.ops-note {
+  margin: 0 0 14px; padding: 9px 12px; border-radius: 8px; font-size: 13px;
+  background: rgba(143, 208, 138, 0.10); border: 1px solid rgba(143, 208, 138, 0.4);
+  color: var(--o-ok); cursor: pointer;
+}
+@media (max-width: 720px) { .ops-scan { padding: 6px 10px; } }

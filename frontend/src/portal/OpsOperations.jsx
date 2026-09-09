@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
-import { fmt, gb, sizeChip, regionOf, dayOf } from "./opsShared.js";
+import { fmt, gb, sizeChip, regionOf, dayOf, uploadLagHours } from "./opsShared.js";
 
 /**
  * OPERATIONS — strictly the episode ledger.
@@ -10,6 +10,18 @@ import { fmt, gb, sizeChip, regionOf, dayOf } from "./opsShared.js";
  * is attributed to, because that is a property of the episode, not of the
  * person: reassigning an episode is an operations act.
  */
+// Uploads are a nightly 02:00 batch, so the bands are sized for a ~24h delivery
+// window: same day is good, a day or two is ordinary, a week is a conversation.
+function lagChip(e) {
+  const h = uploadLagHours(e.started_at, e.duration_s, e.uploaded_at);
+  if (h === null) return null;
+  if (h < 0) return null;                       // clock disagreement; the clock chip says so
+  const title = `landed ${h.toFixed(1)} h after the take ended`;
+  if (h < 30) return <div><span className="ops-chip ok" title={title}>same day</span></div>;
+  if (h < 24 * 4) return <div><span className="ops-chip" title={title}>+{Math.round(h / 24)} d</span></div>;
+  return <div><span className="ops-chip warn" title={title}>+{Math.round(h / 24)} d</span></div>;
+}
+
 export default function OpsOperations({ state, act, busy, rate }) {
   const [preview, setPreview] = useState(null);   // {recording, files, error, pick}
 
@@ -284,7 +296,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                 <thead>
                   <tr>
                     <th /><th>Episode</th><th>Region</th><th>Camera</th>
-                    <th>Wearer</th><th>Task</th><th>Started</th>
+                    <th>Wearer</th><th>Task</th><th>Started</th><th>Uploaded</th>
                     <th className="num">Min</th><th>Quality</th>
                     <th>Approved</th><th>Paid</th><th>Delete</th>
                   </tr>
@@ -346,6 +358,15 @@ export default function OpsOperations({ state, act, busy, rate }) {
                             </span>
                           </div>
                         )}
+                      </td>
+                      <td className="mono ops-nowrap">
+                        {e.uploaded_at
+                          ? e.uploaded_at.replace("T", " ").slice(0, 16)
+                          : <span className="ops-chip warn"
+                                  title="no upload time recorded — press Scan bucket to fill it in">
+                              not scanned
+                            </span>}
+                        {lagChip(e)}
                       </td>
                       <td className="num">
                         {e.minutes}

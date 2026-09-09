@@ -36,3 +36,14 @@ export function regionOf(session) {
 }
 
 export const dayOf = (e) => (e.started_at || "").slice(0, 10);
+
+// How long after a take was RECORDED its last byte landed. Bucketed rather than
+// printed raw because the decision it feeds is coarse, and because uploads run
+// as a nightly 02:00 batch: a ~20 hour lag is the NORMAL case and must not read
+// as a problem. null means we do not know, never that it was fast.
+export function uploadLagHours(startedAt, durationS, uploadedAt) {
+  if (!startedAt || !uploadedAt) return null;
+  const t0 = Date.parse(startedAt), t1 = Date.parse(uploadedAt);
+  if (Number.isNaN(t0) || Number.isNaN(t1)) return null;
+  return (t1 - (t0 + (durationS || 0) * 1000)) / 3.6e6;
+}

@@ -14,6 +14,7 @@ WHAT THIS DOES NOT DO
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth_deps import current_user
 from app.core.db import get_session
 from app.core.ops_s3 import OpsS3Unavailable, episode_files
+from app.core.ops_scan import facts_from, walk_bucket
 from app.models import Episode, OpsSetting, Task, User, Wearer
 
 
@@ -46,6 +48,24 @@ def _now() -> datetime:
 #: The one board setting there is. See models.OpsSetting for why it is not a
 #: browser preference.
 RATE_KEY = "rate_krw"
+
+
+SCAN_KEY = "last_scan"
+
+
+async def _setting(db: AsyncSession, key: str) -> str:
+    row = (await db.execute(
+        select(OpsSetting).where(OpsSetting.key == key))).scalar_one_or_none()
+    return row.value if row else ""
+
+
+async def _put_setting(db: AsyncSession, key: str, value: str) -> None:
+    row = (await db.execute(
+        select(OpsSetting).where(OpsSetting.key == key))).scalar_one_or_none()
+    if row is None:
+        db.add(OpsSetting(key=key, value=value))
+    else:
+        row.value = value
 
 
 async def _rate(db: AsyncSession) -> int:
@@ -77,6 +97,7 @@ def _episode_json(e: Episode) -> dict:
         "id": e.id, "recording": e.recording, "session": e.session,
         "device_id": e.device_id, "prefix": e.prefix,
         "started_at": e.started_at.isoformat() if e.started_at else None,
+        "uploaded_at": e.uploaded_at.isoformat() if e.uploaded_at else None,
         "duration_s": e.duration_s, "minutes": round((e.duration_s or 0) / 60.0, 1),
         "size_bytes": e.size_bytes, "size_mb": round((e.size_bytes or 0) / 1e6, 1),
         "files": e.files, "frames": e.frames, "dropped": e.dropped,
@@ -106,6 +127,7 @@ async def _state(db: AsyncSession) -> dict:
     return {
         "episodes": [_episode_json(e) for e in eps],
         "rate_krw": await _rate(db),
+        "last_scan": await _setting(db, SCAN_KEY),
         "wearers": [_wearer_json(w) for w in wearers],
         "tasks": [_task_json(x) for x in tasks],
         "totals": {
@@ -127,6 +149,77 @@ async def get_state(_: User = Depends(require_ops),
                     db: AsyncSession = Depends(get_session)) -> dict:
     return await _state(db)
 
+
+
+# --- scanning the bucket -------------------------------------------------------
+
+@router.post("/scan")
+async def scan_bucket(_: User = Depends(require_ops),
+                      db: AsyncSession = Depends(get_session)) -> dict:
+    """Read the capture bucket and merge what it holds into the ledger.
+
+    NEVER destructive. New takes are inserted; known takes have only their
+    growable facts refreshed (bytes, files, upload time) plus a backfill of
+    anything that was missing; and a take that is in the ledger but NOT in the
+    bucket is left completely alone. The uploader keys cannot delete, so an
+    episode vanishing from a listing means a mis-scoped prefix or a transient
+    failure, not a deletion — and treating it as one would erase a payment.
+
+    Approvals, payments, assignments, labels and deletes are never touched.
+
+    Synchronous on purpose at this size: one LIST pass plus one GET per new
+    take is about a second for the ~150 takes in the bucket today. Past a few
+    thousand this needs to become a background job — the fetch is already
+    parallel, but an HTTP request is the wrong place to hold a minute of work.
+    """
+    try:
+        takes = await asyncio.to_thread(walk_bucket)
+    except OpsS3Unavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - surface the reason, never a stack
+        raise HTTPException(
+            status_code=502,
+            detail=f"The bucket could not be read: {type(exc).__name__}: {exc}"[:300],
+        ) from exc
+
+    known = {e.recording: e for e in
+             (await db.execute(select(Episode))).scalars().all()}
+
+    added = updated = 0
+    for rec, t in takes.items():
+        facts = facts_from(t)
+        e = known.get(rec)
+        if e is None:
+            db.add(Episode(recording=rec, **facts))
+            added += 1
+            continue
+        # Refresh only what can grow, and backfill what was never set. Notably
+        # NOT device_id or started_at: those came from the same metadata.json
+        # last time, and letting a re-scan move them would silently re-attribute
+        # settled work if a camera's metadata were ever rewritten.
+        changed = False
+        if facts["size_bytes"] > (e.size_bytes or 0):
+            e.size_bytes = facts["size_bytes"]; changed = True
+        if facts["files"] > (e.files or 0):
+            e.files = facts["files"]; changed = True
+        up = facts["uploaded_at"]
+        if up and (e.uploaded_at is None or up > e.uploaded_at):
+            e.uploaded_at = up; changed = True
+        for col in ("prefix", "session", "fw", "clock_source"):
+            if not getattr(e, col) and facts[col]:
+                setattr(e, col, facts[col]); changed = True
+        if e.started_at is None and facts["started_at"]:
+            e.started_at = facts["started_at"]; changed = True
+        if not e.duration_s and facts["duration_s"]:
+            e.duration_s = facts["duration_s"]; changed = True
+        updated += changed
+
+    await _put_setting(db, SCAN_KEY, _now().isoformat(timespec="seconds"))
+    await db.commit()
+    out = await _state(db)
+    out["scan"] = {"seen": len(takes), "added": added, "updated": updated,
+                   "untouched": len(known) - updated}
+    return out
 
 # --- wearers ------------------------------------------------------------------
 

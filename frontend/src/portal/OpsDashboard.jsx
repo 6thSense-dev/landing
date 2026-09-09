@@ -29,6 +29,7 @@ export default function OpsDashboard() {
   const [state, setState] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
+  const [note, setNote] = useState("");
 
   const load = useCallback(async () => {
     const r = await portalFetch("/api/ops/state");
@@ -59,6 +60,20 @@ export default function OpsDashboard() {
   }, []);
 
   const rate = state?.rate_krw ?? 0;
+  const lastScan = state?.last_scan ?? "";
+
+  // The bucket is the system of record; this is the only thing that reads it.
+  // Safe to press at any time: the scan inserts what is new and refreshes only
+  // growable facts, and can never touch an approval, a payment or an assignment.
+  const scan = async () => {
+    const next = await act("scan", "/api/ops/scan");
+    if (next?.scan) {
+      const { added, updated, seen } = next.scan;
+      setNote(added || updated
+        ? `Scanned ${seen} takes — ${added} new, ${updated} updated.`
+        : `Scanned ${seen} takes — nothing new since the last scan.`);
+    }
+  };
 
   return (
     <div className="ops">
@@ -77,7 +92,18 @@ export default function OpsDashboard() {
         </nav>
         <span className="ops-spacer" />
         {state && tab === "ops" && (
-          <span className="ops-src"><code>s3://6thsense-raw</code></span>
+          <span className="ops-src" title={lastScan
+            ? `bucket last read ${lastScan.replace("T", " ").slice(0, 16)}`
+            : "this board has never read the bucket"}>
+            <code>s3://6thsense-raw</code>{" "}
+            {lastScan ? `· scanned ${lastScan.replace("T", " ").slice(5, 16)}`
+                      : "· never scanned"}
+          </span>
+        )}
+        {state && tab === "ops" && (
+          <button className="ops-scan" onClick={scan} disabled={busy === "scan"}>
+            {busy === "scan" ? "Scanning…" : "Scan bucket"}
+          </button>
         )}
         {/* Who you are is next to the way out, so an operator on a shared
             machine can see at a glance whose session they are about to act in. */}
@@ -87,6 +113,9 @@ export default function OpsDashboard() {
 
       <div className="ops-main">
         {err && <p className="ops-error" role="alert">{err}</p>}
+        {note && !err && (
+          <p className="ops-note" role="status" onClick={() => setNote("")}>{note}</p>
+        )}
 
         {!state ? (
           <p className="ops-muted">{err ? "" : "Loading the ledger…"}</p>

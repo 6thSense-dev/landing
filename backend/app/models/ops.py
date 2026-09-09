@@ -138,6 +138,12 @@ class Episode(Base):
     prefix: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: S3's LastModified for the take's LAST object -- when delivery FINISHED.
+    #: An independent clock from the camera's, which is what makes the skew
+    #: check possible and what "has this camera gone quiet" is measured against.
+    #: Taking the first object instead would score a stalled multi-hour upload
+    #: as if it had finished instantly.
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     duration_s: Mapped[float] = mapped_column(Float, nullable=False, server_default="0")
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
     files: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
@@ -195,6 +201,7 @@ class Episode(Base):
         Index("ops_episodes_wearer_idx", "wearer_id"),
         Index("ops_episodes_task_idx", "task_id"),
         Index("ops_episodes_started_idx", "started_at"),
+        Index("ops_episodes_uploaded_idx", "uploaded_at"),
     )
 
 

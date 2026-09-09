@@ -3,6 +3,7 @@ two kinds of delete."""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -478,3 +479,153 @@ async def test_paying_with_no_rate_set_is_refused_not_booked_as_zero(app, db_ses
         assert r.status_code == 200
         row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_norate")
         assert row["paid"] is True and row["amount_krw"] == 0
+
+
+# --- scanning the bucket -------------------------------------------------------
+
+def _obj(key, size=1000, when="2026-09-09T11:23:01+00:00"):
+    from datetime import datetime
+    return {"Key": key, "Size": size, "LastModified": datetime.fromisoformat(when)}
+
+
+class _FakeS3:
+    """Just enough S3 to drive a scan: a pager and a metadata GET."""
+
+    def __init__(self, objects, meta=None, meta_raises=False):
+        self._objects, self._meta, self._raises = objects, meta or {}, meta_raises
+
+    def get_paginator(self, _name):
+        objects = self._objects
+
+        class _P:
+            def paginate(self, **_kw):
+                yield {"Contents": objects}
+        return _P()
+
+    def get_object(self, Bucket=None, Key=None):  # noqa: N803 - boto3 casing
+        if self._raises:
+            raise RuntimeError("boom")
+        import io
+        return {"Body": io.BytesIO(json.dumps(self._meta.get(Key, {})).encode())}
+
+
+@pytest.fixture
+def fake_bucket(monkeypatch):
+    """Point the scanner at an in-memory bucket."""
+    def _install(objects, meta=None, meta_raises=False):
+        import app.core.ops_scan as scan
+        monkeypatch.setattr(scan, "_client", lambda cfg: _FakeS3(objects, meta, meta_raises))
+        monkeypatch.setattr(scan, "get_settings", lambda: scan.OpsS3Settings(
+            bucket="b", region="r", access_key_id="k", secret_access_key="s",
+            presign_ttl=900) if hasattr(scan, "OpsS3Settings") else _Cfg())
+    return _install
+
+
+class _Cfg:
+    bucket = "6thsense-raw"
+    region = "us-west-2"
+
+
+@pytest.mark.asyncio
+async def test_scan_inserts_new_takes_with_upload_time(app, db_session, monkeypatch):
+    import app.core.ops_scan as scan
+    rec = "ego_20260909_103948_16A4A5"
+    pre = f"sessions/2026-09-03_korea-datafarm/16A4A5/{rec}"
+    monkeypatch.setattr(scan, "get_settings", lambda: _Cfg())
+    monkeypatch.setattr(scan, "_client", lambda cfg: _FakeS3(
+        [_obj(f"{pre}/metadata.json", 900, "2026-09-09T11:20:00+00:00"),
+         _obj(f"{pre}/video_live_0000.mp4", 45_000_000, "2026-09-09T11:23:01+00:00")],
+        meta={f"{pre}/metadata.json": {
+            "device_id": "16A4A5", "start_time": "2026-09-09T10:39:48+00:00",
+            "duration_s": 1800, "frame_count": 54000, "dropped_frames": 0,
+            "complete": True, "clock_source": "ntp", "fw": "1.7.0"}}))
+    sid = await _sid(db_session, "ops")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/scan", cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["scan"]["added"] == 1 and body["scan"]["seen"] == 1
+        e = next(x for x in body["episodes"] if x["recording"] == rec)
+        # The LAST object decides when the take landed, not the first.
+        assert e["uploaded_at"].startswith("2026-09-09T11:23:01")
+        assert e["device_id"] == "16A4A5" and e["minutes"] == 30.0
+        assert e["size_bytes"] == 45_000_900 and e["files"] == 2
+        assert body["last_scan"]
+
+
+@pytest.mark.asyncio
+async def test_rescanning_never_disturbs_a_payment(app, db_session, monkeypatch):
+    """The whole reason a re-scan is safe to press."""
+    import app.core.ops_scan as scan
+    rec = "ego_20260909_103948_16A4A5"
+    pre = f"sessions/2026-09-03_korea-datafarm/16A4A5/{rec}"
+    w = Wearer(name="김민준")
+    db_session.add(w)
+    await db_session.commit()
+    db_session.add(Episode(recording=rec, session="2026-09-03_korea-datafarm",
+                           device_id="16A4A5", duration_s=1800, approved=True,
+                           paid=True, amount_krw=11000, wearer_id=w.id))
+    await db_session.commit()
+    monkeypatch.setattr(scan, "get_settings", lambda: _Cfg())
+    # The bucket now reports a DIFFERENT recording camera and more bytes.
+    monkeypatch.setattr(scan, "_client", lambda cfg: _FakeS3(
+        [_obj(f"{pre}/metadata.json", 900),
+         _obj(f"{pre}/video_live_0000.mp4", 90_000_000)],
+        meta={f"{pre}/metadata.json": {"device_id": "DIFFERENT", "duration_s": 9999}}))
+    sid = await _sid(db_session, "ops")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/scan", cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        assert r.json()["scan"]["added"] == 0
+        e = next(x for x in r.json()["episodes"] if x["recording"] == rec)
+        assert e["paid"] is True and e["amount_krw"] == 11000
+        assert e["approved"] is True and e["wearer_id"] == w.id
+        # Growable facts refresh; identity does not move under a settled row.
+        assert e["size_bytes"] == 90_000_900
+        assert e["device_id"] == "16A4A5"
+
+
+@pytest.mark.asyncio
+async def test_scan_leaves_episodes_the_bucket_did_not_report(app, db_session, monkeypatch):
+    """A take missing from a listing is a bad prefix or a flaky call, never a
+    deletion -- the uploader keys cannot delete."""
+    import app.core.ops_scan as scan
+    await _episode(db_session, "ego_20260101_000000_AAAA", duration_s=60, approved=True)
+    monkeypatch.setattr(scan, "get_settings", lambda: _Cfg())
+    monkeypatch.setattr(scan, "_client", lambda cfg: _FakeS3([]))
+    sid = await _sid(db_session, "ops")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/scan", cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200 and r.json()["scan"]["seen"] == 0
+        assert len(r.json()["episodes"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_scan_skips_probes_and_bookkeeping_and_survives_bad_metadata(
+        app, db_session, monkeypatch):
+    import app.core.ops_scan as scan
+    rec = "ego_20260908_235819_1696C8"
+    pre = f"sessions/2026-09-03_korea-datafarm/1696C8/{rec}"
+    monkeypatch.setattr(scan, "get_settings", lambda: _Cfg())
+    monkeypatch.setattr(scan, "_client", lambda cfg: _FakeS3(
+        [_obj(f"{pre}/metadata.json"),
+         _obj("sessions/2026-09-03_korea-datafarm/.ego-s3-test/probe.txt"),
+         _obj("sessions/2026-09-03_korea-datafarm/_machine/notes.json"),
+         _obj("sessions/2026-09-03_korea-datafarm/loose-file.txt")],
+        meta_raises=True))
+    sid = await _sid(db_session, "ops")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/scan", cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 200
+        # Only the real take; the probe, the bookkeeping dir and the loose file
+        # are not episodes.
+        assert r.json()["scan"]["seen"] == 1
+        assert [e["recording"] for e in r.json()["episodes"]] == [rec]
+
+
+@pytest.mark.asyncio
+async def test_scan_needs_the_ops_role(app, db_session):
+    sid = await _sid(db_session, "customer")
+    async with _client(app) as c:
+        r = await c.post("/api/ops/scan", cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 403
