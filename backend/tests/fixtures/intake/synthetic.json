@@ -1,0 +1,420 @@
+{
+  "schema": "6thsense.ops-intake-preview/1",
+  "synthetic": true,
+  "generated_at": "2026-09-10T00:00:00Z",
+  "expires_at": "2026-09-12T00:00:00Z",
+  "catalog_revision": "2f98744180d8d6dfd072db31176db3f151e816ca",
+  "accounting_report": {
+    "schema_version": "intake-accounting-import/v1",
+    "synthetic": true,
+    "accounting": {
+      "episodes": [
+        {
+          "collector_id": "c",
+          "currency": "KRW",
+          "id": "ep",
+          "legacy_amount_minor": 100,
+          "legacy_paid": true,
+          "occurred_at": 10
+        }
+      ],
+      "agreements": [
+        {
+          "approved_episode_amount_minor": 100,
+          "collector_id": "c",
+          "currency": "KRW",
+          "effective_from": 0,
+          "effective_to": 20,
+          "evidence_ids": [
+            "signed-terms"
+          ],
+          "id": "ag",
+          "version": 1
+        }
+      ],
+      "approvals": [
+        {
+          "agreement_id": "ag",
+          "approved": true,
+          "episode_id": "ep",
+          "evidence_ids": [
+            "commercial-approval"
+          ],
+          "id": "approval"
+        }
+      ],
+      "assignments": [
+        {
+          "id": "assignment",
+          "episode_id": "ep",
+          "collector_id": "c",
+          "evidence_ids": [
+            "explicit-assignment"
+          ]
+        }
+      ],
+      "transfers": [
+        {
+          "amount_minor": 40,
+          "currency": "KRW",
+          "evidence_ids": [
+            "bank-transfer"
+          ],
+          "id": "transfer",
+          "status": "settled",
+          "collector_id": "c"
+        }
+      ],
+      "allocations": [
+        {
+          "amount_minor": 40,
+          "episode_id": "ep",
+          "id": "allocation",
+          "transfer_id": "transfer"
+        }
+      ],
+      "settlement_scopes": [
+        {
+          "complete": true,
+          "episode_ids": [
+            "ep"
+          ],
+          "evidence_ids": [
+            "complete-export"
+          ],
+          "id": "scope"
+        }
+      ],
+      "corrections": [
+        {
+          "id": "appeal-1",
+          "episode_id": "ep",
+          "supersedes_id": "ep",
+          "legacy_amount_minor": 80,
+          "legacy_paid": false,
+          "evidence_ids": [
+            "original-assertion-proof",
+            "review-proof",
+            "authority-document"
+          ]
+        }
+      ]
+    },
+    "bindings": {
+      "ep": {
+        "recording_id": "recording",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "imports": [
+      {
+        "export_id": "export-1",
+        "kind": "agreements",
+        "payload": {
+          "agreements": [
+            {
+              "approved_episode_amount_minor": 100,
+              "collector_id": "c",
+              "currency": "KRW",
+              "effective_from": 0,
+              "effective_to": 20,
+              "evidence_ids": [
+                "signed-terms"
+              ],
+              "id": "ag",
+              "version": 1
+            }
+          ],
+          "approvals": [
+            {
+              "agreement_id": "ag",
+              "approved": true,
+              "episode_id": "ep",
+              "evidence_ids": [
+                "commercial-approval"
+              ],
+              "id": "approval"
+            }
+          ],
+          "episodes": [
+            {
+              "capture": {
+                "raw_duration_ns": 999999999,
+                "usable_duration_ns": null
+              },
+              "episode": {
+                "collector_id": "c",
+                "currency": "KRW",
+                "id": "ep",
+                "legacy_amount_minor": 100,
+                "legacy_paid": true,
+                "occurred_at": 10
+              },
+              "source": {
+                "recording_id": "recording",
+                "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          ]
+        },
+        "schema_version": "intake-accounting-snapshot/v1",
+        "snapshot_id": "terms",
+        "snapshot_sha256": "9dcb1f492981e162c3af71355bed2cf09e46cfe90a662b61b4be191462bf5f01",
+        "source_system": "synthetic-export",
+        "synthetic": true
+      },
+      {
+        "export_id": "identity-export",
+        "kind": "assignments",
+        "payload": {
+          "assignments": [
+            {
+              "collector_id": "c",
+              "evidence_ids": [
+                "explicit-assignment"
+              ],
+              "id": "assignment",
+              "recording_id": "recording",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "interface": "collector-recording-assignments/v1"
+        },
+        "schema_version": "intake-accounting-snapshot/v1",
+        "snapshot_id": "assignments",
+        "snapshot_sha256": "243321cc4ceb76532b60757f40065c838d9daf200ff3aa56abf8903825bcc84d",
+        "source_system": "synthetic-Alex-compatible-export",
+        "synthetic": true
+      },
+      {
+        "export_id": "bank-export",
+        "kind": "settlements",
+        "payload": {
+          "allocations": [
+            {
+              "allocation_ref": "bank-allocation-1",
+              "amount_minor": 40,
+              "episode_id": "ep",
+              "evidence_ids": [
+                "allocation-proof"
+              ],
+              "id": "allocation",
+              "transfer_id": "transfer"
+            }
+          ],
+          "beneficiaries": [
+            {
+              "beneficiary_id": "bank-person",
+              "collector_id": "c",
+              "evidence_ids": [
+                "beneficiary-proof"
+              ]
+            }
+          ],
+          "episode_bindings": [
+            {
+              "episode_id": "ep",
+              "recording_id": "recording",
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ],
+          "settlement_scopes": [
+            {
+              "complete": true,
+              "episode_ids": [
+                "ep"
+              ],
+              "evidence_ids": [
+                "complete-export"
+              ],
+              "id": "scope"
+            }
+          ],
+          "transfers": [
+            {
+              "amount_minor": 40,
+              "beneficiary_id": "bank-person",
+              "currency": "KRW",
+              "evidence_ids": [
+                "bank-transfer"
+              ],
+              "id": "transfer",
+              "provider_ref": "provider-transfer-1",
+              "status": "settled"
+            }
+          ]
+        },
+        "schema_version": "intake-accounting-snapshot/v1",
+        "snapshot_id": "settlement",
+        "snapshot_sha256": "81dbcd24635358ca49fde765e31479837675e3d57d4610dc1e24705a4178fba2",
+        "source_system": "synthetic-bank-export",
+        "synthetic": true
+      },
+      {
+        "export_id": "review-export",
+        "kind": "appeals",
+        "payload": {
+          "appeals": [
+            {
+              "accounting_sha256": "f268e423fb2424d3b3b798fed39005711cebe53323f34e8d5c7897720e3b409c",
+              "report_sha256": "8bf5a811360f1574ec93395cb1d4a6fdd5d374727975da960c26e101718216d9",
+              "episode_id": "ep",
+              "evidence_ids": [
+                "original-assertion-proof"
+              ],
+              "id": "appeal-1",
+              "kind": "legacy_assertion_correction",
+              "legacy_paid": false,
+              "proposed_amount_minor": 80,
+              "reason_code": "documented_legacy_error",
+              "review": {
+                "appeal_sha256": "093af5f0dd1c0b5189f554b481a88ea9bae08bff78d61bd57a60e11e9fa96354",
+                "authority_id": "grant",
+                "authority_sha256": "9f0a2d16968561d11ced18a0461c62727874f94ef1c644bd7af170b7d961a4c8",
+                "evidence_ids": [
+                  "review-proof"
+                ],
+                "outcome": "approve",
+                "reviewed_at": 40,
+                "reviewer_id": "reviewer"
+              },
+              "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "status": "reviewed",
+              "submitted_at": 30,
+              "supersedes_id": "ep",
+              "version": 1
+            }
+          ],
+          "authorities": [
+            {
+              "actions": [
+                "legacy_assertion_correction"
+              ],
+              "episode_ids": [
+                "ep"
+              ],
+              "evidence_ids": [
+                "authority-document"
+              ],
+              "id": "grant",
+              "reviewer_id": "reviewer",
+              "valid_from": 0,
+              "valid_to": 100
+            }
+          ]
+        },
+        "schema_version": "intake-accounting-snapshot/v1",
+        "snapshot_id": "appeals",
+        "snapshot_sha256": "a2c408f835f18bf6d5f277476721c04f11e1a18b0046e19e186b1593ac368a9e",
+        "source_system": "synthetic-review-export",
+        "synthetic": true
+      }
+    ],
+    "issues": [],
+    "reconciliation": {
+      "episodes": [
+        {
+          "id": "ep",
+          "collector_id": "c",
+          "currency": "KRW",
+          "obligation_minor": 100,
+          "observed_settled_minor": 40,
+          "settled_minor": 40,
+          "outstanding_minor": 60,
+          "legacy_assertions": {
+            "legacy_amount_minor": 100,
+            "legacy_paid": true
+          },
+          "corrections": [
+            {
+              "id": "appeal-1",
+              "episode_id": "ep",
+              "supersedes_id": "ep",
+              "legacy_amount_minor": 80,
+              "legacy_paid": false,
+              "evidence_ids": [
+                "original-assertion-proof",
+                "review-proof",
+                "authority-document"
+              ]
+            }
+          ],
+          "reasons": [
+            "legacy amount assertion differs from evidenced obligation"
+          ]
+        }
+      ],
+      "totals": {
+        "currency": "KRW",
+        "episode_count": 1,
+        "known_obligation_minor": 100,
+        "obligation_minor": 100,
+        "obligation_unknown_count": 0,
+        "known_settled_minor": 40,
+        "settled_minor": 40,
+        "settled_unknown_count": 0,
+        "known_outstanding_minor": 60,
+        "outstanding_minor": 60,
+        "outstanding_unknown_count": 0
+      },
+      "issues": [
+        {
+          "episode_id": "ep",
+          "reason": "legacy amount assertion differs from evidenced obligation"
+        }
+      ]
+    },
+    "full_preview_totals": {
+      "currency": "KRW",
+      "episode_count": 1,
+      "known_obligation_minor": 100,
+      "obligation_minor": 100,
+      "obligation_unknown_count": 0,
+      "known_settled_minor": 40,
+      "settled_minor": 40,
+      "settled_unknown_count": 0,
+      "known_outstanding_minor": 60,
+      "outstanding_minor": 60,
+      "outstanding_unknown_count": 0
+    },
+    "report_sha256": "ee409d3e14b4a0555c60a245994dbba1308c8437fafd3213a954e0fd55ba9460"
+  },
+  "accounting_report_sha256": "ee409d3e14b4a0555c60a245994dbba1308c8437fafd3213a954e0fd55ba9460",
+  "episode_bindings": [
+    {
+      "episode_id": "ep",
+      "recording_id": "recording",
+      "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "judgments": {
+    "capture": [
+      {
+        "id": "capture-review",
+        "episode_id": "ep",
+        "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "accounting_report_sha256": "ee409d3e14b4a0555c60a245994dbba1308c8437fafd3213a954e0fd55ba9460",
+        "status": "accepted",
+        "evidence_ids": [
+          "SYNTHETIC-capture"
+        ],
+        "reason": "synthetic_capture_review"
+      }
+    ],
+    "annotation": [
+      {
+        "id": "annotation-review",
+        "episode_id": "ep",
+        "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "accounting_report_sha256": "ee409d3e14b4a0555c60a245994dbba1308c8437fafd3213a954e0fd55ba9460",
+        "status": "rejected",
+        "evidence_ids": [
+          "SYNTHETIC-annotation"
+        ],
+        "reason": "synthetic_annotation_failure"
+      }
+    ],
+    "dataset": []
+  },
+  "document_sha256": "628b820e11eda9fa19b3d43cdbab6027396033df7bd8441c515e90f1a1a3427a"
+}

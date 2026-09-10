@@ -322,3 +322,21 @@
   color: var(--o-ok); cursor: pointer;
 }
 @media (max-width: 720px) { .ops-scan { padding: 6px 10px; } }
+
+/* Supplied intake preview remains within the Operations visual system. */
+.ops-intake { margin: 0 0 20px; }
+.ops-intake-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ops-intake-head > div { flex: 1; }
+.ops-intake-head h2 { margin-bottom: 5px; }
+.ops-intake-caution { color: var(--o-warn); font-size: 13px; }
+.ops-intake-table { overflow-x: auto; margin: 16px 0; }
+.ops-intake-table table { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; }
+.ops-intake-table th, .ops-intake-table td { padding: 12px; border: 1px solid var(--o-line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.ops-intake-table th { font-size: 12px; color: var(--o-muted); font-weight: 500; }
+.ops-intake-table td { font-size: 13px; }
+.ops-intake-table small { display: block; color: var(--o-muted); font-size: 11px; line-height: 1.5; margin-top: 7px; }
+.ops-intake-table code { display: block; font: 10px/1.5 var(--o-mono); overflow-wrap: anywhere; margin-top: 7px; color: var(--o-muted); }
+.ops-intake-amount { font-family: var(--o-mono); }
+.ops-intake-details { font-size: 12px; color: var(--o-muted); overflow-wrap: anywhere; }
+.ops-intake-details summary { cursor: pointer; color: var(--o-text); }
+.ops-intake-details p { margin: 8px 0; }

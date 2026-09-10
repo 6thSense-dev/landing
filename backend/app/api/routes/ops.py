@@ -144,6 +144,13 @@ async def _state(db: AsyncSession) -> dict:
     }
 
 
+@router.get("/intake-preview")
+async def intake_preview(_: User = Depends(require_ops)) -> dict:
+    """Read only the server-configured pinned export; no DB or cloud mutation."""
+    from app.core.ops_intake_preview import load_configured_preview
+    return await asyncio.to_thread(load_configured_preview)
+
+
 @router.get("/state")
 async def get_state(_: User = Depends(require_ops),
                     db: AsyncSession = Depends(get_session)) -> dict:
