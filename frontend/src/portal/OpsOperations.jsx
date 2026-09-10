@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import OpsIntakePreview from "./OpsIntakePreview.jsx";
 import { portalFetch } from "./portalFetch.js";
 import { fmt, gb, sizeChip, regionOf, dayOf, uploadLagHours } from "./opsShared.js";
 
@@ -208,7 +209,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
             ["Approved", fmt(approvedCount)],
             ["Minutes", fmt(Math.round(minutes))],
             ["Unpaid approved", fmt(payable.length)],
-            ["Owed (KRW)", fmt(payable.length * rate)],
+            ["Current-rate estimate (KRW)", fmt(payable.length * rate)],
             ["Clock unverified", fmt(rows.filter((e) => !e.clock_ok).length)],
             ["Stored", gb(bytes)],
             ["Unassigned", fmt(rows.filter((e) => e.wearer_id == null).length)],
@@ -221,6 +222,8 @@ export default function OpsOperations({ state, act, busy, rate }) {
             </div>
           ))}
         </div>
+
+        <OpsIntakePreview recordings={episodes.map((episode) => episode.recording)} />
 
         <div className="ops-cols">
           <div className="ops-panel">
@@ -298,7 +301,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                     <th /><th>Episode</th><th>Region</th><th>Camera</th>
                     <th>Wearer</th><th>Task</th><th>Started</th><th>Uploaded</th>
                     <th className="num">Min</th><th>Quality</th>
-                    <th>Approved</th><th>Paid</th><th>Delete</th>
+                    <th>Approved</th><th>Marked paid</th><th>Delete</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -482,19 +485,18 @@ export default function OpsOperations({ state, act, busy, rate }) {
             </div>
 
             <div className="ops-panel">
-              <div className="ops-phead"><h2>Payment basis</h2></div>
+              <div className="ops-phead"><h2>Current board rate</h2></div>
               <div className="ops-pbody">
-                <label htmlFor="ops-rate">Amount per approved episode (KRW)</label>
+                <label htmlFor="ops-rate">Current amount per approved episode (KRW)</label>
                 <input id="ops-rate" type="number" min="0" step="10" value={rateDraft}
                        onChange={(ev) => setRateDraft(ev.target.value)}
                        onBlur={commitRate}
                        onKeyDown={(ev) => { if (ev.key === "Enter") ev.currentTarget.blur(); }} />
                 <p className="ops-hint">
-                  Payment is <b>per approved episode</b>, never per hour. Minutes are
-                  shown because they are useful for coverage — they are not the
-                  payment basis. Paying by elapsed time is what creates 근로자성
-                  exposure. Changing the rate does not reprice anything already
-                  paid: each payment keeps the amount it was settled at.
+                  This board records an amount <b>per approved episode</b>, not per hour.
+                  Its estimate uses the current rate; historical agreements and transfer
+                  evidence appear separately above. Changing this rate does not rewrite
+                  stored marked-paid amounts. A paid checkbox does not verify settlement.
                 </p>
               </div>
             </div>
