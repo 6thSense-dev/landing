@@ -15,6 +15,11 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  // Marks BOTH fields aria-invalid together, never one — the server is
+  // deliberately field-agnostic about which half was wrong (see the comment
+  // in onSubmit), so per-field flags here would leak what it withholds.
+  // Network/rate-limit errors are not the fields' fault and don't set it.
+  const [invalid, setInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
 
   if (status === "authed" && user) {
@@ -26,6 +31,7 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError("");
+    setInvalid(false);
     const result = await login(identifier, password);
     setBusy(false);
     if (!result.ok) {
@@ -38,6 +44,7 @@ export default function LoginPage() {
         // verify on the server exists precisely so the response does not leak
         // whether an account exists, and the copy must not undo that.
         setError("Invalid login. Check the email or username and the password.");
+        setInvalid(true);
       }
       return;
     }
@@ -73,8 +80,13 @@ export default function LoginPage() {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck="false"
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? "login-status" : undefined}
           value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
+          onChange={(e) => {
+            setIdentifier(e.target.value);
+            setInvalid(false);
+          }}
           required
         />
         <label htmlFor="login-password">Password</label>
@@ -82,14 +94,19 @@ export default function LoginPage() {
           id="login-password"
           type="password"
           autoComplete="current-password"
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? "login-status" : undefined}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setInvalid(false);
+          }}
           required
         />
         <button type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
-        <p className="portal-login-status" role="status" aria-live="polite">
+        <p id="login-status" className="portal-login-status" role="status" aria-live="polite">
           {error || " "}
         </p>
       </form>

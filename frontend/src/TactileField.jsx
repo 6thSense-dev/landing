@@ -23,14 +23,25 @@ export function TactileField() {
       return;
     }
 
-    // Reduced-motion gate slows the drift (motion still exists, just calmer).
+    // Reduced-motion gate freezes the field: the rAF loop below never starts
+    // and a single static frame paints instead (tactileField.js drops drift,
+    // bob, and twinkle when reduced — a full-viewport background that keeps
+    // moving is exactly what the preference asks to avoid). The listener at
+    // the bottom starts/stops the loop live if the OS preference changes.
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     field.setReduced(mq.matches);
-    const onMq = () => field.setReduced(mq.matches);
-    mq.addEventListener("change", onMq);
+    const renderStatic = () => {
+      field.setPointer(-9999, -9999, 0);
+      field.render(0);
+    };
 
-    // Size tracking. Module handles DPR internally.
-    const resize = () => field.setSize();
+    // Size tracking. Module handles DPR internally. While reduced, repaint the
+    // static frame here — resizing the canvas buffer clears it and no loop is
+    // running to repaint it.
+    const resize = () => {
+      field.setSize();
+      if (mq.matches) renderStatic();
+    };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -70,12 +81,19 @@ export function TactileField() {
       field.render(t);
       raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
+    const applyMotionPreference = () => {
+      field.setReduced(mq.matches);
+      cancelAnimationFrame(raf);
+      if (mq.matches) renderStatic();
+      else raf = requestAnimationFrame(tick);
+    };
+    applyMotionPreference();
+    mq.addEventListener("change", applyMotionPreference);
 
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      mq.removeEventListener("change", onMq);
+      mq.removeEventListener("change", applyMotionPreference);
       window.removeEventListener("pointermove", handlePointer);
       window.removeEventListener("pointerleave", handleLeave);
       window.removeEventListener("pointercancel", handleLeave);

@@ -300,11 +300,19 @@ export default function ProductsV2() {
 
     let H = window.innerHeight;
 
+    // Reduced-motion gate. This effect runs once with [] deps, so the
+    // useReducedMotion hook value would go stale in here — read the media
+    // query directly (as AuroraGL does) and consult .matches live, so an
+    // OS-level toggle takes effect without a remount.
+    const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+
     const sceneEls = [...root.querySelectorAll(".scene")].map((el) => ({ el, txt: [...el.querySelectorAll(".idx,h1,.oneliner,.stats,.cta,.eye2-toggle")], img: el.querySelector(".pimg"), top: 0, h: 0 }));
     const measure = () => { for (const s of sceneEls) { s.top = s.el.offsetTop; s.h = s.el.offsetHeight; } };
     measure();
     const navEls = [...root.querySelectorAll(".sidenav a")];
-    const onNav = (e) => { e.preventDefault(); const i = +e.currentTarget.dataset.i; sceneEls[i]?.el.scrollIntoView({ behavior: "smooth", block: "center" }); };
+    // An explicit behavior argument overrides the CSS scroll-behavior reset,
+    // so reduced motion must be consulted here too (same as PeoplePage's scrollTo).
+    const onNav = (e) => { e.preventDefault(); const i = +e.currentTarget.dataset.i; sceneEls[i]?.el.scrollIntoView({ behavior: reduceMq.matches ? "auto" : "smooth", block: "center" }); };
     navEls.forEach((a) => a.addEventListener("click", onNav));
 
     // Preload glove frames so the crossfade never waits on a fetch.
@@ -340,6 +348,7 @@ export default function ProductsV2() {
     const frame = (now) => {
       if (!t0) t0 = now;
       t = now - t0;
+      const reduce = reduceMq.matches;
       const c1 = sceneEls[1] ? (sceneEls[1].top + sceneEls[1].h / 2 - scrollY) : 9e9;
       // Feed the Canvas2D aurora the Eye2 tone lift (no-op when the GL aurora is active).
       lightRef.current = Math.max(0, Math.min(1, 1 - Math.abs(c1 - H / 2) / (H * .62)));
@@ -352,14 +361,17 @@ export default function ProductsV2() {
         const tt = Math.max(0, Math.min(1, 1 - (dist - H * 0.10) / (H * 0.55)));
         const dir = c > vc ? 1 : -1;
         if (tt > bestT) { bestT = tt; best = idx; }
+        // Reduced motion keeps the opacity crossfade (it carries the "which
+        // scene is active" signal) but drops the parallax drift/scale — these
+        // are inline styles, so no CSS reduce block could reach them.
         if (s.img) {
-          s.img.style.transform = `translateY(${((1 - tt) * dir * -26).toFixed(1)}px) scale(${(0.9 + 0.1 * tt).toFixed(3)})`;
+          s.img.style.transform = reduce ? "none" : `translateY(${((1 - tt) * dir * -26).toFixed(1)}px) scale(${(0.9 + 0.1 * tt).toFixed(3)})`;
           s.img.style.opacity = (0.25 + 0.75 * tt).toFixed(3);
         }
         s.txt.forEach((e, j) => {
           const et = Math.max(0, Math.min(1, tt * 1.5 - j * 0.10));
           e.style.opacity = (0.05 + 0.95 * et).toFixed(3);
-          e.style.transform = `translateY(${((1 - et) * 22).toFixed(1)}px)`;
+          e.style.transform = reduce ? "none" : `translateY(${((1 - et) * 22).toFixed(1)}px)`;
         });
       });
       if (best !== curActive) { curActive = best; navEls.forEach((a, i) => a.classList.toggle("on", i === best)); }
@@ -377,13 +389,16 @@ export default function ProductsV2() {
         // While the ?tune panel is mounted, read its live values instead of the
         // shipped constants so a slider drag is felt on the next frame.
         const cycle = liveTune.active ? liveTune.cycleMs : GLOVE_CYCLE_MS;
-        // Frozen on one frame while tuning it, otherwise the continuous sine sweep.
         // compare mode pins the 000/001 pair; hold freezes a single frame;
-        // otherwise the continuous sine sweep.
+        // reduced motion holds frame-001 (the crossfade machinery still applies
+        // its per-frame corrective transform, so the held frame sits exactly
+        // where the loop would put it); otherwise the continuous sine sweep.
         const fpos = (liveTune.active && liveTune.compare)
           ? 0
           : (liveTune.active && liveTune.hold != null)
           ? Math.min(liveTune.hold, last)
+          : reduce
+          ? 0
           : (Math.sin(t * TAU / cycle) * .5 + .5) * last; // continuous 0..last
         const base = Math.floor(fpos);
         const next = Math.min(base + 1, last);

@@ -72,15 +72,32 @@
   outline-offset: 2px;
 }
 
+/* Press feedback lands on pointer-down, not release — the tap highlight is
+   suppressed above, so without this the button is dead under the thumb.
+   Instant in (transition: none); the 180ms transition above eases the exit. */
+.setup-copy:active {
+  transform: scale(0.97);
+  transition: none;
+}
+
+/* The background dip skips the copied state so its white label never sits on
+   paper mid-press. */
+.setup-copy:not(.setup-copy--copied):active {
+  background: var(--paper-deep, #ddd8cb);
+}
+
 .setup-copy--copied {
   border-color: var(--accent, #592202);
   background: var(--accent, #592202);
   color: #fff;
 }
 
+/* The red rides on the border, where 3:1 (non-text) is enough; the label
+   itself stays ink — #d9534f at 0.9rem/500 on paper is 3.2:1, short of the
+   4.5:1 this recovery instruction needs to be readable. */
 .setup-copy--error {
   border-color: var(--ev-error, #d9534f);
-  color: var(--ev-error, #d9534f);
+  color: var(--ink, #262312);
 }
 
 .setup-copy-icon {
@@ -113,11 +130,13 @@
 }
 
 /* Hanging indent: a wrapped continuation sits further right than the line it
-   belongs to, so wrapping never reads as a new line of code. */
+   belongs to, so wrapping never reads as a new line of code. 6.2ch because it
+   must clear the deepest real indent on the page — the snippets' 4-space
+   Python bodies — or a continuation lands left of its own parent statement. */
 .setup-line {
   display: block;
-  padding-left: 2.2ch;
-  text-indent: -2.2ch;
+  padding-left: 6.2ch;
+  text-indent: -6.2ch;
 }
 
 /* Blank lines in the source still need a line box. Pseudo-element content is

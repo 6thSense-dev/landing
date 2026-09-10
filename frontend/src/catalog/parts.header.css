@@ -310,13 +310,41 @@
   max-width: var(--cat-measure-lead);
 }
 
-/* .cat-display supplies the size, the extralight weight and the negative
-   tracking; this only makes room for the version chip on the same line. */
-.cat-root .cat-masthead__title {
+/* The provenance kicker, above the collection name. Sentence case at label
+   size — an uppercase micro-label cannot hold two sentences without reading as
+   texture (the same reason .cat-substat labels are not .cat-label). --ink for
+   the body of the claim, with the closing clause in --accent so the eye lands
+   on it. The lede's own `gap` spaces it from the H1, so no bottom margin. */
+.cat-root .cat-masthead__kicker {
+  margin: 0;
+  max-width: var(--cat-measure-lead);
+  font-size: var(--cat-fs-sm);
+  font-weight: var(--cat-w-medium);
+  line-height: var(--cat-lh-snug);
+  letter-spacing: 0;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.cat-root .cat-masthead__kicker-emph {
+  color: var(--accent);
+  font-weight: var(--cat-w-semibold);
+}
+
+/* The name and its version chip, stacked. The chip used to be a flex item
+   inside the H1, which put it beside the name at phone widths and wrapped it
+   onto a lone row of its own at 1280+, where the one-line name nearly fills
+   the lead measure — the same chip in two homes depending on the viewport.
+   One home, every width: a metadata line tucked under the name, closer than
+   the lede column's own gap so the pair still reads as one unit. */
+.cat-root .cat-masthead__titleblock {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--cat-space-2xs) var(--cat-space-sm);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cat-space-2xs);
+}
+
+/* .cat-display supplies the extralight weight and the negative tracking. */
+.cat-root .cat-masthead__title {
   /* One step up from .cat-display's 3xl: this is the only display line on the
      page and at 1440 it has to hold its own against the access card opposite
      it. 4xl brings the matching tightest tracking with it — at 80px, -0.028em
@@ -327,7 +355,7 @@
 }
 
 .cat-root .cat-masthead__version {
-  align-self: center;
+  margin: 0;
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: var(--cat-radius-sm);

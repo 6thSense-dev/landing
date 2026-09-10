@@ -13,6 +13,9 @@
 
 .opener-root[data-phase="fading"] {
   animation: opener-fade 0.8s var(--ease-out) forwards;
+  /* The fade is a purely visual tail — the page underneath is already live,
+     so the overlay must not eat the first tap on it while it dissolves. */
+  pointer-events: none;
 }
 
 @keyframes opener-fade {

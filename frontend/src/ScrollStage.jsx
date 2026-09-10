@@ -170,6 +170,13 @@ export function ScrollStage({ progressRef, heroRef }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
+    // Dirty-check state for the paint loop: the (progress, reduce) pair last
+    // painted. Every per-frame output — the canvas paint and each CSS var —
+    // derives from that pair, so an unchanged pair means an identical frame
+    // and the repaint + style writes can be skipped while the page idles.
+    let lastP = -1;
+    let lastReduce = null;
+
     const publishGloveRect = (w, h) => {
       const frames = s0.frames;
       if (!frames) return;
@@ -204,6 +211,9 @@ export function ScrollStage({ progressRef, heroRef }) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       publishGloveRect(w, h);
+      // Resizing the backing store clears the canvas — force a repaint even
+      // if scroll progress hasn't moved.
+      lastP = -1;
     };
     resize();
     window.addEventListener("resize", resize);
@@ -212,6 +222,13 @@ export function ScrollStage({ progressRef, heroRef }) {
     const tick = () => {
       const p = clamp01(progressRef.current);
       const reduce = reducedRef.current;
+
+      if (p === lastP && reduce === lastReduce) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      lastP = p;
+      lastReduce = reduce;
 
       // Frame-sequence progress — counting plays over 0..FRAMES_END.
       const framesP = clamp01(p / FRAMES_END);

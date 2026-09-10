@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useAnimate, useReducedMotion } from "framer-motion";
 
 const DEFAULT_ACCENT = "#c5e063";
-const SEQUENCE_GAP_MS = 1000;
-const OPENER_DELAY_MS = 4000;
+const SEQUENCE_GAP_MS = 400;
 
 /**
  * In-text slider reveal for a single target word/phrase inside a hero blurb.
  *
  * Choreography (re-runs each time the blurb at `blurbIndex` becomes active):
- *   wait order * 1400ms (per-blurb sequencing)
+ *   wait order * 400ms (per-blurb sequencing)
  *   0.0 -> 0.25s   line draws in:  scaleY 0 -> 1, opacity 0 -> 1.
  *   0.25 -> 1.25s  slide + reveal: line left 0% -> 100% (ease-out, 1.0s);
  *                                   letters opacity 0 -> 1 with 80ms-per-
@@ -22,29 +21,20 @@ const OPENER_DELAY_MS = 4000;
  * watches --active-blurb (written there by ScrollStage's rAF tick after the
  * three-block hero refactor). Each transition into String(blurbIndex)
  * increments playKey, which the animation effect uses as its dependency.
- * For blurbIndex === 0 only, the seed-on-mount path defers by ~4s on
- * fresh tabs so the slider does not run behind the brand opener overlay.
+ *
+ * The reveal starts the moment its blurb activates — no deferral for the
+ * brand opener. On fresh tabs blurb 0's reveal plays behind the opener
+ * overlay, which is the point: by the time the overlay fades (or is
+ * skipped), the headline is already whole or actively filling in, never a
+ * sentence parked with a hole in it.
  *
  * Reduced motion: returns plain text in the lime accent color, no line,
  * no observer, no animation.
  */
-// Captures whether the brand opener is about to play. Computed during
-// render so it runs BEFORE OpenerAnimation's effect sets sixthsense.openerSeen
-// (which would otherwise make us think the opener was already seen).
-function computeOpenerWillPlay() {
-  if (typeof window === "undefined") return false;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const alreadySeen = sessionStorage.getItem("sixthsense.openerSeen") === "1";
-  const deepLinked = window.scrollY > 0;
-  return !reduce && !alreadySeen && !deepLinked;
-}
-
 export function TargetReveal({ text, blurbIndex, order, color = DEFAULT_ACCENT }) {
   const prefersReducedMotion = useReducedMotion();
   const [scope, animate] = useAnimate();
   const [playKey, setPlayKey] = useState(0);
-  // Snapshot at first render — sessionStorage hasn't been touched yet.
-  const [openerWillPlay] = useState(computeOpenerWillPlay);
 
   const rootRef = useRef(null);
   const lineRef = useRef(null);
@@ -60,50 +50,19 @@ export function TargetReveal({ text, blurbIndex, order, color = DEFAULT_ACCENT }
     const readActive = () =>
       root.style.getPropertyValue("--active-blurb").trim() === targetValue;
 
-    // Opener delay applies only to blurb 0 — the only blurb that can be
-    // already-active on fresh page load while the brand opener is playing.
-    // Blurbs 1..4 only become active after the user scrolls, which can
-    // only happen after the opener releases body scroll. We use the
-    // render-time snapshot (openerWillPlay) instead of re-reading
-    // sessionStorage here, because OpenerAnimation sets the flag at the
-    // START of its play (not the end), so by the time this effect runs
-    // the flag is already "1" and a fresh-tab read would lie.
-    const openerWillBlock = blurbIndex === 0 && openerWillPlay;
-
-    // Gate BOTH the seed-on-mount and the MutationObserver behind a
-    // single isReady flag. Without this, ScrollStage's first --active-blurb
-    // write fires the observer immediately, which would kick off the
-    // animation during the opener; the 4s seed timer would then fire
-    // later and restart it (resetting mid-way through).
-    let isReady = !openerWillBlock;
-
-    const seedIfActive = () => {
-      if (isReady && readActive()) setPlayKey((k) => k + 1);
-    };
-
-    let seedTimer = null;
-    if (openerWillBlock) {
-      seedTimer = setTimeout(() => {
-        isReady = true;
-        seedIfActive();
-      }, OPENER_DELAY_MS);
-    } else {
-      seedIfActive();
-    }
+    // Seed on mount if already active (blurb 0 on a fresh load).
+    if (readActive()) setPlayKey((k) => k + 1);
 
     let wasActive = readActive();
     const obs = new MutationObserver(() => {
       const isActive = readActive();
-      if (isReady && isActive && !wasActive) setPlayKey((k) => k + 1);
+      if (isActive && !wasActive) setPlayKey((k) => k + 1);
       wasActive = isActive;
     });
     obs.observe(root, { attributes: true, attributeFilter: ["style"] });
 
-    return () => {
-      obs.disconnect();
-      if (seedTimer) clearTimeout(seedTimer);
-    };
-  }, [prefersReducedMotion, blurbIndex, openerWillPlay]);
+    return () => obs.disconnect();
+  }, [prefersReducedMotion, blurbIndex]);
 
   // Animation timeline: re-runs whenever playKey increments.
   useEffect(() => {

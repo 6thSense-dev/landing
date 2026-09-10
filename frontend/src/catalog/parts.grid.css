@@ -581,15 +581,23 @@
   animation-delay: calc(var(--cat-cell-i, 0) * var(--cat-reveal-step));
 }
 
+/* Duration/delay, never `animation: none`. Removing the animation-name and
+   re-adding it when the viewport crosses back over the breakpoint RESTARTS the
+   keyframes from `from` — with fill `both` that blanked cards 2-3 for a full
+   reveal on every tablet rotation. Collapsing the duration instead keeps the
+   name stable (nothing restarts) and lands the cell in the `to` state at once;
+   it is the same technique the reduced-motion block in catalog.css uses. */
 @media (max-width: 999.98px) {
   .cat-root .cat-grid__cell:nth-child(3) {
-    animation: none;
+    animation-duration: 0.01ms;
+    animation-delay: 0ms;
   }
 }
 
 @media (max-width: 719.98px) {
   .cat-root .cat-grid__cell:nth-child(n + 2):nth-child(-n + 3) {
-    animation: none;
+    animation-duration: 0.01ms;
+    animation-delay: 0ms;
   }
 }
 
@@ -1091,9 +1099,17 @@
   }
 
   .cat-root .cat-fb__clearq {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
     background: transparent;
+  }
+
+  /* 16px is iOS Safari's no-zoom floor: focusing any text control set below it
+     zooms the whole viewport and often leaves it zoomed after blur. Coarse
+     pointers get the floor; the drawn size elsewhere is unchanged. */
+  .cat-root .cat-fb__input,
+  .cat-root .cat-fb__select {
+    font-size: 1rem;
   }
 }
 

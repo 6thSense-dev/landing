@@ -80,6 +80,14 @@
     border-color var(--ev-dur-short) var(--ev-ease-enter);
 }
 .ev-pill:hover { transform: translateY(-1px); }
+/* Press feedback on pointer-down, not on release: the pill settles back and
+   compresses a hair the instant it's touched (mirrors .btn-solid:active in
+   styles.css). The reduced-motion block below already drops the transition,
+   so there the state just snaps. */
+.ev-pill:active {
+  transform: translateY(0) scale(0.97);
+  transition-duration: var(--ev-dur-micro);
+}
 .ev-pill.ev-solid {
   background: var(--accent);
   border: none;

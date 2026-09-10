@@ -118,30 +118,37 @@ export function initTactileField(canvas) {
       const { w, h } = state;
       if (w === 0 || h === 0) return;
 
-      // Step drift motion. Reduced-motion users get a calmer drift.
-      const motionScale = state.reduced ? 0.25 : 1.0;
-      for (const n of nodes) {
-        n.x += n.vx * motionScale;
-        n.y += n.vy * motionScale;
-        if (n.x < -10) n.x = w + 10;
-        else if (n.x > w + 10) n.x = -10;
-        if (n.y < -10) n.y = h + 10;
-        else if (n.y > h + 10) n.y = -10;
+      // Step drift motion. Reduced-motion users get a FROZEN field — a
+      // full-viewport background that keeps moving (even slowly) is exactly
+      // what the preference asks to avoid — so skip the drift step entirely;
+      // the wrapper stops the rAF loop and paints one static frame.
+      if (!state.reduced) {
+        for (const n of nodes) {
+          n.x += n.vx;
+          n.y += n.vy;
+          if (n.x < -10) n.x = w + 10;
+          else if (n.x > w + 10) n.x = -10;
+          if (n.y < -10) n.y = h + 10;
+          else if (n.y > h + 10) n.y = -10;
+        }
       }
 
       // Per-node rendered positions (drift + bob). Cached so edges & nodes stay
-      // in sync without two sin() calls per pair.
+      // in sync without two sin() calls per pair. Under reduced motion the bob
+      // is dropped and the twinkle pinned to its midpoint, so the single static
+      // frame reads at the field's resting size/brightness.
       const rxs = new Float32Array(nodes.length);
       const rys = new Float32Array(nodes.length);
       const twinkles = new Float32Array(nodes.length);
-      const bobAmp = BOB_AMPLITUDE * motionScale;
+      const bobAmp = state.reduced ? 0 : BOB_AMPLITUDE;
       for (let i = 0; i < nodes.length; i++) {
         const n = nodes[i];
         rxs[i] = n.x + Math.sin(timeSec * n.bobFreqX + n.bobPhaseX) * bobAmp;
         rys[i] = n.y + Math.sin(timeSec * n.bobFreqY + n.bobPhaseY) * bobAmp;
-        // Twinkle wave in 0..1. Reduced motion mutes the swing.
-        twinkles[i] = (Math.sin(timeSec * n.twFreq + n.twPhase) * 0.5 + 0.5)
-                    * motionScale;
+        // Twinkle wave in 0..1.
+        twinkles[i] = state.reduced
+          ? 0.5
+          : Math.sin(timeSec * n.twFreq + n.twPhase) * 0.5 + 0.5;
       }
 
       ctx.clearRect(0, 0, w, h);

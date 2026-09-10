@@ -3,7 +3,14 @@
    Ported from the approved prototype (design locked with Ronak). */
 
 .pv2 { position: relative; background: #07070a; color: #f4f1ea;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* The copy scrim below deliberately bleeds past its box (inset -60/-90); at
+     375w that put the document 66px wider than the viewport. clip (not hidden)
+     bounds the page without creating a scroll container, and fixed children
+     (SiteNav, .hint) keep the viewport as their containing block so they
+     escape it — same treatment as products-showcase.css. The scrim only loses
+     its <=0.16-alpha tail, so nothing visibly changes. */
+  overflow-x: clip; }
 
 /* aurora background now lives in the shared <AuroraBg> component (lib/AuroraBg.css,
    .aurora-bg — fixed, z-index 0, blur). .page sits above it at z-index 1. */
@@ -107,6 +114,11 @@
 .pv2 .eye2-finish .sw-dark::before { background: #17171b; }
 .pv2 .eye2-finish .sw-light::before { background: #f4f1ea; }
 .pv2 .eye2-finish .sw:hover:not(.on)::before { transform: scale(1.15); }
+/* Press acknowledgement on pointer-down: the dot dips before the ring lands.
+   Specificity matches the :hover rule above — (0,5,1) — since with a mouse
+   :hover holds throughout :active and a weaker rule would never render. */
+.pv2 .eye2-finish .sw:active:not(.on)::before,
+.pv2 .eye2-finish .sw.on:active::before { transform: scale(.9); }
 .pv2 .eye2-finish .sw.on::before { box-shadow: 0 0 0 3px rgba(240,97,42,.9); }
 /* robo.webp placeholder overlays the (transparent) 3D canvas until the model is
    loaded + rendered, so there's no empty gap while the ~4MB STL streams in. */
@@ -118,7 +130,15 @@
 .pv2 .stat b { font-size: clamp(26px,2.6vw,40px); font-weight: 600; color: #f4f1ea; line-height: 1; }
 .pv2 .stat span { font: 600 11px/1 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: rgba(244,241,234,.8); }
 .pv2 .cta { display: inline-block; background: #F0612A; color: #111; font-weight: 600; font-size: 15px;
-  padding: 13px 26px; border-radius: 999px; text-decoration: none; }
+  padding: 13px 26px; border-radius: 999px; text-decoration: none;
+  transition: background .2s, transform .1s ease-out; }
+/* Press feedback on the page's primary CTA (respond on pointer-down, not on
+   release — .dl and .sw already carry states, so a dead CTA read as broken).
+   Hover mirrors the home page's solid pill lift, and keyboard focus gets the
+   same branded ring as .ev-pill instead of the bare UA default. */
+.pv2 .cta:hover { background: #ff6f38; }
+.pv2 .cta:active { transform: scale(.97); }
+.pv2 .cta:focus-visible { outline: 2px solid #F0612A; outline-offset: 3px; }
 
 /* CAD downloads (Eye2 scene) — restored from the old /products page. Sits under
    the CTA; understated so it reads as a builder utility, not a second CTA. */
@@ -172,6 +192,9 @@
   transition: color .25s, transform .25s; }
 .pv2 .sidenav a i { display: block; width: 14px; height: 1.5px; background: currentColor; transition: width .25s; }
 .pv2 .sidenav a:hover { color: rgba(244,241,234,.82); transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) {
+  .pv2 .sidenav a:hover { transform: none; }
+}
 .pv2 .sidenav a.on { color: #F0612A; }
 .pv2 .sidenav a.on i { width: 32px; }
 
@@ -242,3 +265,12 @@
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 }
 @media (max-width: 480px) { .pv2 .pimg { height: 38vh; } .pv2 .stats { gap: 16px 26px; } }
+
+/* Press/hover feedback keeps its end-state under reduced motion (feedback is
+   comprehension, not decoration) — only the eased travel is dropped, the same
+   way evora-home.css treats .ev-pill. The rAF-driven inline styles are gated
+   in ProductsV2.jsx itself; media queries can't reach those. */
+@media (prefers-reduced-motion: reduce) {
+  .pv2 .cta,
+  .pv2 .eye2-finish .sw::before { transition: none; }
+}

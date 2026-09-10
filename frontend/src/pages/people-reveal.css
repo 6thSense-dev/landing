@@ -109,6 +109,20 @@
     background: var(--accent, #f0612a);
   }
 }
+/* Press feedback lands on pointer-DOWN, on every input type. The hover rules
+   above are fenced behind (hover:hover)(pointer:fine), so without this a touch
+   press showed nothing until click fired at pointer-up — and even then the
+   colour eased in over 260ms, which reads as a dead control. Micro duration so
+   it reads as contact, not as a transition; the 260ms ease still carries the
+   settle after release. Kept ABOVE .is-active (equal specificity) so pressing
+   the already-selected row stays orange. */
+.pv-item:active {
+  color: #f4f1ea;
+  transition-duration: var(--ev-dur-micro, 80ms);
+}
+.pv-item:active i {
+  width: 24px;
+}
 /* Selected state carries on three channels — colour, weight and rule length —
    so it still outranks the (now brighter) inactive items. */
 .pv-item.is-active {
@@ -208,15 +222,30 @@
   font-size: 14.5px;
   line-height: 1.3;
 }
+/* COMPACT_QUERY is (max-width: 1023px), so a touch iPad in landscape (1024px
+   logical) gets THIS rail — where tap is the only mechanism, since the hover
+   preview is fenced behind (hover:hover)(pointer:fine) and can never fire.
+   These rows are ~31px tall; coarse pointers get the same 44px platform
+   minimum the compact layout already keeps, while a mouse keeps the tighter
+   rhythm. min-height, not font size: the row is a flex box that centers its
+   label, so the extra height is all hit area. */
+@media (pointer: coarse) {
+  .pv-desk .pv-item {
+    min-height: 44px;
+  }
+}
 .pv-desk .pv-hint {
   line-height: 1.7;
 }
 
 /* The blurb is positioned by JS into the empty space beside the revealed
-   person; only type treatment lives here. */
+   person; only type treatment lives here. Tracking matches DESIGN.md's display
+   -0.02em: the JS fit runs this name up to 92px, and the compact layout below
+   already tracks the SAME name at -0.02em at a third the size — looser
+   tracking at the larger size would be backwards. */
 .pv-blurb-name {
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   max-width: 100%;
 }
 .pv-blurb-line {

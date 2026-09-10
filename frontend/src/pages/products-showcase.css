@@ -350,9 +350,14 @@
 .ev-products .ev-pstage .ev-pstage-cap {
   z-index: 2;
 }
+/* Opacity-only breathe: animating the blur radius forced a re-blur of the
+   stage-sized layer every frame (main-thread in Firefox, GPU re-filter
+   elsewhere). The glow keeps its static blur from the base rule and only its
+   brightness breathes — transform/opacity-only animation stays on the
+   compositor everywhere. */
 @keyframes ev-stage-aurora-breathe {
-  from { opacity: 0.78; filter: blur(32px) saturate(1); }
-  to { opacity: 1; filter: blur(38px) saturate(1.16); }
+  from { opacity: 0.78; }
+  to { opacity: 1; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .ev-products .ev-pstage::before {
@@ -658,6 +663,12 @@
 }
 .ev-products .ev-dl:hover { transform: translateY(-1px); border-color: var(--accent); }
 .ev-products .ev-dl svg { width: 14px; height: 14px; }
+/* All motion gated by prefers-reduced-motion (DESIGN.md): the hover lift goes,
+   the border-color cue stays (it just snaps). */
+@media (prefers-reduced-motion: reduce) {
+  .ev-products .ev-dl { transition: none; }
+  .ev-products .ev-dl:hover { transform: none; }
+}
 
 /* ---- Skin: static layered composite — robotic (left) | glove photo (right) --
    Bottom: the bare robotic hand (still). Middle: a black mask over the right.

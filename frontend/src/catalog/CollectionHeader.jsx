@@ -10,7 +10,14 @@ import {
 } from "lucide-react";
 
 import { assetUrl } from "./useCatalog.js";
-import { dash, formatBytes, formatCount, formatHours, formatMinutes } from "./format.js";
+import {
+  countryDisplayName,
+  dash,
+  formatBytes,
+  formatCount,
+  formatHours,
+  formatMinutes,
+} from "./format.js";
 
 /**
  * The collection masthead: what this drop is, what it costs you to look at
@@ -79,6 +86,9 @@ export default function CollectionHeader({
   const vendor = collection && collection.vendor ? collection.vendor : null;
   const t = totals || {};
 
+  /* Base for the ids that tie each tile to its mirrored hint text below. */
+  const hintsId = React.useId();
+
   /* Set by the ingest from each take's own declaration; `recorded` is the only
      value that does not need saying out loud. Read high up because it changes how
      the geography figure is LABELLED, not only whether a banner renders. */
@@ -86,15 +96,25 @@ export default function CollectionHeader({
   const generated = provenance === "synthetic" || provenance === "mixed";
 
   const countries = Array.isArray(t.countries) ? t.countries : null;
+  /* The ingest's label first; the platform's region table as the floor under a
+     manifest that ships no facets. Same ladder as the card's countryLabel() —
+     the masthead must not be the one surface that prints the join key. */
   const countryName = (code) =>
-    (countryLabels && typeof countryLabels[code] === "string" && countryLabels[code]) || code;
+    (countryLabels && typeof countryLabels[code] === "string" && countryLabels[code]) ||
+    countryDisplayName(code);
   const countryNames = countries ? countries.map(countryName) : null;
 
   // `totals.*hours` are ALWAYS stored in hours; `totals.duration_unit` says which unit
   // to render them in (CONTRACT.md §3.1.1). A ~20 minute corpus resolves to `minutes`,
   // and showing "0.31 h" for it reads as a broken number. The conversion lives here and
   // nowhere else — the stored figures are never mutated.
-  const inMinutes = t.duration_unit === "minutes";
+  //
+  // The magnitude check is the floor under a manifest that forgot to declare the unit:
+  // declaring it is the producer's call, but "0.018 h" for a one-minute corpus is the
+  // exact broken-number reading the conversion exists to prevent, so under 0.1 h (six
+  // minutes) the header renders minutes regardless.
+  const inMinutes =
+    t.duration_unit === "minutes" || (t.hours != null && t.hours > 0 && t.hours < 0.1);
   const dur = (h) => (inMinutes ? formatMinutes(h == null ? h : h * 60) : formatHours(h));
   const durLabel = inMinutes ? "Minutes" : "Hours";
 
@@ -336,15 +356,29 @@ export default function CollectionHeader({
       <div className="cat-masthead__grid">
         {/* ---------- left: what this is ---------- */}
         <div className="cat-masthead__lede">
+          {/* A catalog-wide provenance claim, not a collection field: the rig
+              that captured every clip and the pipeline that graded it are both
+              ours, which for a data buyer is a quality signal and not a slogan.
+              It sits above the collection name because it frames every figure
+              below it. The closing clause carries the accent so the line has a
+              beat without shouting. */}
+          <p className="cat-masthead__kicker">
+            Everything in this catalog is created by 6thSense, from hardware to data.{" "}
+            <span className="cat-masthead__kicker-emph">We own the vertical.</span>
+          </p>
           {/* "Catalog" is gone as a word: the top bar already says where you
               are, and the collection's own name is the only heading that
-              carries information. */}
-          <h1 className="cat-display cat-masthead__title">
-            {name}
+              carries information. The version chip is a metadata line UNDER the
+              name, not a flex item inside it: inline it rode beside the title
+              at phone widths and wrapped onto a lone row of its own at 1280+,
+              where the one-line name nearly fills the lead measure — the same
+              chip in two homes depending on the viewport. */}
+          <div className="cat-masthead__titleblock">
+            <h1 className="cat-display cat-masthead__title">{name}</h1>
             {collection && collection.version ? (
-              <span className="cat-masthead__version cat-mono">v{collection.version}</span>
+              <p className="cat-masthead__version cat-mono">v{collection.version}</p>
             ) : null}
-          </h1>
+          </div>
 
           {/* .cat-lead is the system's one-per-surface lead paragraph: 52ch
               measure, light weight at md size, --ink at 12.7:1 on paper. */}
@@ -503,23 +537,49 @@ export default function CollectionHeader({
       ) : null}
 
       {/* A <dl>, not a row of divs: each tile is a label/value pair and screen
-          readers should read it as one. */}
+          readers should read it as one. The hints qualify headline procurement
+          numbers — "NOT minutes during which the gloves worked" is not
+          decoration — so each one is ALSO in the flow as visually-hidden text,
+          because a title tooltip is unreachable on touch, by keyboard, and
+          unreliably exposed to screen readers. */}
       <dl className="cat-stats">
-        {stats.map((s) => (
-          <div className="cat-stat" key={s.label} title={s.hint}>
+        {stats.map((s, i) => (
+          <div
+            className="cat-stat"
+            key={s.label}
+            title={s.hint}
+            aria-describedby={s.hint ? `${hintsId}-stat-${i}` : undefined}
+          >
             <dt className="cat-label">{s.label}</dt>
             <Figure className="cat-stat-value cat-figure" text={s.value} />
             {s.sub ? <dd className="cat-stat-sub">{s.sub}</dd> : null}
+            {s.hint ? (
+              <dd className="cat-sr-only" id={`${hintsId}-stat-${i}`}>
+                {s.hint}
+              </dd>
+            ) : null}
           </div>
         ))}
       </dl>
 
       <div className="cat-masthead__meta">
         <dl className="cat-substats">
-          {secondary.map((s) => (
-            <div className="cat-substat" key={s.label} title={s.hint}>
+          {/* Same rule as the stat tiles: a hint that exists only in `title`
+              does not exist for touch, keyboard or a screen reader. */}
+          {secondary.map((s, i) => (
+            <div
+              className="cat-substat"
+              key={s.label}
+              title={s.hint}
+              aria-describedby={s.hint ? `${hintsId}-sub-${i}` : undefined}
+            >
               <dt>{s.label}</dt>
               <dd className="cat-figure">{s.value}</dd>
+              {s.hint ? (
+                <dd className="cat-sr-only" id={`${hintsId}-sub-${i}`}>
+                  {s.hint}
+                </dd>
+              ) : null}
             </div>
           ))}
         </dl>
@@ -540,6 +600,9 @@ export default function CollectionHeader({
               <span title={splits.normalization.statement}>
                 {" · normalisation fitted on "}
                 {splits.normalization.scope}
+                {/* The producer's full statement, in the flow for the readers
+                    the tooltip never reaches. */}
+                <span className="cat-sr-only"> ({splits.normalization.statement})</span>
               </span>
             ) : null}
           </p>

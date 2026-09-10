@@ -234,7 +234,12 @@
   display: flex;
   gap: var(--cat-d-ctl-gap);
 }
-.cat-d-overlay .cat-d-nav .cat-d-navbtn { position: static; }
+/* relative, NOT static: the buttons still lay out in the flex row either way,
+   but the 44px ::after above resolves its containing block against the nearest
+   positioned ancestor. Static made that .cat-d-nav itself, so each ::after
+   covered the whole cluster and the later sibling (Next) sat on top — every
+   pointer press on Previous dispatched to Next, at every width. */
+.cat-d-overlay .cat-d-nav .cat-d-navbtn { position: relative; }
 
 .cat-d-overlay :focus-visible {
   outline: 2px solid var(--accent);
@@ -288,6 +293,7 @@
 }
 
 .cat-d-overlay .cat-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -308,6 +314,10 @@
     box-shadow var(--cat-dur-normal) var(--cat-ease),
     transform var(--cat-dur-fast) var(--cat-ease);
 }
+/* 36px drawn, 44px hit — the same pattern as .cat-pill. Vertical only: these
+   buttons sit side by side in rows (Retry/Close, the metadata top bar), so a
+   horizontal expansion would overlap its neighbour's. */
+.cat-d-overlay .cat-btn::after { content: ""; position: absolute; inset: -4px 0; }
 .cat-d-overlay .cat-btn:hover {
   background: var(--paper-deep);
   border-color: var(--line-strong);
@@ -533,6 +543,24 @@
   height: clamp(180px, 30vw, 340px);
   background: var(--dark-2);
   overflow: hidden;
+}
+/* The error state. The reserved height above exists so the panel does not jump
+   when the media lands; when the fetch has failed nothing is going to land, so
+   holding ~340px of empty dark only pushes the Retry/Close row below the fold.
+   The slab collapses to one visible line that says why it is empty. */
+.cat-d-overlay .cat-d-mediaskel--failed {
+  height: auto;
+  display: grid;
+  place-items: center;
+  padding: var(--cat-space-lg) 1rem;
+}
+.cat-d-overlay .cat-d-mediaskel__note {
+  font-family: var(--cat-font-sans);
+  font-size: var(--cat-fs-2xs);
+  font-weight: var(--cat-w-semibold);
+  letter-spacing: var(--cat-tracking-label);
+  text-transform: uppercase;
+  color: rgb(236 232 220 / 0.62);
 }
 
 /* -------------------------------------------------------------- bar/tabs -- */
@@ -918,6 +946,15 @@
   transition:
     background var(--cat-dur-fast) var(--cat-ease),
     transform var(--cat-dur-fast) var(--cat-ease);
+}
+/* 7px is the drawn size, not the target. The hit area grows as far as the
+   neighbours allow: 3px up is the whole gap to the range input (whose track
+   must stay tappable), and the 10px below is the transport row's own bottom
+   padding, where nothing else listens. */
+.cat-d-overlay .cat-v-seg::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0 -10px;
 }
 .cat-d-overlay .cat-v-seg:hover { background: var(--cat-d-axis-z); transform: scaleY(1.5); }
 .cat-d-overlay .cat-v-seg.is-live { background: var(--cat-d-axis-z); }
@@ -1452,12 +1489,15 @@
 
 /* ========================================================== SEGCAP TAB === */
 
+/* No overflow: hidden here. It clipped hit-testing to the 26px ribbon, which
+   made each band's expanded hit area below unreachable — and at ≤640 the row
+   list's chevrons are gone, so this ribbon IS the touch seek affordance. The
+   corner rounding the clip used to provide moves onto the end bands. */
 .cat-d-overlay .cat-sc-ribbon {
   position: relative;
   height: 26px;
   border-radius: var(--cat-radius-sm);
   background: var(--paper-deep);
-  overflow: hidden;
 }
 .cat-d-overlay .cat-sc-band {
   position: absolute;
@@ -1469,6 +1509,20 @@
   background: var(--accent-muted);
   cursor: pointer;
   transition: background var(--cat-dur-fast) var(--cat-ease);
+}
+.cat-d-overlay .cat-sc-band:first-child {
+  border-radius: var(--cat-radius-sm) 0 0 var(--cat-radius-sm);
+}
+.cat-d-overlay .cat-sc-band:last-child {
+  border-right: 0;
+  border-radius: 0 var(--cat-radius-sm) var(--cat-radius-sm) 0;
+}
+/* 26px drawn, 44px hit: the header above and the scale line below are text,
+   so the expansion listens over dead paper on both sides. */
+.cat-d-overlay .cat-sc-band::after {
+  content: "";
+  position: absolute;
+  inset: -9px 0;
 }
 .cat-d-overlay .cat-sc-band:hover,
 .cat-d-overlay .cat-sc-band.is-on { background: var(--accent); }
@@ -1966,7 +2020,10 @@
 }
 
 .cat-d-overlay .cat-qa-collection > summary:hover {
-  color: var(--cat-ink-1);
+  /* Full ink, not a token that does not exist: --cat-ink-1 was never declared,
+     and an undefined var() computes to `unset`, which quietly left the hover
+     at the resting --cat-ink-2. */
+  color: var(--ink);
 }
 
 /* A decision, not a shortfall. Reads as neutral so it cannot be mistaken for the amber
@@ -2080,7 +2137,10 @@
      Full-bleed hid the fact that the panel was 100vw against a viewport whose
      scrollbar had already been subtracted, which is what clipped the close
      button and the right camera label at 360. */
-  .cat-d-overlay { --cat-d-gutter: 0.5rem; --cat-d-ctl: 34px; --cat-d-ctl-inset: 10px; }
+  /* The gap widens as the controls shrink: at 34px each button's 44px hit
+     expansion reaches 5px past its circle, so anything under 10px of gap has
+     the Previous and Next hit areas overlapping — and the later sibling wins. */
+  .cat-d-overlay { --cat-d-gutter: 0.5rem; --cat-d-ctl: 34px; --cat-d-ctl-inset: 10px; --cat-d-ctl-gap: 10px; }
   .cat-d-overlay .cat-d-panel { border-radius: var(--cat-radius-md); }
   .cat-d-overlay .cat-cal-pair { grid-template-columns: minmax(0, 1fr); }
   .cat-d-overlay .cat-m-docs { grid-template-columns: minmax(0, 1fr); }

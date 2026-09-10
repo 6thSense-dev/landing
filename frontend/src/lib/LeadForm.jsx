@@ -156,8 +156,11 @@ export default function LeadForm({
           onChange={setField("message")}
           placeholder={messagePlaceholder}
           aria-invalid={errors.message ? "true" : undefined}
+          aria-describedby={errors.message ? `${idPrefix}-message-error` : undefined}
         />
-        {errors.message && <p className={c.fielderror}>{errors.message}</p>}
+        {errors.message && (
+          <p id={`${idPrefix}-message-error`} className={c.fielderror}>{errors.message}</p>
+        )}
       </div>
 
       {/* Honeypot: hidden from real users; bots that fill it are dropped
@@ -218,7 +221,9 @@ export default function LeadForm({
   );
 }
 
-/** One labelled text input row, shared across the fields. */
+/** One labelled text input row, shared across the fields. The error line is
+ *  linked back to the input via aria-describedby so a screen reader announces
+ *  WHY the field is invalid, not just that it is. */
 function Field({ c, id, label, type, autoComplete, value, onChange, error }) {
   return (
     <div className={c.field}>
@@ -230,8 +235,9 @@ function Field({ c, id, label, type, autoComplete, value, onChange, error }) {
         value={value}
         onChange={onChange}
         aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
       />
-      {error && <p className={c.fielderror}>{error}</p>}
+      {error && <p id={`${id}-error`} className={c.fielderror}>{error}</p>}
     </div>
   );
 }

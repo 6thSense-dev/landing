@@ -45,13 +45,13 @@
   border-radius: 999px;
   white-space: nowrap;
 }
-/* NOTE: `.product-cta` is currently DEAD CSS — no component renders it (the nav
-   above ships Products / People / Partner login only, despite the comment at the
-   top of .product-navlinks). Left in place and corrected rather than tuned live:
-   hover was #ff6f38, a bright orange that reads like a leftover from when
-   --accent was #F0612A, and white-on-that computes to 2.77:1 versus 12.69:1 for
-   the resting state on --accent #592202. A lighter brown in the same family
-   keeps the "brightens on hover" intent at 9.18:1 if this ever gets rendered. */
+/* Rendered in the nav (and at the end of the article) by ProductPage.jsx —
+   the site's one intake is the Contact Us form on the home page, so the pill
+   links to /#contact like every other product CTA (DESIGN.md). Hover note:
+   #ff6f38 was a bright orange left over from when --accent was #F0612A, and
+   white-on-that computes to 2.77:1 versus 12.69:1 for the resting state on
+   --accent #592202. A lighter brown in the same family keeps the "brightens
+   on hover" intent at 9.18:1. */
 .product-cta:hover { background: #7a3208; }
 
 .product-login {
@@ -63,8 +63,22 @@
 }
 .product-login:hover { opacity: 1; }
 
+/* 44px-tall hit areas without moving a pixel: pad the text links out and pull
+   the layout back in with negative margins (they're flex items, so bare
+   padding would grow the header/related rows). */
+.product-navlink,
+.product-login,
+.product-related-link {
+  padding: 0.75rem 0.25rem;
+  margin: -0.75rem -0.25rem;
+}
+
 @media (max-width: 560px) {
-  .product-navlink { display: none; }
+  /* Keep Products/People reachable on phones — hiding them left Partner login
+     as the only nav affordance. The portal login and the nav CTA yield
+     instead; the end-of-article CTA carries the buyer path down here. */
+  .product-navlinks .product-cta,
+  .product-login { display: none; }
 }
 
 .product-wordmark {
@@ -224,11 +238,15 @@
   color: rgb(var(--sasi-1-rgb, 38 35 18) / 0.75);
 }
 
-/* Related / cross-links */
+/* Related / cross-links. The row gap is sized to the links' invisible hit
+   areas, not their text: each link overhangs 0.75rem above and below (the
+   44px expansion up top), so wrapped rows need a 1.5rem gap for adjacent
+   overhangs to meet without crossing — any less and a tap aimed at one row
+   lands on the other. */
 .product-related {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
+  gap: 1.5rem;
   margin-top: 4rem;
   padding-top: 2rem;
   border-top: 1px solid rgb(var(--sasi-1-rgb, 38 35 18) / 0.1);
@@ -244,6 +262,53 @@
 
 .product-related-link:hover {
   text-decoration: underline;
+}
+
+/* End-of-article CTA row (see ProductPage.jsx) — on phones it's the only
+   /#contact path, since the nav pill hides under the 560px query above. */
+.product-contact {
+  margin-top: 3.5rem;
+}
+
+/* Press feedback lands on pointer-down, not on release: the card settles a
+   hair (its 0.2s hover transition drops to 80ms so the press reads as
+   instant), the text links dim, the pill compresses. */
+.product-card:active {
+  transform: scale(0.985);
+  transition-duration: 80ms;
+}
+
+.product-navlink:active,
+.product-login:active,
+.product-related-link:active {
+  opacity: 0.6;
+}
+
+.product-cta:active {
+  transform: scale(0.97);
+}
+
+/* Keyboard focus in the page's own accent — matches the rest of the site's
+   branded rings instead of the UA default. */
+.product-navlink:focus-visible,
+.product-login:focus-visible,
+.product-related-link:focus-visible,
+.product-cta:focus-visible,
+.product-card:focus-visible {
+  outline: 2px solid var(--accent, #592202);
+  outline-offset: 2px;
+}
+
+/* All motion gated by prefers-reduced-motion (DESIGN.md): the hover lift goes,
+   the border/shadow hover cue stays. */
+@media (prefers-reduced-motion: reduce) {
+  .product-card {
+    transition: none;
+  }
+
+  .product-card:hover {
+    transform: none;
+  }
 }
 
 .product-page--empty {

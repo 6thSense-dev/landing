@@ -50,18 +50,26 @@ export default function ParticleImage({
   trackScrollRef.current = !zoomOnFocus;
   const cbRef = useRef({ onHover, onSelect, onLayout });
   cbRef.current = { onHover, onSelect, onLayout };
+  // Lets effects outside the main one restart the (parkable) animation loop.
+  const wakeRef = useRef(null);
 
   // Focus is owned by the parent; mirror it into a ref the animation loop reads
   // so changing it never tears down the (expensive) particle build.
   useEffect(() => {
     focusRef.current = focus == null ? -1 : focus;
+    // A focus change is one of the things that can put a parked (static) frame
+    // back in motion — crossfade, camera — so it has to wake the loop.
+    wakeRef.current?.();
   }, [focus]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: true });
-    const reduce = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // Live, not a mount-time snapshot: flipping the OS motion setting mid-visit
+    // changes the eases below and decides whether the loop is allowed to park.
+    const rmq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    let reduce = !!rmq?.matches;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const NP = bands.length - 1;   // people count
     const BOARD = NP;              // board component id
@@ -283,7 +291,7 @@ export default function ParticleImage({
     };
 
     const tick = () => {
-      raf = requestAnimationFrame(tick);
+      raf = 0;
       t += 0.016;
       focused = focusRef.current;
       const { ox, oy, dw, dh } = layout;
@@ -313,6 +321,18 @@ export default function ParticleImage({
       cam.s += (camT.s - cam.s) * cEase;
       cam.x += (camT.x - cam.x) * cEase;
       cam.y += (camT.y - cam.y) * cEase;
+
+      // Whether anything can still move. Under full motion the idle drift keeps
+      // this false and the loop runs forever, as intended. Under reduced motion
+      // the drift is zeroed, so once the camera / crossfade / per-particle eases
+      // converge the frame is genuinely static — and re-scheduling would repaint
+      // ~36k identical dots at full frame rate, pure battery burn for exactly
+      // the users who asked for less motion. The particle loop below can veto.
+      let still =
+        Math.abs(rTarget - revealA) < 0.001 &&
+        Math.abs(camT.s - cam.s) < 0.001 &&
+        Math.abs(camT.x - cam.x) < 0.1 &&
+        Math.abs(camT.y - cam.y) < 0.1;
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
@@ -366,6 +386,7 @@ export default function ParticleImage({
         px[i] += (tx - px[i]) * ease;
         py[i] += (ty - py[i]) * ease;
         ca[i] += (tA - ca[i]) * 0.12;
+        if (still && (Math.abs(tx - px[i]) > 0.05 || Math.abs(ty - py[i]) > 0.05 || Math.abs(tA - ca[i]) > 0.002)) still = false;
         if (ca[i] < 0.02) continue;
         ctx.globalAlpha = ca[i];
         ctx.fillStyle = col[i];
@@ -395,35 +416,75 @@ export default function ParticleImage({
         ctx.fillRect(0, H - fadeH, W, fadeH);
         ctx.globalCompositeOperation = "source-over";
       }
+
+      if (!still) raf = requestAnimationFrame(tick);
     };
 
-    img.onload = () => { build(); cancelAnimationFrame(raf); tick(); };
+    // Restarts a parked loop. Anything that can change the next frame — focus,
+    // resize, the motion setting flipping — must call this; it is a no-op while
+    // the loop is already scheduled or the image has not decoded yet.
+    const wake = () => {
+      if (!raf && img.complete && img.naturalWidth) raf = requestAnimationFrame(tick);
+    };
+    wakeRef.current = wake;
+
+    img.onload = () => { build(); cancelAnimationFrame(raf); raf = 0; tick(); };
     img.src = src;
 
+    // Tap/click on a person selects them; on empty space or the board it clears.
+    // This is the primary mechanism on touch, and a way to pin on a mouse — but
+    // it must NOT commit on pointerdown: `touch-action: manipulation` (below)
+    // deliberately lets the page pan from a touch that starts on the canvas, and
+    // committing on the down event meant every such scroll pinned or cleared a
+    // person and then fought the finger with a programmatic smooth-scroll. So
+    // selection commits on pointerUP, only if the pointer stayed within TAP_SLOP
+    // for the whole press — the classic tap hysteresis. A pan the browser claims
+    // ends the stream with pointercancel, which drops the press outright. Hover
+    // stays 1:1 on pointermove, so mouse feedback is unchanged.
+    const TAP_SLOP = 10; // px of travel before a press stops being a tap
+    let press = null;    // { id, x, y, moved } while a pointer is down on us
     // Mouse/pen: hover previews a person. Touch never reports hover.
     const onMove = (e) => {
+      if (
+        press && e.pointerId === press.id &&
+        Math.hypot(e.clientX - press.x, e.clientY - press.y) > TAP_SLOP
+      ) {
+        press.moved = true;
+      }
       if (e.pointerType === "touch") return;
       const i = hitTest(e.clientX, e.clientY);
       canvas.style.cursor = i != null ? "pointer" : "default";
       cbRef.current.onHover?.(i);
     };
     const onLeave = (e) => {
+      press = null;
       if (e.pointerType === "touch") return;
       cbRef.current.onHover?.(null);
     };
-    // Tap/click on a person selects them; on empty space or the board it clears.
-    // This is the primary mechanism on touch, and a way to pin on a mouse.
     const onDown = (e) => {
-      cbRef.current.onSelect?.(hitTest(e.clientX, e.clientY));
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
     };
+    const onUp = (e) => {
+      if (!press || e.pointerId !== press.id) return;
+      const tapped =
+        !press.moved &&
+        Math.hypot(e.clientX - press.x, e.clientY - press.y) <= TAP_SLOP;
+      press = null;
+      if (tapped) cbRef.current.onSelect?.(hitTest(e.clientX, e.clientY));
+    };
+    const onCancel = () => { press = null; };
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onCancel);
+    const onReduceChange = (e) => { reduce = e.matches; wake(); };
+    rmq?.addEventListener("change", onReduceChange);
 
     let rt = 0;
     const onResize = () => {
       clearTimeout(rt);
-      rt = setTimeout(() => { if (img.complete && img.naturalWidth) build(); }, 160);
+      rt = setTimeout(() => { if (img.complete && img.naturalWidth) { build(); wake(); } }, 160);
     };
     window.addEventListener("resize", onResize);
     // Anchors are only consumed by the desktop layout, which does not scroll. The
@@ -441,11 +502,15 @@ export default function ParticleImage({
     if (trackScrollRef.current) window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
+      wakeRef.current = null;
       cancelAnimationFrame(raf);
       clearTimeout(rt);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
+      rmq?.removeEventListener("change", onReduceChange);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(scrollRaf);

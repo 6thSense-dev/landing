@@ -42,13 +42,61 @@ export function HeroStageTwo() {
   const progressRef = useScrollProgress(ref);
   const reducedRef = usePrefersReducedMotion();
 
+  // /#contact — the site's single intake, targeted by every product CTA —
+  // anchors on the finale formwrap, whose static position is the TOP of this
+  // 340vh stage (progress ≈ 0, where --form-p is 0 and the form is still
+  // visibility:hidden). Land hash arrivals at the END of the stage's travel
+  // instead: that is where --form-p reaches 1 and the form is actually
+  // visible. Covers full-page arrivals (mount) and in-page hash changes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const scrollToForm = () => {
+      const el = ref.current;
+      if (!el) return;
+      // Document-space stage top: offsetTop would be relative to the
+      // positioned .scroll-hero ancestor, not the page.
+      const stageTop = window.scrollY + el.getBoundingClientRect().top;
+      // "instant" overrides the global scroll-behavior:smooth — a deep link
+      // should land, not animate through nine viewports of hero.
+      window.scrollTo({
+        top: stageTop + el.offsetHeight - window.innerHeight,
+        behavior: "instant"
+      });
+    };
+    const onHashContact = () => {
+      if (window.location.hash === "#contact") scrollToForm();
+    };
+    // Correct once after mount and once more at load: the browser retries its
+    // own fragment scroll (to the broken static anchor position) while the
+    // document is still loading.
+    const raf = requestAnimationFrame(onHashContact);
+    window.addEventListener("load", onHashContact);
+    window.addEventListener("hashchange", onHashContact);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("load", onHashContact);
+      window.removeEventListener("hashchange", onHashContact);
+    };
+  }, []);
+
   useEffect(() => {
     let raf = 0;
+    // Everything written below derives from (p, reduce) — an unchanged pair
+    // means identical output, so skip the style writes and keep the loop
+    // cheap while the page idles between scrolls.
+    let lastP = -1;
+    let lastReduce = null;
     const tick = () => {
       const el = ref.current;
       if (el) {
         const p = clamp01(progressRef.current);
         const reduce = reducedRef.current;
+        if (p === lastP && reduce === lastReduce) {
+          raf = requestAnimationFrame(tick);
+          return;
+        }
+        lastP = p;
+        lastReduce = reduce;
         const windowP = (start, end) => (p >= start && p < end ? 1 : 0);
         const pipelineP = windowP(PIPELINE_START, PIPELINE_END);
         const videoP = windowP(VIDEO_START, VIDEO_END);

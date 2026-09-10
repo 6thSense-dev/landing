@@ -72,6 +72,10 @@ export default function Hand3D({ onReady, holo = false, hue = "white", intensity
       if (onReady) onReady();
     };
 
+    // Reduced-motion gate, read live each tick (same gate as the aurora) so an
+    // OS-level toggle settles or resumes the choreography without a remount.
+    const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+
     const scene = new THREE.Scene();
     // Telephoto (narrow FOV): flattens perspective so the fist's fingers folding
     // toward the camera don't balloon. frameCamera() auto-scales distance with FOV,
@@ -334,10 +338,11 @@ export default function Hand3D({ onReady, holo = false, hue = "white", intensity
       // (measured 121px of slack on one side and 1px on the other). Containment
       // alone therefore is not enough. This is the headroom for that drift.
       //
-      // 0.94 leaves the hand the same apparent size as the glove and the Eye2
-      // while keeping clearance through the whole gesture, checked by eye at
-      // several phases. (Automated edge detection was useless here: the aurora
-      // has bright near-white patches at the cell edge that read as model.)
+      // 0.86 keeps clearance through the whole gesture — the hand reads a bit
+      // smaller than the glove and the Eye2, which is the price of the sweep
+      // headroom — checked by eye at several phases. (Automated edge detection
+      // was useless here: the aurora has bright near-white patches at the cell
+      // edge that read as model.)
       const GESTURE_HEADROOM = 0.86;
       const dist = holoMat
         ? holoFitDistance(swept.spinWidth, swept.height, camera,
@@ -407,7 +412,11 @@ export default function Hand3D({ onReady, holo = false, hue = "white", intensity
       if (disposed) return;
       rafId = requestAnimationFrame(animate);
       if (!started) return;
-      const tg = (nowMs - startMs) / 1000;
+      // Reduced motion pins the clock at 0: open rest pose, no yaw/sway, the
+      // hologram scanlines still, and the skin dissolve held fully ON (t=0
+      // falls inside SKIN_OFFSET's hold, so reveal computes to 1) — the hand
+      // keeps reading as our molded skin, it just stops performing.
+      const tg = reduceMq.matches ? 0 : (nowMs - startMs) / 1000;
       const t = tg % CYCLE;
       // pulse(a,b,c,d): ease 0->1 over [a,b], hold, ease 1->0 over [c,d].
       const pulse = (a, b, c, d) => smoother(a, b, t) * (1 - smoother(c, d, t));

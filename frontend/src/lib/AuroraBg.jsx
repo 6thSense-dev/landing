@@ -61,7 +61,15 @@ export default function AuroraBg({ lightRef = null, className = "" }) {
       });
     }
 
-    let scrollY = window.scrollY, mx = -9999, my = -9999, t = 0, raf = 0;
+    let scrollY = window.scrollY, mx = -9999, my = -9999, t = 0, fc = 0, raf = 0;
+    // Reduced motion, same gate as the GL twin (AuroraGL.jsx): freeze the
+    // drift/hue clock and drop the mouse-push, but keep painting — the blobs
+    // are laid out along the document and ride with scroll (a position scrub,
+    // not eased motion), and the Eye2 tone lift still tracks via lightRef.
+    // .matches is read live each frame so an OS-level toggle takes effect
+    // without a remount. fc is the paint throttle's own counter: it can't
+    // share t, or freezing t on an odd tick would stop repaints entirely.
+    const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const onScroll = () => { scrollY = window.scrollY; };
     const onMove = (e) => { mx = e.clientX; my = e.clientY; };
     const onLeave = () => { mx = -9999; my = -9999; };
@@ -74,10 +82,12 @@ export default function AuroraBg({ lightRef = null, className = "" }) {
     const worldH = () => document.documentElement.scrollHeight;
 
     const frame = () => {
-      t += 1;
+      const reduce = reduceMq.matches;
+      fc += 1;
+      if (!reduce) t += 1;
       const light = lightRef && typeof lightRef.current === "number" ? lightRef.current : 0;
 
-      if (t % 2 === 0) {
+      if (fc % 2 === 0) {
         ctx.setTransform(RS, 0, 0, RS, 0, 0);
         ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = `rgb(${(7 + 15 * light) | 0},${(7 + 11 * light) | 0},${(10 + 27 * light) | 0})`;
@@ -89,7 +99,7 @@ export default function AuroraBg({ lightRef = null, className = "" }) {
           let x = (b.fx + drift) * W;
           let y = b.fy * wh - scrollY + Math.cos(t * .005 * b.fr + b.ph) * b.ay;
           const dx = x - mx, dy = y - my, d = Math.hypot(dx, dy), R = 460;
-          if (d < R && d > 0) { const k = 1 - d / R, f = k * k * 130; b.px += (dx / d * f - b.px) * .035; b.py += (dy / d * f - b.py) * .035; }
+          if (!reduce && d < R && d > 0) { const k = 1 - d / R, f = k * k * 130; b.px += (dx / d * f - b.px) * .035; b.py += (dy / d * f - b.py) * .035; }
           else { b.px += (0 - b.px) * .035; b.py += (0 - b.py) * .035; }
           x += b.px; y += b.py;
           if (y < -H * 1.1 || y > H * 2.1) continue;

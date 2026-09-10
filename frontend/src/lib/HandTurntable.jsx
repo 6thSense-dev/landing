@@ -93,7 +93,9 @@ export default function HandTurntable({
 
     // Pointer drag to rotate (with inertia); auto-spin resumes when idle.
     // In `still` mode the hand is frozen — no auto-spin, no drag.
-    let velocity = reduce || still ? 0 : 0.004;
+    const IDLE_SPIN = 0.004;
+    const spinOn = !reduce && !still;
+    let velocity = spinOn ? IDLE_SPIN : 0;
     let dragging = false;
     let lastX = 0;
     const onDown = (e) => {
@@ -108,9 +110,11 @@ export default function HandTurntable({
       pivot.rotation.y += dx * 0.01;
       velocity = dx * 0.001;
     };
+    // Release just ends the drag; the tick below eases the flick velocity back
+    // toward the idle rate (or to rest), so momentum bleeds off naturally
+    // instead of a flick coasting at constant speed forever.
     const onUp = () => {
       dragging = false;
-      if (!reduce && !still && Math.abs(velocity) < 0.001) velocity = 0.004;
     };
     // Drag to rotate is always available (still mode just doesn't auto-spin) —
     // lets the /robo-shot capture page be posed by hand before screenshotting.
@@ -118,6 +122,10 @@ export default function HandTurntable({
     renderer.domElement.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    // A browser-cancelled touch drag (scroll takeover, system dialog, tab
+    // switch) must release the drag exactly like a pointerup, or `dragging`
+    // sticks until the next unrelated pointerup.
+    window.addEventListener("pointercancel", onUp);
 
     let raf = 0;
     let skinPlane = null;
@@ -229,7 +237,15 @@ export default function HandTurntable({
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      if (!dragging) pivot.rotation.y += velocity;
+      if (!dragging) {
+        // Spin on: ease back to the idle turntable rate after a flick.
+        // Spin off (still / reduced motion): let any residual flick coast to
+        // a stop, then hold. Same decay idiom as HoloGlove.jsx.
+        velocity = spinOn
+          ? velocity + (IDLE_SPIN - velocity) * 0.02
+          : velocity * 0.94;
+        pivot.rotation.y += velocity;
+      }
       // Co-rotate the vertical split with the hand so the same fingers stay
       // skinned. Hand on one side, skin on the other.
       if (skinPlane) {
@@ -256,6 +272,7 @@ export default function HandTurntable({
       renderer.domElement.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) {
         mount.removeChild(renderer.domElement);

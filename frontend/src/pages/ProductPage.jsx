@@ -44,11 +44,15 @@ export default function ProductPage({ slug }) {
             alt="" aria-hidden="true" />
           <span>6THSENSE</span>
         </Link>
-        {/* Shared site nav (matches SiteNav): Products / People / Partner login.
+        {/* Shared site nav (matches SiteNav): Products / People / Partner login,
+            plus the buyer CTA this nav was built to carry — the site's single
+            intake is the Contact Us form on the home page (DESIGN.md), so it
+            links to /#contact like every other product CTA.
             No "Reserve Nerve" — the Nerve pre-order flow is retired (DESIGN.md). */}
         <nav className="product-navlinks" aria-label="Primary">
           <Link className="product-navlink" to="/products">Products</Link>
           <Link className="product-navlink" to="/people">People</Link>
+          <a className="product-cta" href="/#contact">Talk to us</a>
           <Link className="product-login" to="/login">Partner login</Link>
         </nav>
       </header>
@@ -83,6 +87,14 @@ export default function ProductPage({ slug }) {
               ))}
             </div>
           )}
+
+          {/* These pages land high-intent search traffic — give the reader who
+              made it to the end the same path to the single site intake as
+              every other product surface (and the only one on phones, where
+              the nav pill is hidden — see product.css). */}
+          <div className="product-contact">
+            <a className="product-cta" href="/#contact">Talk to us</a>
+          </div>
         </article>
 
         {page.related && page.related.length > 0 && (

@@ -67,3 +67,7 @@ scripts/catalog/.dev/
 
 # Catalog: local S3 credentials for `dev_local.sh --s3` (never committed)
 scripts/catalog/.env.local
+
+# Playwright failure artifacts — regenerated on every run
+frontend/test-results/
+frontend/playwright-report/

@@ -42,7 +42,7 @@
 
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlignLeft,
   ArrowUpRight,
@@ -269,18 +269,28 @@ export default function ClipDetail({ clipId, onClose, onNavigate }) {
     setAttempt((a) => a + 1);
   }, []);
 
-  if (!open) return null;
+  /* AnimatePresence rather than a bare early return: the panel animates IN,
+     and an unmount that hard-cuts the same panel out breaks the mirror the
+     enter promised. The route-level AnimatePresence in main.jsx cannot defer
+     this unmount — the modal is portalled outside its tree. */
   return (
-    <ClipDetailInner
-      /* Keyed on the retry counter only: remount to re-run the fetch, but do
-         NOT remount when clipId changes, so arrowing between clips keeps the
-         selected tab. */
-      key={attempt}
-      clipId={clipId}
-      onClose={onClose}
-      onNavigate={onNavigate}
-      onRetry={retry}
-    />
+    /* mode="wait": Retry changes the key below, and without it the outgoing
+       and incoming panels coexist for the exit — two stacked aria-modal
+       dialogs under a doubled scrim. */
+    <AnimatePresence mode="wait">
+      {open ? (
+        <ClipDetailInner
+          /* Keyed on the retry counter only: remount to re-run the fetch, but do
+             NOT remount when clipId changes, so arrowing between clips keeps the
+             selected tab. */
+          key={attempt}
+          clipId={clipId}
+          onClose={onClose}
+          onNavigate={onNavigate}
+          onRetry={retry}
+        />
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -445,13 +455,18 @@ function ClipDetailInner({ clipId, onClose, onNavigate, onRetry }) {
     : null;
 
   const overlay = (
-    <div
+    /* The scrim carries only an EXIT fade: on open it appears at once (the
+       panel is what arrives), but on close a 66% dark sheet vanishing in one
+       frame after the panel has faded reads as the hard cut all over again. */
+    <motion.div
       className="cat-root cat-d-overlay"
       ref={overlayRef}
       onKeyDown={onKeyDown}
       onMouseDown={(e) => {
         if (e.target === overlayRef.current) close();
       }}
+      exit={reduced ? undefined : { opacity: 0 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
     >
       <motion.div
         className="cat-d-panel"
@@ -462,6 +477,18 @@ function ClipDetailInner({ clipId, onClose, onNavigate, onRetry }) {
         tabIndex={-1}
         initial={reduced ? false : { opacity: 0, scale: 0.975, y: 8 }}
         animate={reduced ? {} : { opacity: 1, scale: 1, y: 0 }}
+        /* The mirror of the enter, shorter — leaving should feel lighter than
+           arriving. Gated on the same reduced flag as the enter. */
+        exit={
+          reduced
+            ? undefined
+            : {
+                opacity: 0,
+                scale: 0.985,
+                y: 4,
+                transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+              }
+        }
         transition={reduced ? { duration: 0 } : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       >
         <button
@@ -496,13 +523,21 @@ function ClipDetailInner({ clipId, onClose, onNavigate, onRetry }) {
         ) : null}
 
         {/* ---------------- dark media region ---------------- */}
-        <div className={`cat-d-media${isVideoTab ? "" : " cat-d-media--compact"}`}>
-          {showCamLabels ? (
+        {/* The failed fetch collapses the region like a non-video tab does:
+            the full-height slab exists to hold space for media, and no media
+            is coming. The camera labels are gated on the record itself — a
+            "CAMERA" caption over a panel with no camera in it labels nothing. */}
+        <div
+          className={`cat-d-media${
+            isVideoTab && !(error && !clip) ? "" : " cat-d-media--compact"
+          }`}
+        >
+          {showCamLabels && clip ? (
             <span className="cat-d-camlabel cat-d-camlabel--l" aria-hidden="true">
               {labelA}
             </span>
           ) : null}
-          {showCamLabels && labelB ? (
+          {showCamLabels && clip && labelB ? (
             <span className="cat-d-camlabel cat-d-camlabel--r" aria-hidden="true">
               {labelB}
             </span>
@@ -562,7 +597,10 @@ function ClipDetailInner({ clipId, onClose, onNavigate, onRetry }) {
                 : "—"}
             </p>
             <h2 className="cat-d-title" id={titleId}>
-              <span>{clip ? clip.title : "Loading clip"}</span>
+              {/* The dialog's accessible name (aria-labelledby). It must not go
+                  on saying "Loading clip" over an error body that says the
+                  opposite. */}
+              <span>{clip ? clip.title : error ? "Clip unavailable" : "Loading clip"}</span>
               {assetHref ? (
                 <a
                   className="cat-d-titlelink"
@@ -620,7 +658,7 @@ function ClipDetailInner({ clipId, onClose, onNavigate, onRetry }) {
           </div>
         ) : null}
       </motion.div>
-    </div>
+    </motion.div>
   );
 
   if (typeof document === "undefined") return null;
@@ -760,10 +798,22 @@ function TabList({ tab, setTab, enabled, panelId, disabled }) {
 /* States                                                               */
 /* =================================================================== */
 function MediaPlaceholder({ loading, error }) {
+  /* The error line is VISIBLE, not sr-only: the loading slab holds media-sized
+     space and says nothing because the media is about to say it; the failed
+     slab collapses (see .cat-d-mediaskel--failed) and the one line it keeps is
+     the only thing explaining the dark band above the Retry/Close row. */
   return (
-    <div className="cat-d-mediaskel" role="status" aria-live="polite">
-      <span className="cat-sr">{error ? "Clip failed to load" : "Loading clip"}</span>
-      {loading ? <span className="cat-d-shimmer" aria-hidden="true" /> : null}
+    <div
+      className={`cat-d-mediaskel${error ? " cat-d-mediaskel--failed" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
+      {error ? (
+        <span className="cat-d-mediaskel__note">Clip failed to load</span>
+      ) : (
+        <span className="cat-sr">Loading clip</span>
+      )}
+      {loading && !error ? <span className="cat-d-shimmer" aria-hidden="true" /> : null}
     </div>
   );
 }

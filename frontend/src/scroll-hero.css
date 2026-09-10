@@ -39,17 +39,15 @@
   overflow-x: clip;
 }
 
-/* Suppress accidental text selection across the hero (still feels like a
-   canvas while scrolling); form controls opt back in. */
-.scroll-hero,
-.scroll-hero * {
+/* Suppress accidental text selection on the animated scrub surfaces only —
+   the glove canvas and the particle field, which should feel like a canvas
+   while scrolling. Copy stays selectable: the headlines, the research
+   citations, and the form are exactly what a technical reader wants to
+   copy out. */
+.scroll-stage-canvas,
+.tactile-field {
   user-select: none;
   -webkit-user-select: none;
-}
-.scroll-hero input,
-.scroll-hero textarea {
-  user-select: text;
-  -webkit-user-select: text;
 }
 
 /* Each sticky stage owns its own scroll budget and sticky window. The
@@ -140,7 +138,11 @@
   text-wrap: balance;
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.4s ease, transform 0.5s cubic-bezier(.22,1,.36,1);
+  /* All five blurbs are stacked at the same coordinates, so the outgoing
+     fade must be fast and immediate — the incoming blurb's transition
+     (below) is delayed past it so two headlines never superimpose into a
+     double exposure mid-swap. */
+  transition: opacity 0.18s ease, transform 0.5s cubic-bezier(.22,1,.36,1);
 }
 
 /* Only the blurb whose data-index matches --active-blurb is visible. We match
@@ -154,6 +156,8 @@
 .hero-stage-one[style*="--active-blurb: 4"] .hero-blurb[data-index="4"] {
   opacity: 1;
   transform: translateY(0);
+  /* Fade-in waits out the 0.18s outgoing fade (see .hero-blurb above). */
+  transition: opacity 0.4s ease 0.18s, transform 0.5s cubic-bezier(.22,1,.36,1) 0.18s;
 }
 
 /* ---- New scrubbed beats (stat / pipeline / video) ---- */
@@ -338,6 +342,16 @@
   transition: opacity 450ms ease;
 }
 
+/* Both sticky-stage ancestors are pointer-events: none; opt the players back
+   in — on metered media the native controls are the ONLY way to start
+   playback, so a tap has to be able to reach them. Gated on the video beat
+   being the visible one (same pattern as .hero-form-active below): the beats
+   are stacked opacity-driven layers, and an ungated opt-in would leave the
+   invisible players intercepting taps during the pipeline and form beats. */
+body.hero-video-active .hero-video-media {
+  pointer-events: auto;
+}
+
 
 /* ---- Finale: dots (left) + form (right) ---- */
 
@@ -357,16 +371,31 @@
 
 /* Dots fade IN first (at fingertip positions), then MOVE to logo stair.
    The position interpolation is driven by --assemble-move-p so they only
-   start drifting after fade-in is complete. */
+   start drifting after fade-in is complete.
+
+   The movement is a transform, not top/left, so the per-scroll-frame
+   interpolation runs on the compositor instead of forcing layout each
+   frame. translate() percentages resolve against the element's OWN box, so
+   each dot is a container-sized layer (inset: 0) — that makes the
+   container-relative start/end percentages map 1:1 — and the visible
+   circle is its ::before, centered on the layer's translated origin. */
 .finale-dot {
+  position: absolute;
+  inset: 0;
+  transform: translate(
+    calc(var(--start-left) + (var(--end-left) - var(--start-left)) * var(--assemble-move-p, 0)),
+    calc(var(--start-top) + (var(--end-top) - var(--start-top)) * var(--assemble-move-p, 0))
+  );
+  will-change: transform, opacity;
+}
+
+.finale-dot::before {
+  content: "";
   position: absolute;
   width: clamp(28px, 3.2vmin, 44px);
   aspect-ratio: 1;
   border-radius: 50%;
-  top: calc(var(--start-top) + (var(--end-top) - var(--start-top)) * var(--assemble-move-p, 0));
-  left: calc(var(--start-left) + (var(--end-left) - var(--start-left)) * var(--assemble-move-p, 0));
   transform: translate(-50%, -50%);
-  will-change: top, left, opacity;
 }
 
 .finale-dot--brown {
@@ -374,17 +403,23 @@
      --glove-x/y/w/h are published by ScrollStage per resize. */
   --start-left: calc(var(--glove-x, 0%) + var(--tip-u) * var(--glove-w, 0%));
   --start-top: calc(var(--glove-y, 0%) + var(--tip-v) * var(--glove-h, 0%));
-  background: #4a2418;
   opacity: var(--assemble-fade-p, 0);
 }
 
+.finale-dot--brown::before {
+  background: #4a2418;
+}
+
 .finale-dot--olive {
+  /* Olive waits until browns are moved into place, then fades in. */
+  opacity: clamp(0, calc((var(--assemble-p, 0) - 0.7) / 0.3), 1);
+}
+
+.finale-dot--olive::before {
   background: #7a8f3a;
   box-shadow:
     0 0 calc(28px * var(--form-p, 0))
     rgba(197, 224, 99, calc(0.6 * var(--form-p, 0)));
-  /* Olive waits until browns are moved into place, then fades in. */
-  opacity: clamp(0, calc((var(--assemble-p, 0) - 0.7) / 0.3), 1);
 }
 
 /* Finale form: centered column, settles up into place as it fades in. */
@@ -556,12 +591,17 @@
   border: none;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease-out;
 }
 
 .hero-finale-submit:hover,
 .hero-finale-submit:focus-visible {
   background: #c5e063;
+}
+
+/* Press feedback lands on pointer-down, not on release. */
+.hero-finale-submit:active {
+  transform: scale(0.97);
 }
 
 .hero-finale-submit:focus-visible {
@@ -609,12 +649,27 @@
   }
 }
 
-/* Reduced motion — simplify the blurbs and finale to static states. */
+/* Reduced motion — simplify the blurbs, beats and finale to static states.
+   The second blurb selector matches the specificity of the active-blurb
+   rules above, so their delayed fade-in transition can't win here. */
 @media (prefers-reduced-motion: reduce) {
   .hero-blurb,
+  .hero-stage-one[style] .hero-blurb[data-index],
   .finale-dot,
   .hero-finale-form {
     transition: none;
+  }
+  /* The pipeline/video beats swap by cross-fade only — HeroStageTwo already
+     snaps their progress vars 0↔1 under reduce, so without this the 12px
+     slide would still tween over 0.5s. */
+  .hero-pipeline,
+  .hero-video {
+    transform: none;
+    transition: opacity 0.2s ease;
+  }
+  /* Press feedback stays (background/color), just without the scale. */
+  .hero-finale-submit:active {
+    transform: none;
   }
 }
 
@@ -987,8 +1042,13 @@
   line-height: 1.5;
 }
 .hero-finale-textarea:focus-visible {
-  outline: none;
-  border-color: var(--accent, #f0612a);
+  /* Same visible focus treatment as the text inputs above. Not var(--accent):
+     that resolves to the legacy SASI brown site-wide, which is near-invisible
+     against the black hero — the lime is the accent this form actually uses. */
+  border-color: #c5e063;
+  background: rgba(255, 255, 255, 0.08);
+  outline: 2px solid #c5e063;
+  outline-offset: 2px;
 }
 .hero-finale-row {
   display: flex;
@@ -1009,7 +1069,10 @@
   width: 20px;
   height: 20px;
   flex: none;
-  accent-color: var(--accent, #f0612a);
+  /* Not var(--accent): that resolves to the legacy SASI brown, which
+     disappears on the black hero. The form's own lime keeps the checked
+     state (and the focus ring browsers derive from it) visible. */
+  accent-color: #c5e063;
   cursor: pointer;
 }
 .hero-finale-consent {

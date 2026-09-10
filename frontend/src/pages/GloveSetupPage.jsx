@@ -29,7 +29,7 @@ const steps = [
   {
     h2: "3. Install the SDK",
     body: [
-      "The glove streams through the 6thSense Nerve SDK, a typed Python library with honest device/host timestamps on every frame.",
+      "The glove streams through the 6thSense SDK, a typed Python library with honest device/host timestamps on every frame.",
       "Install it in your environment, then confirm the glove is visible:",
     ],
     code: 'pip install "sixthsense[glove]"\n\npython -c "import sixthsense as ss; print(ss.devices())"',

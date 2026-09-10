@@ -61,7 +61,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import { Play, ImageOff, AlertTriangle } from "lucide-react";
-import { dash, formatDuration, formatPercent, labelize } from "./format.js";
+import { countryDisplayName, dash, formatDuration, formatPercent, labelize } from "./format.js";
 import { assetUrl, clipAssetPath, notifyAssetExpired } from "./useCatalog.js";
 
 /* ---------------------------------------------------------------- reduced motion
@@ -134,9 +134,10 @@ function dropPreview(release) {
  * CatalogGrid's `countryLabels` prop and this map is never consulted.
  *
  * It exists as a floor, not as a policy: the card must never fall back to printing a bare
- * "CN" at a buyer. It is deliberately NOT a full ISO table and deliberately NOT a
- * locale-guessing library — an unmapped code renders as itself, which makes a corpus that
- * has drifted outside China / Hong Kong visible instead of quietly plausible.
+ * "CN" at a buyer. Behind it sits format.js's countryDisplayName(), the platform's own
+ * region table — a manifest that ships no facets at all still gets "South Korea" rather
+ * than "KR". A code even that cannot name renders as itself, which keeps a corpus that has
+ * drifted outside anything nameable visible instead of quietly plausible.
  */
 export const COUNTRY_NAMES = Object.freeze({
   CN: "China",
@@ -150,7 +151,7 @@ export const COUNTRY_NAMES = Object.freeze({
 export function countryLabel(code, labels) {
   if (code == null || code === "") return dash(null);
   if (labels && typeof labels[code] === "string" && labels[code]) return labels[code];
-  return COUNTRY_NAMES[code] || code;
+  return COUNTRY_NAMES[code] || countryDisplayName(code);
 }
 
 /* ------------------------------------------------------------------------ constants */
@@ -447,9 +448,15 @@ function ClipCard({ clip, onOpen, collection, countryLabels = EMPTY_LABELS }) {
           <span className="cat-card__mark-t">{mark.text}</span>
         </span>
 
-        <span className="cat-card__play" aria-hidden="true">
-          <Play size={15} strokeWidth={2} fill="currentColor" />
-        </span>
+        {/* Only over media. On touch devices the affordance is always on, and a
+            play button centred over the no-poster tile prints itself through
+            the middle of the placeholder's own label — advertising a preview
+            the card cannot play. */}
+        {posterSrc || previewSrc ? (
+          <span className="cat-card__play" aria-hidden="true">
+            <Play size={15} strokeWidth={2} fill="currentColor" />
+          </span>
+        ) : null}
       </span>
 
       <span className="cat-card__body">

@@ -285,10 +285,9 @@
   --cat-series-4: #a69a60;
   --cat-series-5: #592202;
 
-  /* IMU trace legend: X dark, Y teal, Z gold. */
-  --cat-imu-x: #14120c;
-  --cat-imu-y: #1f6b63;
-  --cat-imu-z: #a69a60;
+  /* (No IMU trio here. The axis palette the traces actually render with is
+     ImuTab's AXIS_COLORS, echoed by --cat-d-axis-* in parts.detail.css; a
+     third copy declared here drifted from both and was read by nothing.) */
 
   /* ---- base ---- */
   min-height: 100%;

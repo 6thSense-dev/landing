@@ -65,7 +65,7 @@
   gap: 0.75rem;
   position: relative;
   z-index: 1;
-  animation: portal-card-fade-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: portal-card-fade-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -91,6 +91,13 @@
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   font: inherit;
+  min-height: 44px;
+}
+/* A failed login flags both fields together, never one — the server's
+   constant-time decoy verify keeps the response from leaking which half
+   was wrong, and per-field styling here would undo that on the client. */
+.portal-login-card input[aria-invalid="true"] {
+  border-color: var(--portal-danger);
 }
 .portal-login-card button {
   margin-top: 0.75rem;
@@ -99,8 +106,30 @@
   border: none;
   border-radius: 6px;
   padding: 0.7rem 1rem;
+  /* font: inherit, because buttons don't inherit font by default — without
+     it this renders in the UA default face, not the portal's. */
+  font: inherit;
   font-weight: 600;
+  min-height: 44px;
   cursor: pointer;
+  transition: background 180ms ease-out, transform 180ms ease-out;
+}
+.portal-login-card button:not([disabled]):hover {
+  background: color-mix(in srgb, var(--portal-accent) 88%, var(--portal-text));
+}
+/* Feedback lands on pointer-down, not on release: the press is near-instant,
+   the release rides the slower base transition so the button springs back. */
+.portal-login-card button:not([disabled]):active {
+  background: color-mix(in srgb, var(--portal-accent) 85%, var(--portal-bg));
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion means no travel, not no feedback — the press still
+     answers with the background shift declared on :active. */
+  .portal-login-card button:not([disabled]):active {
+    transform: none;
+  }
 }
 .portal-login-card button[disabled] { opacity: 0.6; cursor: progress; }
 .portal-login-status {
@@ -158,9 +187,50 @@
   border: 1px solid var(--portal-border);
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
+  /* Buttons don't inherit font by default; without this the chip renders
+     in the UA default face, not the portal's. */
+  font: inherit;
   cursor: pointer;
+  position: relative;
+  transition: color 180ms ease-out, background 180ms ease-out,
+    border-color 180ms ease-out, transform 180ms ease-out;
 }
-.portal-logout-btn:hover { color: var(--portal-text); }
+/* The visual chip stays compact; the 44px touch target comes from a
+   centered invisible overlay rather than inflating the button itself. */
+.portal-logout-btn::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+}
+.portal-logout-btn:hover {
+  color: var(--portal-text);
+  background: var(--portal-surface-2);
+}
+/* Pressed state fires on pointer-down — on touch this is the only feedback
+   the chip ever gives, since :hover never arrives there. */
+.portal-logout-btn:active {
+  color: var(--portal-text);
+  background: var(--portal-surface-2);
+  border-color: var(--portal-text-dim);
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-logout-btn:active {
+    transform: none;
+  }
+}
+
+.portal-login-card input:focus-visible,
+.portal-login-card button:focus-visible,
+.portal-logout-btn:focus-visible {
+  outline: 2px solid var(--portal-accent);
+  outline-offset: 2px;
+}
 
 .portal-main {
   padding: 1.75rem 2rem;

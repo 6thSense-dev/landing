@@ -371,6 +371,19 @@ body.hero-video-active .nav-flagship--pill {
   box-shadow: 0 0 0 1px rgba(166, 154, 96, 0.35);
 }
 
+/* Press feedback on pointer-down, not just release — the background dip is the
+   non-motion channel so touch still reads the press under reduced motion. */
+.nav-cta-on-dark:active {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-cta-on-dark:active {
+    transform: none;
+  }
+}
+
 /* Hamburger toggle — hidden on desktop; shown below the mobile nav
    breakpoint (see the 720px query) where the links collapse behind it.
    It is the ONLY way into navigation below 720px, so the hit area is a full
@@ -401,6 +414,22 @@ body.hero-video-active .nav-flagship--pill {
   background: var(--paper-2);
   border-radius: 1px;
   transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+/* Open state: the outer bars fold into an X and the middle one clears out —
+   the control itself reads open/close, not just the panel below it.
+   5.5px = one bar (1.5px) + one gap (4px), so the outer bars land exactly on
+   the middle bar's line before rotating. */
+.nav-burger[aria-expanded="true"] .nav-burger-bar:nth-child(1) {
+  transform: translateY(5.5px) rotate(45deg);
+}
+
+.nav-burger[aria-expanded="true"] .nav-burger-bar:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-burger[aria-expanded="true"] .nav-burger-bar:nth-child(3) {
+  transform: translateY(-5.5px) rotate(-45deg);
 }
 
 .device-story {
@@ -2431,7 +2460,10 @@ main .section[id] {
     display: none;
   }
 
-  .nav-flagship--pill {
+  /* Doubled class to out-rank the base `.nav-flagship.nav-flagship--pill`
+     rule — a bare `.nav-flagship--pill` here loses on specificity (media
+     queries add none) and the collapsed pill would keep its 760px width. */
+  .nav-flagship.nav-flagship--pill {
     width: min(94vw, 420px);
     padding: 0.38rem 0.85rem 0.44rem;
   }
@@ -2494,11 +2526,18 @@ main .section[id] {
     width: 100%;
     text-align: center;
     justify-content: center;
+    align-items: center;
+    /* 44px tap floor for the dropdown links. It lives here, not in the 640px
+       query, because the burger layout runs all the way to 720px — gating it
+       at 640px left the 641-720px band with ~33px-tall links. */
+    min-height: 44px;
+    padding: 0.45rem 0.85rem !important;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-flagship .nav-links {
+  .nav-flagship .nav-links,
+  .nav-burger-bar {
     transition: none;
   }
 }
@@ -2508,14 +2547,6 @@ main .section[id] {
     justify-content: flex-start;
     font-size: 0.8125rem;
     gap: 0.5rem 0.75rem;
-  }
-
-  .nav-flagship .nav-cta-on-dark {
-    min-height: 44px;
-    padding: 0.45rem 0.85rem !important;
-    display: inline-flex;
-    align-items: center;
-    border-radius: 999px !important;
   }
 
   .proof-strip-panel {

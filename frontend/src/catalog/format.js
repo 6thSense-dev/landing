@@ -175,6 +175,38 @@ export function formatPercent(fraction, decimals = 2) {
   return trimZeros((fraction * 100).toFixed(decimals)) + "%";
 }
 
+/* Built once, not per call. `Intl.DisplayNames` can throw where ICU data is
+   missing, and a formatter must never take the page down over a label. */
+let REGION_NAMES = null;
+try {
+  REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+} catch {
+  REGION_NAMES = null;
+}
+
+/**
+ * Alpha-2 country code -> English display name ("KR" -> "South Korea").
+ *
+ * The ingest's `facets.country[].label` is still the authority and callers MUST
+ * prefer it — that is why labels are in the data. This is the floor under it,
+ * so a manifest that ships no facets can never print a bare join key at a
+ * buyer. The platform's own region table, not a hand-rolled ISO map that would
+ * drift; anything it cannot name (a malformed or retired code) renders as
+ * itself, which keeps a drifted corpus visible instead of quietly plausible.
+ */
+export function countryDisplayName(code) {
+  if (typeof code !== "string" || code === "") return EM_DASH;
+  if (REGION_NAMES) {
+    try {
+      const name = REGION_NAMES.of(code);
+      if (typeof name === "string" && name) return name;
+    } catch {
+      /* .of() throws on structurally invalid codes; fall through to the code */
+    }
+  }
+  return code;
+}
+
 /** "12.30" -> "12.3", "2.0" -> "2". Never touches a string without a dot. */
 function trimZeros(s) {
   return s.indexOf(".") === -1 ? s : s.replace(/\.?0+$/, "");
