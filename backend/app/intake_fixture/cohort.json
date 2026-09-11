@@ -1,0 +1,444 @@
+{
+  "activity": {
+    "candidates": [
+      {
+        "artifacts": [
+          {
+            "artifact_id": "SYNTHETIC-preview",
+            "depends_on": [],
+            "kind": "preview",
+            "selection_ref": {
+              "revision": 1,
+              "selection_id": "SYNTHETIC-selection",
+              "sha256": "68339f425f5632d3c4be903f3cc3cdb51d97e275d6d6a326c49b133d70c70a67"
+            }
+          },
+          {
+            "artifact_id": "SYNTHETIC-annotations",
+            "depends_on": [
+              "SYNTHETIC-preview"
+            ],
+            "kind": "annotations",
+            "selection_ref": null
+          }
+        ],
+        "episode_id": "SYNTHETIC-episode",
+        "history": [
+          {
+            "parent": null,
+            "physical_id": "SYNTHETIC-physical-recording",
+            "revision": 1,
+            "schema": "intake-activity-selection/v1",
+            "selection_id": "SYNTHETIC-selection",
+            "spans": [
+              {
+                "evidence_ids": [
+                  "SYNTHETIC-activity-review"
+                ],
+                "interval_ns": [
+                  9007199254741092,
+                  9007199554741092
+                ],
+                "outcome": "failure",
+                "role": "failed_attempt",
+                "segment_ids": [
+                  "declaration-0"
+                ],
+                "span_id": "span-0",
+                "uncertainty_reasons": []
+              },
+              {
+                "evidence_ids": [
+                  "SYNTHETIC-activity-review"
+                ],
+                "interval_ns": [
+                  9007199954741092,
+                  9007200254741092
+                ],
+                "outcome": "success",
+                "role": "action",
+                "segment_ids": [
+                  "declaration-0"
+                ],
+                "span_id": "span-1",
+                "uncertainty_reasons": []
+              }
+            ],
+            "synthetic": true,
+            "target_clock_id": "SYNTHETIC-physical",
+            "task_ids": [],
+            "timeline_report": {
+              "known_subset_duration_ns": 1000000000,
+              "media_actions": [],
+              "physical_recordings": [
+                {
+                  "gap_interpretation": "supplied coverage only; unknown segments may cover gaps",
+                  "known_subset_duration_ns": 1000000000,
+                  "physical_id": "SYNTHETIC-physical-recording",
+                  "spans_ns": [
+                    [
+                      9007199254741092,
+                      9007200254741092
+                    ]
+                  ],
+                  "status": "reconstructed",
+                  "supplied_segments_duration_ns": 1000000000,
+                  "target_clock_id": "SYNTHETIC-physical",
+                  "uncovered_between_known_spans_ns": []
+                }
+              ],
+              "recording_id": "SYNTHETIC-recording",
+              "schema": "intake-timeline-report/v1",
+              "segments": [
+                {
+                  "declared_order": 0,
+                  "discontinuity_before": null,
+                  "physical_id": "SYNTHETIC-physical-recording",
+                  "reasons": [],
+                  "segment_id": "declaration-0",
+                  "spans_ns": [
+                    [
+                      9007199254741092,
+                      9007200254741092
+                    ]
+                  ],
+                  "status": "reconstructed_from_supplied_evidence",
+                  "target_clock_id": "SYNTHETIC-physical",
+                  "view_id": "SYNTHETIC-camera"
+                }
+              ],
+              "source_input": {
+                "normalized_declarations": {
+                  "format": "unknown",
+                  "issues": [
+                    {
+                      "code": "unrecognized_camera_metadata",
+                      "path": "sidecars.metadata.data.camera"
+                    }
+                  ],
+                  "recording_id": "SYNTHETIC-recording",
+                  "schema": "intake-source-normalized",
+                  "schema_version": "1",
+                  "segments": [],
+                  "source": {
+                    "inventory": [
+                      {
+                        "path": "metadata.json",
+                        "reference": {
+                          "bucket": "synthetic",
+                          "key": "raw/metadata.json",
+                          "sha256": "1103fa4bac7ac73211fce4226ad0b289f236eddaf6681ba24020a1ee9bd75d55"
+                        },
+                        "size_bytes": 394
+                      },
+                      {
+                        "path": "video/frame_times.csv",
+                        "reference": {
+                          "bucket": "synthetic",
+                          "key": "raw/video/frame_times.csv",
+                          "sha256": "a3b9a6c190404647e5851e4c83b1fc9add8c7599bcfdddfc958d5a5f03551a5f"
+                        },
+                        "size_bytes": 118
+                      },
+                      {
+                        "path": "video_live_0000.mp4",
+                        "reference": {
+                          "bucket": "synthetic",
+                          "key": "raw/video_live_0000.mp4",
+                          "sha256": "554184a52ee387298b36154168fcac2ce76bc412183a8262dde1e9eba9e360f6"
+                        },
+                        "size_bytes": 3120
+                      }
+                    ],
+                    "recording_id": "SYNTHETIC-recording",
+                    "schema": "intake-source-recording",
+                    "schema_version": "1",
+                    "sidecars": {
+                      "metadata": {
+                        "data": {
+                          "camera": "SYNTHETIC 64x48 VFR fixture",
+                          "container": "video_live_*.mp4",
+                          "contract_version": "1.3",
+                          "live_encode": {
+                            "segment_count": 1,
+                            "segments": [
+                              {
+                                "bytes": 3120,
+                                "file": "video_live_0000.mp4",
+                                "fps": 10,
+                                "frames": 10
+                              }
+                            ],
+                            "source_of_truth": "video_live_*.mp4"
+                          },
+                          "synthetic": true,
+                          "take_id": "SYNTHETIC-F01"
+                        },
+                        "path": "metadata.json"
+                      }
+                    }
+                  },
+                  "source_contract_version": "1.3",
+                  "status": "unknown",
+                  "unknowns": [
+                    "media_decodability",
+                    "chronology",
+                    "clock_alignment",
+                    "gap_intervals",
+                    "view_orientation",
+                    "calibration_applicability",
+                    "usable_duration",
+                    "collector_identity"
+                  ]
+                },
+                "recording_id": "SYNTHETIC-recording",
+                "schema": "intake-timeline/v1",
+                "segments": [
+                  {
+                    "declared_order": 0,
+                    "declared_path": "video_live_0000.mp4",
+                    "lineage_evidence_ids": [
+                      "SYNTHETIC-generator-lineage"
+                    ],
+                    "mapping": {
+                      "evidence_ids": [
+                        "SYNTHETIC-explicit-frame-clock-join"
+                      ],
+                      "kind": "constant_offset",
+                      "offset_ns": 9007198254741092,
+                      "source_clock_id": "SYNTHETIC-host",
+                      "target_clock_id": "SYNTHETIC-physical"
+                    },
+                    "physical_id": "SYNTHETIC-physical-recording",
+                    "segment_id": "declaration-0",
+                    "source": {
+                      "bucket": "synthetic",
+                      "key": "raw/video_live_0000.mp4",
+                      "sha256": "554184a52ee387298b36154168fcac2ce76bc412183a8262dde1e9eba9e360f6"
+                    },
+                    "timing": {
+                      "clock_id": "SYNTHETIC-host",
+                      "coverage_kind": "continuous_intervals",
+                      "evidence_ids": [
+                        "SYNTHETIC-generator-coverage"
+                      ],
+                      "spans_ns": [
+                        [
+                          1000000000,
+                          2000000000
+                        ]
+                      ]
+                    },
+                    "view_id": "SYNTHETIC-camera"
+                  }
+                ],
+                "synthetic": true
+              },
+              "status": "reconstructed",
+              "supplied_segments_duration_ns": 1000000000,
+              "synthetic": true,
+              "unknowns": [
+                "activity_usability_not_evaluated",
+                "collector_credit_not_evaluated",
+                "evidence_authenticity_not_verified",
+                "media_not_decoded",
+                "recording_inventory_completeness_not_verified"
+              ],
+              "usable_duration_ns": null
+            },
+            "timeline_sha256": "8e750f690a4ce39635832e2e576960832d917a7798b33a35a8678c03f71f1acf"
+          }
+        ],
+        "id": "SYNTHETIC-core-candidate",
+        "label": "Synthetic failed attempt and retry from the core source",
+        "preview": {
+          "asset": {
+            "content_sha256": "b7d288e0362422b0f1307b08eb6949eb5a4e893dbfc14f8d028faf9b7b2ad6e4",
+            "path": "preview.webm"
+          },
+          "report": {
+            "clock_id": "SYNTHETIC-physical",
+            "crop": [
+              0,
+              0,
+              32,
+              48
+            ],
+            "cuts": [
+              {
+                "after_output_frame_idx": 2,
+                "before_output_frame_idx": 3,
+                "continuity": "cut"
+              }
+            ],
+            "decoded_pts": "verified_from_pinned_bytes",
+            "decoder_evidence_ids": [
+              "SYNTHETIC-decoder-합성"
+            ],
+            "display_clock": "presentation_only",
+            "display_fps": {
+              "den": 1,
+              "num": 5
+            },
+            "encoding": {
+              "codec": "vp9",
+              "container": "webm",
+              "profile": "vp9_webm"
+            },
+            "evidence_authenticity": "unverified",
+            "frames": [
+              {
+                "decoder_index": 0,
+                "output_frame_idx": 0,
+                "output_pts": 0,
+                "physical_ns": 9007199254741092,
+                "pts": 0,
+                "segment_id": "span-0",
+                "source_frame_idx": 100
+              },
+              {
+                "decoder_index": 1,
+                "output_frame_idx": 1,
+                "output_pts": 200,
+                "physical_ns": 9007199354741092,
+                "pts": 1024,
+                "segment_id": "span-0",
+                "source_frame_idx": 101
+              },
+              {
+                "decoder_index": 2,
+                "output_frame_idx": 2,
+                "output_pts": 400,
+                "physical_ns": 9007199454741092,
+                "pts": 2048,
+                "segment_id": "span-0",
+                "source_frame_idx": 102
+              },
+              {
+                "decoder_index": 7,
+                "output_frame_idx": 3,
+                "output_pts": 600,
+                "physical_ns": 9007199954741092,
+                "pts": 10240,
+                "segment_id": "span-1",
+                "source_frame_idx": 107
+              },
+              {
+                "decoder_index": 8,
+                "output_frame_idx": 4,
+                "output_pts": 800,
+                "physical_ns": 9007200054741092,
+                "pts": 11264,
+                "segment_id": "span-1",
+                "source_frame_idx": 108
+              },
+              {
+                "decoder_index": 9,
+                "output_frame_idx": 5,
+                "output_pts": 1000,
+                "physical_ns": 9007200154741092,
+                "pts": 12288,
+                "segment_id": "span-1",
+                "source_frame_idx": 109
+              }
+            ],
+            "interpolation": "none",
+            "mapping_sha256": "142e86e126e9216bd44c08e59b61681c731d9a43486b12f2b45826955c3257be",
+            "output_grid": [
+              32,
+              48
+            ],
+            "output_time_base": [
+              1,
+              1000
+            ],
+            "physical_clock_mapping": "supplied_not_independently_verified",
+            "physical_evidence_ids": [
+              "SYNTHETIC-clock-fixture"
+            ],
+            "raw_preserved": true,
+            "report_sha256": "60ead706da6b0454c5c6c9574b2fbaf61c73e1c4af1f915d53ac0e99e32218a8",
+            "request_sha256": "fb3bfcad7fc9d4b1372f3ccda849316e1a0749fa6e163d949721a413a635378e",
+            "schema_version": "intake-source-preview/v1",
+            "segments": [
+              {
+                "clock_id": "SYNTHETIC-physical",
+                "end_ns": 9007199554741092,
+                "segment_id": "span-0",
+                "start_ns": 9007199254741092
+              },
+              {
+                "clock_id": "SYNTHETIC-physical",
+                "end_ns": 9007200254741092,
+                "segment_id": "span-1",
+                "start_ns": 9007199954741092
+              }
+            ],
+            "source_grid": [
+              64,
+              48
+            ],
+            "source_sha256": "554184a52ee387298b36154168fcac2ce76bc412183a8262dde1e9eba9e360f6",
+            "source_stream_index": 0,
+            "source_time_base": [
+              1,
+              10240
+            ],
+            "status": "generated",
+            "synthetic": true,
+            "video": {
+              "path": "preview.webm",
+              "sha256": "b7d288e0362422b0f1307b08eb6949eb5a4e893dbfc14f8d028faf9b7b2ad6e4",
+              "size_bytes": 1662
+            }
+          },
+          "source_binding": {
+            "evidence_ids": [
+              "SYNTHETIC-same-core-source-join"
+            ],
+            "segment_id": "declaration-0",
+            "source_ref": {
+              "bucket": "synthetic",
+              "key": "raw/video_live_0000.mp4",
+              "sha256": "554184a52ee387298b36154168fcac2ce76bc412183a8262dde1e9eba9e360f6"
+            },
+            "source_sha256": "554184a52ee387298b36154168fcac2ce76bc412183a8262dde1e9eba9e360f6"
+          }
+        }
+      }
+    ],
+    "schema": "intake-activity-workbench/v1",
+    "synthetic": true
+  },
+  "cohort_id": "SYNTHETIC-F01",
+  "episodes": [
+    {
+      "assets": {
+        "disparity": {
+          "unavailable_reason": "Not supplied for this synthetic camera-only review"
+        },
+        "raw_left": {
+          "unavailable_reason": "Not supplied for this synthetic camera-only review"
+        },
+        "raw_right": {
+          "unavailable_reason": "Not supplied for this synthetic camera-only review"
+        },
+        "rectified_left": {
+          "unavailable_reason": "Not supplied for this synthetic camera-only review"
+        },
+        "rectified_right": {
+          "unavailable_reason": "Not supplied for this synthetic camera-only review"
+        },
+        "tactile": {
+          "unavailable_reason": "Not supplied for this synthetic camera-only review"
+        }
+      },
+      "id": "SYNTHETIC-episode",
+      "profile": "camera-only",
+      "status": "unknown",
+      "summary": "Synthetic source-linked activity evidence; quality not assessed"
+    }
+  ],
+  "name": "Synthetic offline workflow — same camera source",
+  "schema": "6thsense.cohort-workbench/v1"
+}

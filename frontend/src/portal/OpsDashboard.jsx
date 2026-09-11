@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
 import { useSession } from "./useSession.jsx";
+import IntakeReviewLink from "./IntakeReviewLink.jsx";
 import OpsOperations from "./OpsOperations.jsx";
 import OpsUsers from "./OpsUsers.jsx";
 import "./ops.css";
@@ -91,6 +92,7 @@ export default function OpsDashboard() {
           ))}
         </nav>
         <span className="ops-spacer" />
+        <IntakeReviewLink />
         {state && tab === "ops" && (
           <span className="ops-src" title={lastScan
             ? `bucket last read ${lastScan.replace("T", " ").slice(0, 16)}`
