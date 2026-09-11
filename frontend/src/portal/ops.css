@@ -322,3 +322,7 @@
   color: var(--o-ok); cursor: pointer;
 }
 @media (max-width: 720px) { .ops-scan { padding: 6px 10px; } }
+
+/* Capability-gated review navigation, matching the existing Operations chrome. */
+.ops .ops-intake-link { color: var(--o-text); font: inherit; text-decoration: none; border: 1px solid var(--o-line); border-radius: 6px; padding: 8px 12px; }
+.ops .ops-intake-link:hover { color: var(--o-accent); border-color: var(--o-accent); }

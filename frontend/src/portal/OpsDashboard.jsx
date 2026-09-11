@@ -92,7 +92,7 @@ export default function OpsDashboard() {
           ))}
         </nav>
         <span className="ops-spacer" />
-        <IntakeReviewLink />
+        <IntakeReviewLink className="ops-intake-link" />
         {state && tab === "ops" && (
           <span className="ops-src" title={lastScan
             ? `bucket last read ${lastScan.replace("T", " ").slice(0, 16)}`
