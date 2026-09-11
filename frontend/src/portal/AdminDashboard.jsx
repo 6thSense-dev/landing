@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import IntakeReviewLink from "./IntakeReviewLink.jsx";
 import AdminLeads from "./AdminLeads.jsx";
 import { useSession } from "./useSession.jsx";
 import "./admin.css";
@@ -17,6 +19,9 @@ export default function AdminDashboard() {
           <span className="admin-topbar-tag">Leads</span>
         </div>
         <div className="admin-topbar-right">
+          <Link className="admin-btn admin-btn--ghost" to="/portal/catalog">Catalog</Link>
+          <Link className="admin-btn admin-btn--ghost" to="/portal/ops">Operations</Link>
+          <IntakeReviewLink />
           <span className="admin-topbar-user" title={user?.email}>
             {user?.name}
           </span>

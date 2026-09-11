@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { LogOut } from "lucide-react";
 
+import IntakeReviewLink from "../portal/IntakeReviewLink.jsx";
 import { useSession } from "../portal/useSession.jsx";
 
 /**
@@ -103,6 +104,7 @@ export default function CatalogTopBar({
         </p>
 
         <div className="cat-topbar__session">
+          <IntakeReviewLink />
           {user ? (
             <span className="cat-topbar__identity">
               {/* The role, not just the name: a guest and a customer see

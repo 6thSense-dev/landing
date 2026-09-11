@@ -13,6 +13,7 @@ import { useSession } from "./useSession.jsx";
 // Lazily loaded: the catalog pulls in five tab components, a hand-rolled SVG
 // chart layer and ~2900 lines of its own CSS. A founder who never opens it
 // should never download it.
+const IntakeReview = lazy(() => import("./IntakeReview.jsx"));
 const CatalogPage = lazy(() => import("../catalog/CatalogPage.jsx"));
 
 function RoleHomeRedirect() {
@@ -31,6 +32,7 @@ export default function PortalApp() {
       <Route element={<RequireAuth />}>
         <Route element={<RequireRole role="admin" />}>
           <Route path="admin/*" element={<AdminDashboard />} />
+          <Route path="intake-review" element={<Suspense fallback={<div className="portal-loading" />}><IntakeReview /></Suspense>} />
         </Route>
         <Route element={<RequireRole role="founder" />}>
           <Route path="founder/*" element={<FounderDashboard />} />

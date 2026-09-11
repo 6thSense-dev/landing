@@ -1,0 +1,27 @@
+{
+  "repository": "6thSense-dev/catalog",
+  "commit": "45fd982873414ea3a0bb022bee96277bbf37adcb",
+  "transformation": "Only import namespace tools.intake_activity/tools.intake_sources changed to app.vendor.intake",
+  "files": [
+    {
+      "source": "intake_activity/workbench.py",
+      "source_sha256": "a2c3c5bed095490a59bc0ed30de288d175ac990a0174d95be94eff026c11ecff",
+      "vendored_sha256": "3e94d1fc9731f45d209fd475e86cb6b60978b3e66f4e404b9bce6e02c0562b4b"
+    },
+    {
+      "source": "intake_activity/selections.py",
+      "source_sha256": "08babe7ac26ec78e3dd2e69214eb95339729811813b5ad08256e448099fc1ac2",
+      "vendored_sha256": "013e11e71bfc81c18eae05d14ce2e1bf8f9414dc58d05d3be30f8f786d307b67"
+    },
+    {
+      "source": "intake_activity/revisions.py",
+      "source_sha256": "3cd13481c54f4547d9713ea65e05eae00960be9b56924ae4fc69fd9f179e0814",
+      "vendored_sha256": "226bab14efa11e0df54501b32713e770a8d6fe190ecf8191983a1af7934c8bd3"
+    },
+    {
+      "source": "intake_sources/timeline.py",
+      "source_sha256": "76dcc757de69aa68164a1d9adb3d80210625988d7222d4c6b2d4e71c4aa0c108",
+      "vendored_sha256": "76dcc757de69aa68164a1d9adb3d80210625988d7222d4c6b2d4e71c4aa0c108"
+    }
+  ]
+}
