@@ -81,7 +81,7 @@ function ReviewSession() {
     } catch (e) { if (mounted.current && !controller.signal.aborted) setError(e.message); } finally { if (mounted.current) setBusy(false); }
   }
 
-  return <div className="cat-page">
+  return <div className="cat-root cat-root--chromed intake-review-shell">
     <CatalogTopBar collectionName="Internal intake review" />
     <main className="intake-review">
       <nav><Link to="/portal/catalog">← Catalog</Link><Link to="/portal/ops">Collector operations</Link></nav>
@@ -111,7 +111,7 @@ function ReviewSession() {
             <label>Why change these boundaries?<textarea required maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} /></label>
             <label>Evidence references (comma separated)<input required maxLength={2000} value={evidence} onChange={e => setEvidence(e.target.value)} /></label>
             <p>Your signed-in identity is attached by the server. Evidence references are not independently verified.</p>
-            <button className="cat-topbar__logout" disabled={busy}>{busy ? "Validating…" : "Download proposed revision"}</button>
+            <button className="cat-btn cat-btn--primary" disabled={busy}>{busy ? "Validating…" : "Download proposed revision"}</button>
             {note && <p role="status">{note}</p>}
           </form>
         </div>

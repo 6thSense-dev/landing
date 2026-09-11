@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { portalFetch } from "./portalFetch.js";
 import { useSession } from "./useSession.jsx";
 
-export default function IntakeReviewLink() {
+export default function IntakeReviewLink({ className = "cat-topbar__logout" }) {
   const { user } = useSession();
+  const { pathname } = useLocation();
   const [identity, setIdentity] = useState(null);
   const key = user ? `${user.id}:${user.role}:${user.email}` : null;
   useEffect(() => {
@@ -15,5 +16,5 @@ export default function IntakeReviewLink() {
     });
     return () => { active = false; };
   }, [key, user?.role]);
-  return key && identity === key ? <Link className="cat-topbar__logout" to="/portal/intake-review">Intake review</Link> : null;
+  return key && identity === key && pathname !== "/portal/intake-review" ? <Link className={className} to="/portal/intake-review">Intake review</Link> : null;
 }

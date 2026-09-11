@@ -1,16 +1,23 @@
-.intake-review { max-width: 1240px; margin: auto; padding: 36px 24px 64px; }
-.intake-review nav { display: flex; gap: 24px; margin-bottom: 32px; }
-.intake-review h1 { font-size: clamp(28px, 4vw, 42px); margin: 12px 0; }
-.intake-review h2 { font-size: 22px; margin-top: 0; }
-.intake-review p { line-height: 1.6; }
-.intake-review__eyebrow { text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
-.intake-review__notice { border: 1px solid currentColor; border-radius: 8px; padding: 16px; }
-.intake-review__grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 36px; margin-top: 28px; }
-.intake-review video { width: 100%; min-height: 240px; background: #111; border-radius: 8px; }
-.intake-review label { display: grid; gap: 8px; margin-bottom: 18px; font-size: 14px; }
-.intake-review input, .intake-review textarea, .intake-review select { padding: 10px; border: 1px solid currentColor; border-radius: 6px; font: inherit; background: transparent; color: inherit; }
-.intake-review select option { color: #262312; background: #fff; }
-.intake-review fieldset { border: 1px solid currentColor; border-radius: 8px; padding: 16px; margin: 0 0 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.intake-review legend { padding: 0 8px; text-transform: capitalize; }
-.intake-review textarea { min-height: 80px; }
-@media (max-width: 760px) { .intake-review__grid { grid-template-columns: 1fr; } .intake-review fieldset { grid-template-columns: 1fr; } }
+/* Reuse Catalog's scoped paper/ink/font system, including its normal top bar. */
+.intake-review-shell { min-height: 100vh; }
+.intake-review { max-width: var(--max); margin: auto; padding: 32px 24px 64px; }
+.intake-review nav { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 28px; }
+.intake-review a { color: var(--accent); text-decoration: none; font-size: var(--cat-fs-sm); }
+.intake-review a:hover { text-decoration: underline; }
+.intake-review h1 { font-size: var(--cat-fs-2xl); font-weight: var(--cat-w-medium); letter-spacing: var(--cat-tracking-tight); margin: 12px 0; }
+.intake-review h2 { font-size: var(--cat-fs-lg); font-weight: var(--cat-w-medium); margin-top: 0; }
+.intake-review p { line-height: 1.6; color: var(--cat-ink-2); }
+.intake-review__eyebrow { text-transform: uppercase; letter-spacing: .1em; font-size: var(--cat-fs-xs); font-weight: var(--cat-w-semibold); }
+.intake-review__notice { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--cat-radius-md); padding: 16px; font-size: var(--cat-fs-sm); }
+.intake-review__grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; margin-top: 28px; align-items: start; }
+.intake-review video { width: 100%; height: 320px; object-fit: contain; background: var(--dark); border-radius: var(--cat-radius-md); }
+.intake-review section p { font-size: var(--cat-fs-sm); }
+.intake-review label { display: grid; gap: 8px; margin-bottom: 18px; font-size: var(--cat-fs-sm); font-weight: var(--cat-w-medium); }
+.intake-review input, .intake-review textarea, .intake-review select { min-width: 0; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: var(--cat-radius-sm); font: inherit; background: var(--paper-2); color: var(--ink); }
+.intake-review select option { color: var(--ink); background: var(--paper-2); }
+.intake-review fieldset { min-width: 0; border: 1px solid var(--line); border-radius: var(--cat-radius-md); padding: 16px; margin: 0 0 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.intake-review legend { padding: 0 8px; text-transform: capitalize; font-size: var(--cat-fs-sm); font-weight: var(--cat-w-medium); }
+.intake-review textarea { min-height: 80px; resize: vertical; }
+.intake-review form > p { font-size: var(--cat-fs-sm); }
+.intake-review [role="status"] { background: var(--paper-2); border-left: 3px solid var(--accent-muted); padding: 12px; }
+@media (max-width: 760px) { .intake-review__grid { grid-template-columns: 1fr; } .intake-review fieldset { grid-template-columns: 1fr; } .intake-review video { height: 260px; } }
