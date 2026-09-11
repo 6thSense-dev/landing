@@ -30,7 +30,8 @@ def test_login_request_rejects_too_long_password():
 
 def test_user_out_shape():
     u = UserOut(id=1, email="a@x.com", name="A", role="founder")
-    assert u.model_dump() == {"id": 1, "email": "a@x.com", "name": "A", "role": "founder"}
+    # The personal workspace capability is additive and fails closed by default.
+    assert u.model_dump() == {"id": 1, "email": "a@x.com", "name": "A", "role": "founder", "workspace_enabled": False}
 
 
 def test_login_response_includes_ok_and_user():

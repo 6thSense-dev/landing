@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
 import { useSession } from "./useSession.jsx";
+import WorkspaceLink from "./WorkspaceLink.jsx";
 import IntakeReviewLink from "./IntakeReviewLink.jsx";
 import OpsOperations from "./OpsOperations.jsx";
 import OpsUsers from "./OpsUsers.jsx";
@@ -24,7 +25,7 @@ const TABS = [
   { key: "users", label: "Users" },
 ];
 
-export default function OpsDashboard() {
+export default function OpsDashboard({ readOnly = false }) {
   const { user, logout } = useSession();
   const [tab, setTab] = useState("ops");
   const [state, setState] = useState(null);
@@ -33,11 +34,11 @@ export default function OpsDashboard() {
   const [note, setNote] = useState("");
 
   const load = useCallback(async () => {
-    const r = await portalFetch("/api/ops/state");
+    const r = await portalFetch(readOnly ? "/api/workspace/ops/state" : "/api/ops/state");
     if (!r.ok) return setErr(`Could not load the ledger (HTTP ${r.status}).`);
     setErr("");
     setState(r.data);
-  }, []);
+  }, [readOnly]);
 
   useEffect(() => {
     load();
@@ -48,6 +49,7 @@ export default function OpsDashboard() {
   // success and null on failure, so a caller can clear its form only if the
   // write actually landed.
   const act = useCallback(async (key, path, body) => {
+    if (readOnly) { setNote("Learning preview is read-only. Open Operations from Workspace to make changes."); return null; }
     setBusy(key);
     const r = await portalFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
     setBusy("");
@@ -58,7 +60,7 @@ export default function OpsDashboard() {
     setErr("");
     setState(r.data);
     return r.data;
-  }, []);
+  }, [readOnly]);
 
   const rate = state?.rate_krw ?? 0;
   const lastScan = state?.last_scan ?? "";
@@ -92,7 +94,8 @@ export default function OpsDashboard() {
           ))}
         </nav>
         <span className="ops-spacer" />
-        <IntakeReviewLink className="ops-intake-link" />
+          <WorkspaceLink className="ops-intake-link" />
+        {!readOnly && <IntakeReviewLink className="ops-intake-link" />}
         {state && tab === "ops" && (
           <span className="ops-src" title={lastScan
             ? `bucket last read ${lastScan.replace("T", " ").slice(0, 16)}`
@@ -103,14 +106,14 @@ export default function OpsDashboard() {
           </span>
         )}
         {state && tab === "ops" && (
-          <button className="ops-scan" onClick={scan} disabled={busy === "scan"}>
+          <button className="ops-scan" onClick={scan} disabled={readOnly || busy === "scan"}>
             {busy === "scan" ? "Scanning…" : "Scan bucket"}
           </button>
         )}
         {/* Who you are is next to the way out, so an operator on a shared
             machine can see at a glance whose session they are about to act in. */}
         <span className="ops-src ops-who-am-i">{user?.email}</span>
-        <button className="ops-logout" onClick={logout}>Log out</button>
+        {!readOnly && <button className="ops-logout" onClick={logout}>Log out</button>}
       </header>
 
       <div className="ops-main">
@@ -122,9 +125,9 @@ export default function OpsDashboard() {
         {!state ? (
           <p className="ops-muted">{err ? "" : "Loading the ledger…"}</p>
         ) : tab === "ops" ? (
-          <OpsOperations state={state} act={act} busy={busy} rate={rate} />
+          <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />
         ) : (
-          <OpsUsers state={state} act={act} busy={busy} />
+          <OpsUsers readOnly={readOnly} state={state} act={act} busy={busy} />
         )}
       </div>
 

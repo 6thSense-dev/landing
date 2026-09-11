@@ -38,10 +38,11 @@ import { portalFetch } from "../portal/portalFetch.js";
 
 /** Manifest endpoint. Mirrors the router prefix in app/api/routes/catalog.py. */
 export const CATALOG_PATH = "/api/catalog";
+let catalogApiPath = CATALOG_PATH;
 
 /** One clip record. `id` is [a-z0-9-] per the schema; encoded anyway. */
 export function clipPath(id) {
-  return `${CATALOG_PATH}/clips/${encodeURIComponent(id)}`;
+  return `${catalogApiPath}/clips/${encodeURIComponent(id)}`;
 }
 
 /** Schema families this UI understands, and the single major version of each. */
@@ -467,6 +468,7 @@ function entryFor(doc) {
  * `null` means "nothing cached yet".
  */
 let cacheIdentity = null;
+let cacheGeneration = 0;
 
 /** The manifest, once it has arrived. Replaced only on a successful refetch. */
 let manifestEntry = null;
@@ -544,17 +546,18 @@ export function ensureCatalog() {
     // into a cache that now belongs to another; the identity switch already
     // cleared `manifestPromise`, so a fresh fetch is on its way.
     const owner = cacheIdentity;
-    manifestPromise = apiGet(CATALOG_PATH)
+    const generation = cacheGeneration;
+    manifestPromise = apiGet(catalogApiPath)
       .then((doc) => {
         assertSchema(doc, CATALOG_FAMILY, "the catalog manifest");
-        if (owner !== cacheIdentity) return doc;
+        if (owner !== cacheIdentity || generation !== cacheGeneration) return doc;
         manifestEntry = entryFor(doc);
         return doc;
       })
       .catch((err) => {
         // Drop the rejected promise so a retry re-fetches instead of
         // re-serving the failure forever.
-        manifestPromise = null;
+        if (generation === cacheGeneration) manifestPromise = null;
         throw err;
       });
   }
@@ -571,17 +574,18 @@ export function ensureCatalog() {
 export function refreshCatalog() {
   if (refreshPromise) return refreshPromise;
   const owner = cacheIdentity;
-  refreshPromise = apiGet(CATALOG_PATH)
+  const generation = cacheGeneration;
+  refreshPromise = apiGet(catalogApiPath)
     .then((doc) => {
       assertSchema(doc, CATALOG_FAMILY, "the catalog manifest");
-      if (owner !== cacheIdentity) return doc;  // see ensureCatalog()
+      if (owner !== cacheIdentity || generation !== cacheGeneration) return doc;  // see ensureCatalog()
       manifestEntry = entryFor(doc);
       manifestPromise = Promise.resolve(doc);
       notify();
       return doc;
     })
     .finally(() => {
-      refreshPromise = null;
+      if (generation === cacheGeneration) refreshPromise = null;
     });
   return refreshPromise;
 }
@@ -638,18 +642,22 @@ export function clearCatalogCache() {
  * @param {string|null} identity  `${user.id}:${user.role}`, or null when signed out.
  * @returns {boolean} true when a cache belonging to someone else was dropped.
  */
-export function bindCatalogIdentity(identity) {
+export function bindCatalogIdentity(identity, apiPath = CATALOG_PATH) {
+  if (apiPath !== CATALOG_PATH && !/^\/api\/workspace\/catalog\/(guest|investor|customer|founder|admin)$/.test(apiPath)) throw new Error("Invalid catalog endpoint");
+  const samePath = catalogApiPath === apiPath;
+  catalogApiPath = apiPath;
   const next = identity == null ? null : String(identity);
-  if (next === cacheIdentity) return false;
+  if (next === cacheIdentity && samePath) return false;
   const hadOther = cacheIdentity !== null && (manifestEntry !== null || clipCache.size > 0);
   cacheIdentity = next;
-  if (hadOther || manifestEntry !== null || clipCache.size > 0) {
-    manifestEntry = null;
-    manifestPromise = null;
-    refreshPromise = null;
-    clipCache.clear();
-    retriedUrls.clear();
-  }
+  // Pending requests also belong to the old scope, even before a cache entry
+  // exists. A generation prevents A -> B -> A responses reviving stale state.
+  cacheGeneration += 1;
+  manifestEntry = null;
+  manifestPromise = null;
+  refreshPromise = null;
+  clipCache.clear();
+  retriedUrls.clear();
   return hadOther;
 }
 
@@ -769,11 +777,11 @@ function useSilentRefresh(active, staleAt, refresh) {
  *            error:Error|null, staleAt:number|null, expiresAt:number|null,
  *            expirySource:"server"|"default"|null, retry:()=>void}}
  */
-export function useCatalog(identity = null) {
+export function useCatalog(identity = null, apiPath = CATALOG_PATH) {
   // Synchronous, in the render body, BEFORE the first read below: an effect
   // would run after this component had already rendered the previous role's
   // document once.
-  bindCatalogIdentity(identity);
+  bindCatalogIdentity(identity, apiPath);
 
   const read = () =>
     manifestEntry
@@ -883,6 +891,7 @@ export function useClip(id) {
 
     let alive = true;
     const owner = catalogCacheIdentity();
+    const generation = cacheGeneration;
     const controller = new AbortController();
     // A stale-but-present record keeps rendering while the refetch is in
     // flight; only a cold open shows the spinner.
@@ -895,6 +904,7 @@ export function useClip(id) {
 
     (async () => {
       const catalog = await ensureCatalog();
+      if (!alive || owner !== catalogCacheIdentity() || generation !== cacheGeneration) return null;
       const summary = findClip(catalog, id);
       if (!summary) {
         throw new CatalogError(`No clip \`${id}\` in this collection.`, 404);
@@ -920,7 +930,7 @@ export function useClip(id) {
       // The session changed under this request: this record is another role's
       // redaction of the clip and is discarded rather than cached. See
       // bindCatalogIdentity().
-      if (owner !== catalogCacheIdentity()) return null;
+      if (!alive || owner !== catalogCacheIdentity() || generation !== cacheGeneration) return null;
       if (doc.id !== id) {
         // Not fatal — we render what we asked for — but it means the manifest
         // and the record disagree, which is a stale-bundle symptom.

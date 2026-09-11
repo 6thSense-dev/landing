@@ -127,6 +127,7 @@ class UserOut(BaseModel):
     email: str
     name: str
     role: str
+    workspace_enabled: bool = False
 
 
 class LoginResponse(BaseModel):

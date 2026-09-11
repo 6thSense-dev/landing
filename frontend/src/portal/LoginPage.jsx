@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { TactileField } from "../TactileField.jsx";
-import { roleHome, safeNext } from "./roleHome.js";
+import { accountHome, safeNext } from "./roleHome.js";
 import { useSession } from "./useSession.jsx";
 
 export default function LoginPage() {
@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   if (status === "authed" && user) {
-    const next = safeNext(params.get("next"), user.role) || roleHome(user.role);
+    const next = safeNext(params.get("next"), user.role) || accountHome(user);
     return <Navigate to={next} replace />;
   }
 
@@ -41,7 +41,7 @@ export default function LoginPage() {
       }
       return;
     }
-    const next = safeNext(params.get("next"), result.user.role) || roleHome(result.user.role);
+    const next = safeNext(params.get("next"), result.user.role) || accountHome(result.user);
     navigate(next, { replace: true });
   }
 

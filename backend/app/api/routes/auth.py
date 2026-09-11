@@ -17,6 +17,7 @@ from app.core.passwords import DUMMY_HASH, verify_password
 from app.core.sessions import hash_session_token, mint_session_token
 from app.models import Session as SessionRow, User
 from app.models.user import GUEST_EMAIL, GUEST_ROLE
+from app.core.workspace_access import workspace_enabled
 from app.schemas import LoginRequest, LoginResponse, UserOut
 from app.schemas.auth import normalise_identifier
 
@@ -177,13 +178,13 @@ async def login(
     )
     return LoginResponse(
         ok=True,
-        user=UserOut(id=user.id, email=user.email, name=user.name, role=user.role),
+        user=UserOut(id=user.id, email=user.email, name=user.name, role=user.role, workspace_enabled=workspace_enabled(user)),
     )
 
 
 @router.get("/me", response_model=UserOut)
 async def me(user: User = Depends(current_user)) -> UserOut:
-    return UserOut(id=user.id, email=user.email, name=user.name, role=user.role)
+    return UserOut(id=user.id, email=user.email, name=user.name, role=user.role, workspace_enabled=workspace_enabled(user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
