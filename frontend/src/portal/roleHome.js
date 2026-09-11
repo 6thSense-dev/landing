@@ -91,7 +91,7 @@ export function allowedPrefixes(role) {
  * The value returned is the parser's own `pathname + search + hash`, never the
  * caller's string, so nothing un-normalised reaches `navigate()`.
  */
-export function safeNext(rawNext, role) {
+export function safeNext(rawNext, role, workspaceEnabled = false) {
   if (typeof rawNext !== "string" || rawNext === "" || !role) return null;
   // Whitespace and C0/C1 control characters appear in a `next=` only to create
   // a parser differential between us and the browser. There is no legitimate
@@ -111,6 +111,18 @@ export function safeNext(rawNext, role) {
   const path = url.pathname;
   if (!path.startsWith("/portal/")) return null;
   // Match whole segments: /portal/founderX must not pass as /portal/founder.
-  const ok = allowedPrefixes(role).some((p) => path === p || path.startsWith(`${p}/`));
+  const prefixes = allowedPrefixes(role);
+  if (workspaceEnabled) prefixes.push("/portal/workspace", "/portal/intake-review");
+  const ok = prefixes.some((p) => path === p || path.startsWith(`${p}/`));
   return ok ? `${url.pathname}${url.search}${url.hash}` : null;
+}
+
+/** Migrate the old admin landing bookmark while keeping deliberate deep links. */
+export function loginDestination(rawNext, user) {
+  const next = safeNext(rawNext, user?.role, user?.workspace_enabled === true);
+  if (user?.workspace_enabled === true && next) {
+    const path = new URL(next, "https://portal.invalid").pathname;
+    if (path === "/portal/admin" || path === "/portal/admin/") return accountHome(user);
+  }
+  return next || accountHome(user);
 }
