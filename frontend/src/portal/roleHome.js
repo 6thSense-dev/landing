@@ -48,6 +48,10 @@ const SHARED_ROUTES = [
 const HOME_OVERRIDES = { guest: "/portal/catalog" };
 
 /** The path a freshly-authenticated user of `role` should land on. */
+export function accountHome(user) {
+  return user?.workspace_enabled === true ? "/portal/workspace" : roleHome(user?.role);
+}
+
 export function roleHome(role) {
   if (!role) return "/login";
   return HOME_OVERRIDES[role] || `/portal/${role}`;

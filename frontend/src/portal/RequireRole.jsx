@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { roleHome } from "./roleHome.js";
+import { accountHome } from "./roleHome.js";
 import { useSession } from "./useSession.jsx";
 
 /**
@@ -20,7 +20,7 @@ export function RequireRole({ role }) {
   if (!user) return null;
   const allowed = Array.isArray(role) ? role : [role];
   if (!allowed.includes(user.role)) {
-    return <Navigate to={roleHome(user.role)} replace />;
+    return <Navigate to={accountHome(user)} replace />;
   }
   return <Outlet />;
 }

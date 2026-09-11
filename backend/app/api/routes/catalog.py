@@ -248,7 +248,11 @@ async def get_manifest(
     user: User = Depends(catalog_reader),
 ) -> Response:
     """The collection manifest, redacted for the caller and fully resolved."""
-    level = access_level(user.role)
+    return await manifest_for_role(request, user, user.role)
+
+
+async def manifest_for_role(request: Request, user: User, role: str, detail_prefix: str = "/api/catalog") -> Response:
+    level = access_level(role)
     origin = request_origin(request)
 
     def build() -> dict:
@@ -258,7 +262,7 @@ async def get_manifest(
             store.manifest(),
             level=level,
             signer=_signer(store, ttl, origin),
-            detail_url=detail_url_for(origin),
+            detail_url=lambda clip_id: f"{origin}{detail_prefix}/clips/{clip_id}",
             expires_at=_expires_at(ttl),
         )
 
@@ -274,11 +278,15 @@ async def get_clip(
     user: User = Depends(catalog_reader),
 ) -> Response:
     """One clip's full record. `.json` is accepted so the UI can be literal."""
+    return await clip_for_role(clip_id, request, user, user.role)
+
+
+async def clip_for_role(clip_id: str, request: Request, user: User, role: str, detail_prefix: str = "/api/catalog") -> Response:
     if clip_id.endswith(".json"):
         clip_id = clip_id[: -len(".json")]
     if not CLIP_ID_RE.match(clip_id):
         raise _not_found()
-    level = access_level(user.role)
+    level = access_level(role)
     origin = request_origin(request)
 
     def build() -> dict:
@@ -293,7 +301,7 @@ async def get_clip(
             store.clip(clip_id),
             level=level,
             signer=_signer(store, ttl, origin),
-            detail_url=detail_url_for(origin),
+            detail_url=lambda clip_id: f"{origin}{detail_prefix}/clips/{clip_id}",
             expires_at=_expires_at(ttl),
             templates=paths if isinstance(paths, dict) else {},
             # The manifest names the open evaluation clip; present_clip re-derives the

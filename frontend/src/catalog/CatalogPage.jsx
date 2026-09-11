@@ -185,14 +185,14 @@ function hasConstraints(f) {
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
-export default function CatalogPage({ onRequestAccess }) {
+export default function CatalogPage({ onRequestAccess, previewRole = null }) {
   /* The catalog's module cache holds SERVER-REDACTED documents and live
      presigned URLs, and it outlives this component. Keying it on the signed-in
      identity is what stops a guest, logged in after a founder in the same tab,
      being handed the founder's manifest from memory. */
   const { user } = useSession();
-  const identity = user ? `${user.id}:${user.role}` : null;
-  const { status, catalog, error, retry } = useCatalog(identity);
+  const identity = user ? `${user.id}:${user.role}:${previewRole || "live"}` : null;
+  const { status, catalog, error, retry } = useCatalog(identity, previewRole ? `/api/workspace/catalog/${previewRole}` : "/api/catalog");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [searchParams, setSearchParams] = useSearchParams();
 

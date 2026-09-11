@@ -21,7 +21,7 @@ function hhmm(seconds) {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
-export default function OpsUsers({ state, act, busy }) {
+export default function OpsUsers({ state, act, busy, readOnly = false }) {
   const wearers = state?.wearers ?? [];
   const episodes = state?.episodes ?? [];
 
@@ -152,16 +152,16 @@ export default function OpsUsers({ state, act, busy }) {
                                       contact: draft.contact ?? w.contact,
                                       note: draft.note ?? w.note,
                                     })}>save</button>
-                            <button onClick={() => { setEditing(null); setDraft({}); }}>
+                            <button disabled={readOnly} onClick={() => { setEditing(null); setDraft({}); }}>
                               cancel
                             </button>
                           </>
                         ) : (
                           <>
-                            <button onClick={() => { setEditing(w.id); setDraft({}); }}>
+                            <button disabled={readOnly} onClick={() => { setEditing(w.id); setDraft({}); }}>
                               edit
                             </button>
-                            <button
+                            <button disabled={readOnly}
                               title={w.is_active
                                 ? "Retire them: they leave the pickers, every past episode keeps their name."
                                 : "Bring them back into the pickers."}
@@ -192,16 +192,16 @@ export default function OpsUsers({ state, act, busy }) {
             <div className="ops-phead"><h2>Add a person</h2></div>
             <div className="ops-pbody">
               <label htmlFor="u-name">Name</label>
-              <input id="u-name" value={name} placeholder="김민준"
+              <input disabled={readOnly} id="u-name" value={name} placeholder="김민준"
                      onChange={(e) => setName(e.target.value)} />
               <label htmlFor="u-contact">Contact</label>
-              <input id="u-contact" value={contact} placeholder="010-0000-0000 / KakaoTalk"
+              <input disabled={readOnly} id="u-contact" value={contact} placeholder="010-0000-0000 / KakaoTalk"
                      onChange={(e) => setContact(e.target.value)} />
               <label htmlFor="u-note">Note</label>
-              <input id="u-note" value={note} placeholder="which shop, which shift…"
+              <input disabled={readOnly} id="u-note" value={note} placeholder="which shop, which shift…"
                      onChange={(e) => setNote(e.target.value)} />
               <button
-                disabled={!name.trim() || busy === "wearer"}
+                disabled={readOnly || !name.trim() || busy === "wearer"}
                 onClick={async () => {
                   const ok = await act("wearer", "/api/ops/wearers", {
                     name: name.trim(), contact: contact.trim(), note: note.trim(),

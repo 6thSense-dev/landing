@@ -2,6 +2,8 @@ import React, { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { LogOut } from "lucide-react";
 
+import WorkspaceLink from "../portal/WorkspaceLink.jsx";
+import { useWorkspacePreview } from "../portal/WorkspaceContext.jsx";
 import IntakeReviewLink from "../portal/IntakeReviewLink.jsx";
 import { useSession } from "../portal/useSession.jsx";
 
@@ -34,6 +36,7 @@ export default function CatalogTopBar({
   pending = false,
 }) {
   const { user, logout } = useSession();
+  const preview = useWorkspacePreview();
   const [busy, setBusy] = useState(false);
 
   /*
@@ -104,13 +107,14 @@ export default function CatalogTopBar({
         </p>
 
         <div className="cat-topbar__session">
-          <IntakeReviewLink />
+          <WorkspaceLink />
+          {!preview && <IntakeReviewLink />}
           {user ? (
             <span className="cat-topbar__identity">
               {/* The role, not just the name: a guest and a customer see
                   materially different documents, and which one you are looking
                   at is worth stating on every screen. */}
-              {user.role ? <span className="cat-topbar__role">{user.role}</span> : null}
+              {user.role ? <span className="cat-topbar__role">{preview || user.role}</span> : null}
               {who ? (
                 <span className="cat-topbar__who" title={user.email || undefined}>
                   {who}
@@ -119,7 +123,7 @@ export default function CatalogTopBar({
             </span>
           ) : null}
 
-          <button
+          {!preview && <button
             type="button"
             className="cat-topbar__logout"
             onClick={onLogout}
@@ -127,7 +131,7 @@ export default function CatalogTopBar({
           >
             <LogOut size={15} aria-hidden="true" />
             <span>{busy ? "Signing out…" : "Log out"}</span>
-          </button>
+          </button>}
         </div>
       </div>
     </header>

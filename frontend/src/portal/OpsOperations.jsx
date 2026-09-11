@@ -22,7 +22,7 @@ function lagChip(e) {
   return <div><span className="ops-chip warn" title={title}>+{Math.round(h / 24)} d</span></div>;
 }
 
-export default function OpsOperations({ state, act, busy, rate }) {
+export default function OpsOperations({ state, act, busy, rate, readOnly = false }) {
   const [preview, setPreview] = useState(null);   // {recording, files, error, pick}
 
   // Filters. All client-side: the whole ledger arrives in one /state call, so a
@@ -50,7 +50,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
 
   const openPreview = async (recording) => {
     setPreview({ recording, files: [], error: "", pick: 0, loading: true });
-    const r = await portalFetch(`/api/ops/episodes/${recording}/files`);
+    const r = await portalFetch(`${readOnly ? "/api/workspace/ops" : "/api/ops"}/episodes/${encodeURIComponent(recording)}/files`);
     if (!r.ok) {
       return setPreview({ recording, files: [], pick: 0, loading: false,
                           error: `Could not list this episode (HTTP ${r.status}).` });
@@ -272,7 +272,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
               </label>
               <span className="ops-spacer" />
               <button
-                disabled={!payable.length || busy === "payall"}
+                disabled={readOnly || !payable.length || busy === "payall"}
                 title={payable.length
                   ? `Settle the ${payable.length} approved, unpaid episode(s) on screen`
                   : "Nothing on screen is both approved and unpaid"}
@@ -317,7 +317,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                       <td>
                         <select
                           value={e.wearer_id ?? ""}
-                          disabled={!!e.deleted_at}
+                          disabled={readOnly || !!e.deleted_at}
                           onChange={(ev) =>
                             act(`assign-${e.recording}`, `/api/ops/episodes/${e.recording}/assign`,
                                 { wearer_id: ev.target.value ? Number(ev.target.value) : null })}
@@ -333,7 +333,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                       <td>
                         <select
                           value={e.task_id ?? ""}
-                          disabled={!!e.deleted_at}
+                          disabled={readOnly || !!e.deleted_at}
                           onChange={(ev) =>
                             act(`task-${e.recording}`, `/api/ops/episodes/${e.recording}/task`,
                                 { task_id: ev.target.value ? Number(ev.target.value) : null })}
@@ -380,7 +380,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                           : <span className="ops-chip warn">incomplete</span>}
                       </td>
                       <td className="num">
-                        <input type="checkbox" checked={e.approved} disabled={!!e.deleted_at}
+                        <input type="checkbox" checked={e.approved} disabled={readOnly || !!e.deleted_at}
                                onChange={(ev) =>
                                  act(`ap-${e.recording}`, `/api/ops/episodes/${e.recording}/approve`,
                                      { value: ev.target.checked })} />
@@ -390,7 +390,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                             a payment can never be recorded at a stale number the
                             operator's page happened to be holding. */}
                         <input type="checkbox" checked={e.paid}
-                               disabled={!!e.deleted_at || (!e.approved && !e.paid)}
+                               disabled={readOnly || !!e.deleted_at || (!e.approved && !e.paid)}
                                title={!e.approved && !e.paid ? "approve it first" : ""}
                                onChange={(ev) =>
                                  act(`pay-${e.recording}`, `/api/ops/episodes/${e.recording}/pay`,
@@ -406,7 +406,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                               {e.delete_kind}
                             </span>
                             {e.delete_kind === "soft" && (
-                              <button onClick={() =>
+                              <button disabled={readOnly} onClick={() =>
                                 act(`res-${e.recording}`, `/api/ops/episodes/${e.recording}/restore`)}>
                                 restore
                               </button>
@@ -415,6 +415,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                         ) : (
                           <>
                             <button
+                              disabled={readOnly}
                               title="Hide it here. Every byte stays in the bucket."
                               onClick={() =>
                                 act(`sd-${e.recording}`, `/api/ops/episodes/${e.recording}/delete`,
@@ -422,6 +423,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
                               soft
                             </button>
                             <button
+                              disabled={readOnly}
                               className="danger"
                               title="Purge the objects from S3. Cannot be undone — the bucket denies deletes to its uploaders, so it cannot be re-uploaded either."
                               onClick={() => {
@@ -485,7 +487,7 @@ export default function OpsOperations({ state, act, busy, rate }) {
               <div className="ops-phead"><h2>Payment basis</h2></div>
               <div className="ops-pbody">
                 <label htmlFor="ops-rate">Amount per approved episode (KRW)</label>
-                <input id="ops-rate" type="number" min="0" step="10" value={rateDraft}
+                <input disabled={readOnly} id="ops-rate" type="number" min="0" step="10" value={rateDraft}
                        onChange={(ev) => setRateDraft(ev.target.value)}
                        onBlur={commitRate}
                        onKeyDown={(ev) => { if (ev.key === "Enter") ev.currentTarget.blur(); }} />
@@ -504,15 +506,15 @@ export default function OpsOperations({ state, act, busy, rate }) {
               <div className="ops-pbody">
                 <label htmlFor="ops-task">Add a task label</label>
                 <div className="ops-bar" style={{ marginBottom: 0 }}>
-                  <input id="ops-task" className="ops-q" placeholder="label"
+                  <input disabled={readOnly} id="ops-task" className="ops-q" placeholder="label"
                          value={taskName} onChange={(e) => setTaskName(e.target.value)} />
-                  <select value={taskCat} onChange={(e) => setTaskCat(e.target.value)}
+                  <select disabled={readOnly} value={taskCat} onChange={(e) => setTaskCat(e.target.value)}
                           title="category, as used in the delivered takes catalog">
                     {[...new Set([...tasks.map((x) => x.category), "other"])]
                       .sort().map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                   <button
-                    disabled={!taskName.trim() || busy === "task"}
+                    disabled={readOnly || !taskName.trim() || busy === "task"}
                     onClick={async () => {
                       const ok = await act("task", "/api/ops/tasks",
                                            { name: taskName.trim(), category: taskCat });

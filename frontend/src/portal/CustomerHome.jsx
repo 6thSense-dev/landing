@@ -1,12 +1,14 @@
+import { useWorkspacePreview } from "./WorkspaceContext.jsx";
 import { useSession } from "./useSession.jsx";
 
 export default function CustomerHome() {
   const { user, logout } = useSession();
+  const preview = useWorkspacePreview();
   return (
     <div className="portal-simple-shell">
       <header className="portal-simple-bar">
         <span className="portal-simple-name">{user?.name}</span>
-        <button onClick={logout} className="portal-logout-btn">Logout</button>
+        {!preview && <button onClick={logout} className="portal-logout-btn">Logout</button>}
       </header>
       <main>
         <h1>Customer portal</h1>

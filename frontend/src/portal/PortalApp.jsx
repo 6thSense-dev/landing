@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import Workspace from "./Workspace.jsx";
 import AdminDashboard from "./AdminDashboard.jsx";
 import CustomerHome from "./CustomerHome.jsx";
 import FounderDashboard from "./FounderDashboard.jsx";
@@ -7,7 +8,7 @@ import InvestorHome from "./InvestorHome.jsx";
 import OpsDashboard from "./OpsDashboard.jsx";
 import { RequireAuth } from "./RequireAuth.jsx";
 import { RequireRole } from "./RequireRole.jsx";
-import { CATALOG_ROLES, OPS_ROLES, roleHome } from "./roleHome.js";
+import { CATALOG_ROLES, OPS_ROLES, accountHome } from "./roleHome.js";
 import { useSession } from "./useSession.jsx";
 
 // Lazily loaded: the catalog pulls in five tab components, a hand-rolled SVG
@@ -23,7 +24,7 @@ function RoleHomeRedirect() {
   // Not `/portal/${user.role}`: a guest has no dashboard of their own, and
   // sending them to /portal/guest would fall through to the `*` route below
   // and redirect to /portal/guest again — a loop, not a 404.
-  return <Navigate to={roleHome(user.role)} replace />;
+  return <Navigate to={accountHome(user)} replace />;
 }
 
 export default function PortalApp() {
@@ -31,6 +32,7 @@ export default function PortalApp() {
     <Routes>
       <Route element={<RequireAuth />}>
         <Route element={<RequireRole role="admin" />}>
+          <Route path="workspace/*" element={<Workspace />} />
           <Route path="admin/*" element={<AdminDashboard />} />
           <Route path="intake-review" element={<Suspense fallback={<div className="portal-loading" />}><IntakeReview /></Suspense>} />
         </Route>
