@@ -85,6 +85,9 @@ class Wearer(Base):
     #: with a phone; requiring an email or a phone number here would mean either
     #: a blocked row or a fake one.
     contact: Mapped[str] = mapped_column(String(320), nullable=False, server_default="")
+    workplace: Mapped[str] = mapped_column(String(200), nullable=False, server_default="")
+    location: Mapped[str] = mapped_column(String(200), nullable=False, server_default="")
+    rate_krw_hour: Mapped[int | None] = mapped_column(Integer)
     note: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(

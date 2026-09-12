@@ -5,23 +5,15 @@ import WorkspaceLink from "./WorkspaceLink.jsx";
 import IntakeReviewLink from "./IntakeReviewLink.jsx";
 import OpsOperations from "./OpsOperations.jsx";
 import OpsUsers from "./OpsUsers.jsx";
+import OpsClean from "./OpsClean.jsx";
 import "./ops.css";
 
-/**
- * The collector operations area: a shell with two tabs over one shared state.
- *
- * WHY THE STATE LIVES HERE AND NOT IN THE TABS. Every mutation endpoint returns
- * the whole new state, and both tabs read the same episodes — Users derives a
- * person's accepted hours from them. Fetching per tab would let the two screens
- * disagree about the same numbers depending on which was opened first.
- *
- * OPERATIONS is strictly the episode ledger; USERS is strictly the people who
- * carry cameras. They are separate tables for a reason (see OpsUsers.jsx) and
- * keeping them separate screens keeps that distinction visible.
- */
+/** Raw and Users share the episode ledger. Clean owns its QC collection state
+ * and refreshes the shared ledger after a camera assignment. */
 
 const TABS = [
-  { key: "ops", label: "Operations" },
+  { key: "ops", label: "Raw" },
+  { key: "clean", label: "Clean" },
   { key: "users", label: "Users" },
 ];
 
@@ -83,7 +75,7 @@ export default function OpsDashboard({ readOnly = false }) {
       <header className="ops-head">
         <h1>Collector operations</h1>
         <nav className="ops-tabs">
-          {TABS.map((t) => (
+          {TABS.filter(t => !readOnly || t.key !== "clean").map((t) => (
             <button
               key={t.key}
               className={`ops-tab${tab === t.key ? " is-on" : ""}`}
@@ -124,7 +116,7 @@ export default function OpsDashboard({ readOnly = false }) {
 
         {!state ? (
           <p className="ops-muted">{err ? "" : "Loading the ledger…"}</p>
-        ) : tab === "ops" ? (
+        ) : tab === "clean" && !readOnly ? (<OpsClean onChanged={load} />) : tab === "ops" ? (
           <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />
         ) : (
           <OpsUsers readOnly={readOnly} state={state} act={act} busy={busy} />
