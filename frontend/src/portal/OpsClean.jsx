@@ -9,6 +9,8 @@ const money = (n) => n == null ? 'Rate not set' : `₩${n.toLocaleString('ko-KR'
 
 export default function OpsClean({ onChanged }) {
   const dialog = useRef(null);
+  const video = useRef(null);
+  const [playbackError, setPlaybackError] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -48,6 +50,7 @@ export default function OpsClean({ onChanged }) {
       const response = await portalFetch(`/api/ops/clean/${path}`, { method: 'POST', body: JSON.stringify(body || {}) });
       if (!response.ok) throw new Error(response.data?.detail || 'The change could not be saved.');
       setData(response.data);
+      if (response.data.scan_errors?.length) setError(`${response.data.scan_errors.length} clean result(s) could not be verified and were skipped. Their footage was not added to the estimate.`);
       onChanged?.();
       setMessage(path === 'scan' ? `${response.data.imported} new clean collection(s) imported.` : 'Camera assignment saved.');
       return true;
@@ -60,7 +63,7 @@ export default function OpsClean({ onChanged }) {
   const total = runs.reduce((a, r) => ({ kept: a.kept + r.retained_seconds, excluded: a.excluded + r.rejected_seconds,
     due: a.due + (!r.paid ? r.estimated_krw || 0 : 0), missing: a.missing || (!r.paid && r.estimated_krw == null) }), { kept: 0, excluded: 0, due: 0, missing: false });
   const play = async (run, review = null) => {
-    setError('');
+    setError(''); setPlaybackError(false);
     try {
       const response = await portalFetch(`/api/ops/clean/runs/${encodeURIComponent(run.run_id)}/files`);
       if (!response.ok) throw new Error(response.data?.detail || 'Could not load playback.');
@@ -68,6 +71,16 @@ export default function OpsClean({ onChanged }) {
       const index = review ? files.findIndex(f => f.role === 'recording_preview' && f.recording === review.recording) : files.findIndex(f => f.role === 'joined_preview');
       setPreview({ run, files, index: Math.max(0, index), start: review?.clean_start_s || 0 });
     } catch (e) { setError(e.message); }
+  };
+  const renewVideo = async () => {
+    const current = preview;
+    const position = video.current?.currentTime || 0;
+    const response = await portalFetch(`/api/ops/clean/runs/${encodeURIComponent(current.run.run_id)}/files`);
+    if (!response.ok) { setPlaybackError(true); return; }
+    const files = response.data.files || [];
+    const index = files.findIndex(f => f.key === current.files[current.index].key);
+    if (index < 0) { setPlaybackError(true); return; }
+    setPreview({ ...current, files, index, start: position }); setPlaybackError(false);
   };
   return <section className="ops-clean" aria-label="Clean footage">
     <div className="ops-clean-intro">
@@ -114,7 +127,7 @@ export default function OpsClean({ onChanged }) {
       </aside>
     </div>
     {preview && <div ref={dialog} className="ops-clean-modal" role="dialog" aria-modal="true" aria-label="Clean footage player"><div className="ops-panel"><div className="ops-phead"><h2>Clean footage</h2><button autoFocus onClick={() => setPreview(null)}>Close</button></div><div className="ops-pbody">
-      {!preview.files.length ? <p>No playable output is available.</p> : <><video key={preview.files[preview.index].key} controls playsInline preload="metadata" src={preview.files[preview.index].url} onLoadedMetadata={e => { e.currentTarget.currentTime = preview.start || 0; }} onEnded={() => { if (preview.index + 1 < preview.files.length) setPreview({ ...preview, index: preview.index + 1, start: 0 }); }} /><label htmlFor="clean-file">Video</label><select id="clean-file" value={preview.index} onChange={e => setPreview({ ...preview, index: Number(e.target.value), start: 0 })}>{preview.files.map((f, i) => <option key={f.key} value={i}>{f.label || f.key.split('/').pop()}</option>)}</select><a href={preview.files[preview.index].url} target="_blank" rel="noreferrer">Open video in a new tab</a></>}
+      {!preview.files.length ? <p>No playable output is available.</p> : <><video ref={video} key={preview.files[preview.index].url} onError={() => setPlaybackError(true)} controls playsInline preload="metadata" src={preview.files[preview.index].url} onLoadedMetadata={e => { e.currentTarget.currentTime = preview.start || 0; }} onEnded={() => { if (preview.index + 1 < preview.files.length) setPreview({ ...preview, index: preview.index + 1, start: 0 }); }} /><label htmlFor="clean-file">Video</label><select id="clean-file" value={preview.index} onChange={e => setPreview({ ...preview, index: Number(e.target.value), start: 0 })}>{preview.files.map((f, i) => <option key={f.key} value={i}>{f.label || f.key.split('/').pop()}</option>)}</select><button onClick={renewVideo}>Reload video link</button>{playbackError && <p role="alert">Playback stopped. Reload the link to resume, or try the browser preview if the original format is unsupported.</p>}<a href={preview.files[preview.index].url} target="_blank" rel="noreferrer">Open video in a new tab</a></>}
     </div></div></div>}
   </section>;
 }

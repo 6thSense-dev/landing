@@ -4,7 +4,7 @@ import json
 import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.routes.ops import require_ops, _wearer_json
 from app.core.db import get_session
@@ -51,6 +51,7 @@ async def assign_camera(body: CameraIn, _: User = Depends(require_ops), db: Asyn
     device = body.device_id.strip().upper().removeprefix('EGO-')
     if not re.fullmatch(r'[A-F0-9]{6}', device):
         raise HTTPException(422, 'Enter a six-character camera ID, for example EGO-ABC123.')
+    await db.execute(text('SELECT pg_advisory_xact_lock(61306130)'))
     wearer = await db.get(Wearer, body.wearer_id)
     if wearer is None or not wearer.is_active:
         raise HTTPException(404, 'Unknown active contributor.')
@@ -60,7 +61,9 @@ async def assign_camera(body: CameraIn, _: User = Depends(require_ops), db: Asyn
     else:
         camera.wearer_id = wearer.id
     if body.assign_unassigned_recordings:
-        episodes = (await db.execute(select(Episode).where(Episode.device_id == device, Episode.wearer_id.is_(None), Episode.paid.is_(False), Episode.deleted_at.is_(None)).with_for_update())).scalars().all()
+        normalized = func.replace(func.upper(func.trim(Episode.device_id)), 'EGO-', '')
+        same_camera = or_(normalized == device, and_(func.coalesce(normalized, '') == '', func.upper(func.right(Episode.recording, 7)) == '_' + device))
+        episodes = (await db.execute(select(Episode).where(same_camera, Episode.wearer_id.is_(None), Episode.paid.is_(False), Episode.deleted_at.is_(None)).with_for_update())).scalars().all()
         for episode in episodes:
             episode.wearer_id = wearer.id
     # Previously imported clean collections keep their original attribution and rate.
@@ -75,7 +78,6 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
     except Exception as exc:
         raise HTTPException(502, f'Clean results could not be verified ({type(exc).__name__}).') from exc
     # Serialize import/overlap checks across operators and requests.
-    from sqlalchemy import text
     await db.execute(text('SELECT pg_advisory_xact_lock(61306130)'))
     existing = (await db.execute(select(CleanRun))).scalars().all()
     by_id = {r.run_id: r for r in existing}
@@ -106,7 +108,7 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
         used_hashes |= hashes
         added += 1
     await db.commit()
-    return {**await state(db), 'imported': added}
+    return {**await state(db), 'imported': added, 'scan_errors': getattr(results, 'errors', [])}
 
 
 @router.get('/runs/{run_id}/files')

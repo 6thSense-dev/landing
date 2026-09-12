@@ -45,6 +45,8 @@ def validate_manifest(doc):
             raise ValueError('Invalid recording duration')
         if not isinstance(rec.get('recording'), str) or rec['recording'] in seen:
             raise ValueError('Duplicate or missing recording identity')
+        if not re.fullmatch(r'ego_[0-9]{8}_[0-9]{6}_[A-Fa-f0-9]{6}', rec['recording']) or rec['recording'].rsplit('_', 1)[-1].upper() != doc['device_id']:
+            raise ValueError('Recording identity must identify its source camera')
         seen.add(rec['recording'])
         intervals = rec.get('intervals', [])
         cursor = 0
@@ -64,6 +66,8 @@ def validate_manifest(doc):
         for source in rec.get('sources', []):
             if source.get('bucket') != '6thsense-raw' or not source.get('key', '').startswith('sessions/'):
                 raise ValueError('Invalid source location')
+            if source['key'].split('/')[-2] != rec['recording']:
+                raise ValueError('Source key does not belong to this recording')
             identity = (source['bucket'], source['key'], source.get('version_id'))
             if identity in source_ids or source.get('sha256') in source_hashes:
                 raise ValueError('Duplicate source footage')
@@ -82,7 +86,7 @@ def validate_manifest(doc):
         key = output.get('key', '')
         if not key.startswith(f"clean/{doc['run_id']}/") or any(p in ('', '.', '..') for p in key.split('/')):
             raise ValueError('Output outside this clean run')
-        if not key.endswith(('.mp4', '.m3u8')) or not output.get('version_id') or output.get('bytes', 0) <= 0:
+        if not key.endswith(('.mp4', '.m3u8')) or output.get('version_id') in (None, '', 'null') or output.get('bytes', 0) <= 0:
             raise ValueError('Invalid output reference')
         if not re.fullmatch(r'[a-f0-9]{64}', output.get('sha256', '')):
             raise ValueError('Output digest is required')
@@ -101,30 +105,44 @@ def _json(s3, key, version=None):
     return json.loads(body), body, response.get('VersionId')
 
 
+class VerifiedResults(list):
+    def __init__(self):
+        super().__init__()
+        self.errors = []
+
+
+def _committed_result(s3, key):
+    marker, _, _ = _json(s3, key)
+    ref = marker.get('manifest', {})
+    if ref.get('key') != key.rsplit('/', 1)[0] + '/result.json' or ref.get('version_id') in (None, '', 'null'):
+        raise ValueError('Invalid QC completion marker')
+    doc, body, version = _json(s3, ref['key'], ref['version_id'])
+    digest = hashlib.sha256(body).hexdigest()
+    if digest != ref.get('sha256'):
+        raise ValueError('QC result digest mismatch')
+    validate_manifest(doc)
+    if key != f"qc-results/{doc['run_id']}/_SUCCESS.json":
+        raise ValueError('Run identity does not match completion marker')
+    for output in doc.get('outputs', []):
+        head = s3.head_object(Bucket=clean_bucket(), Key=output['key'], VersionId=output['version_id'])
+        if head['ContentLength'] != output['bytes'] or head.get('Metadata', {}).get('sha256') != output['sha256']:
+            raise ValueError('Clean output does not match its committed inventory')
+    return doc, ref['key'], version, digest
+
+
 def committed_results():
+    from botocore.exceptions import ClientError
     s3 = _client(get_settings())
-    results = []
+    results = VerifiedResults()
     for page in s3.get_paginator('list_objects_v2').paginate(Bucket=clean_bucket(), Prefix='qc-results/'):
         for obj in page.get('Contents', []):
             key = obj['Key']
             if not key.endswith('/_SUCCESS.json'):
                 continue
-            marker, _, _ = _json(s3, key)
-            ref = marker.get('manifest', {})
-            if ref.get('key') != key.rsplit('/', 1)[0] + '/result.json' or not ref.get('version_id'):
-                raise ValueError('Invalid QC completion marker')
-            doc, body, version = _json(s3, ref['key'], ref['version_id'])
-            digest = hashlib.sha256(body).hexdigest()
-            if digest != ref.get('sha256'):
-                raise ValueError('QC result digest mismatch')
-            validate_manifest(doc)
-            if key != f"qc-results/{doc['run_id']}/_SUCCESS.json":
-                raise ValueError('Run identity does not match completion marker')
-            for output in doc.get('outputs', []):
-                head = s3.head_object(Bucket=clean_bucket(), Key=output['key'], VersionId=output['version_id'])
-                if head['ContentLength'] != output['bytes'] or head.get('Metadata', {}).get('sha256') != output['sha256']:
-                    raise ValueError('Clean output does not match its committed inventory')
-            results.append((doc, ref['key'], version, digest))
+            try:
+                results.append(_committed_result(s3, key))
+            except (ClientError, ValueError, KeyError, TypeError, AttributeError) as exc:
+                results.errors.append({'marker': key, 'error': type(exc).__name__})
     return results
 
 
