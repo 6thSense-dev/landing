@@ -27,6 +27,9 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
 
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
+  const [workplace, setWorkplace] = useState("");
+  const [location, setLocation] = useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(null);   // wearer id being edited
   const [draft, setDraft] = useState({});
@@ -100,7 +103,7 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
             <table className="ops-table">
               <thead>
                 <tr>
-                  <th>Name</th><th>Contact</th><th>Note</th><th>Cameras</th>
+                  <th>Name</th><th>Workplace / location / rate</th><th>Contact</th><th>Note</th><th>Cameras</th>
                   <th className="num">Episodes</th><th className="num">Accepted</th>
                   <th className="num">Unpaid</th><th>Last seen</th><th />
                 </tr>
@@ -116,6 +119,13 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
                           <input value={draft.name ?? w.name}
                                  onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                         ) : w.name}
+                      </td>
+                      <td>
+                        {isEd ? <div className="ops-clean-person">
+                          <input aria-label="Workplace" placeholder="Workplace" value={draft.workplace ?? w.workplace ?? ''} onChange={e => setDraft({ ...draft, workplace: e.target.value })} />
+                          <input aria-label="Location" placeholder="Location" value={draft.location ?? w.location ?? ''} onChange={e => setDraft({ ...draft, location: e.target.value })} />
+                          <input aria-label="KRW per approved hour" type="number" min="0" max="100000000" placeholder="KRW per approved hour" value={draft.rate_krw_hour ?? w.rate_krw_hour ?? ''} onChange={e => setDraft({ ...draft, rate_krw_hour: e.target.value })} />
+                        </div> : <div className="ops-clean-person"><span>{w.workplace || '—'}</span><span>{w.location || '—'}</span><span>{w.rate_krw_hour == null ? 'Rate not set' : `₩${fmt(w.rate_krw_hour)} / hour`}</span></div>}
                       </td>
                       <td>
                         {isEd ? (
@@ -150,6 +160,9 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
                                     onClick={() => save(w, {
                                       name: (draft.name ?? w.name).trim() || w.name,
                                       contact: draft.contact ?? w.contact,
+                                      workplace: draft.workplace ?? w.workplace,
+                                      location: draft.location ?? w.location,
+                                      rate_krw_hour: (draft.rate_krw_hour ?? w.rate_krw_hour) === "" ? null : (draft.rate_krw_hour ?? w.rate_krw_hour) == null ? null : Number(draft.rate_krw_hour ?? w.rate_krw_hour),
                                       note: draft.note ?? w.note,
                                     })}>save</button>
                             <button disabled={readOnly} onClick={() => { setEditing(null); setDraft({}); }}>
@@ -197,6 +210,9 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
               <label htmlFor="u-contact">Contact</label>
               <input disabled={readOnly} id="u-contact" value={contact} placeholder="010-0000-0000 / KakaoTalk"
                      onChange={(e) => setContact(e.target.value)} />
+              <label htmlFor="u-workplace">Workplace</label><input disabled={readOnly} id="u-workplace" value={workplace} onChange={e => setWorkplace(e.target.value)} placeholder="Printing workshop" maxLength={200} />
+              <label htmlFor="u-location">Location</label><input disabled={readOnly} id="u-location" value={location} onChange={e => setLocation(e.target.value)} placeholder="Country, city, or site" maxLength={200} />
+              <label htmlFor="u-hourly">KRW per approved hour</label><input disabled={readOnly} id="u-hourly" type="number" min="0" max="100000000" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} placeholder="11000" />
               <label htmlFor="u-note">Note</label>
               <input disabled={readOnly} id="u-note" value={note} placeholder="which shop, which shift…"
                      onChange={(e) => setNote(e.target.value)} />
@@ -205,8 +221,9 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
                 onClick={async () => {
                   const ok = await act("wearer", "/api/ops/wearers", {
                     name: name.trim(), contact: contact.trim(), note: note.trim(),
+                    workplace: workplace.trim(), location: location.trim(), rate_krw_hour: hourlyRate === "" ? null : Number(hourlyRate),
                   });
-                  if (ok) { setName(""); setContact(""); setNote(""); }
+                  if (ok) { setName(""); setContact(""); setNote(""); setWorkplace(""); setLocation(""); setHourlyRate(""); }
                 }}>
                 Add person
               </button>

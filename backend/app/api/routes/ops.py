@@ -85,7 +85,7 @@ async def _rate(db: AsyncSession) -> int:
 
 def _wearer_json(w: Wearer) -> dict:
     return {"id": w.id, "name": w.name, "contact": w.contact, "note": w.note,
-            "is_active": w.is_active}
+            "is_active": w.is_active, "workplace": w.workplace, "location": w.location, "rate_krw_hour": w.rate_krw_hour}
 
 
 def _task_json(t: Task) -> dict:
@@ -224,6 +224,9 @@ async def scan_bucket(_: User = Depends(require_ops),
 # --- wearers ------------------------------------------------------------------
 
 class WearerIn(BaseModel):
+    workplace: str = Field(default="", max_length=200)
+    location: str = Field(default="", max_length=200)
+    rate_krw_hour: int | None = Field(default=None, ge=0, le=100_000_000)
     name: str = Field(min_length=1, max_length=200)
     contact: str = Field(default="", max_length=320)
     note: str = ""
@@ -233,7 +236,8 @@ class WearerIn(BaseModel):
 async def create_wearer(body: WearerIn, _: User = Depends(require_ops),
                         db: AsyncSession = Depends(get_session)) -> dict:
     db.add(Wearer(name=body.name.strip(), contact=body.contact.strip(),
-                  note=body.note.strip()))
+                  note=body.note.strip(), workplace=body.workplace.strip(),
+                  location=body.location.strip(), rate_krw_hour=body.rate_krw_hour))
     await db.commit()
     return await _state(db)
 
@@ -241,6 +245,9 @@ async def create_wearer(body: WearerIn, _: User = Depends(require_ops),
 class WearerPatch(BaseModel):
     """Every field optional: the Users tab saves one field at a time."""
 
+    workplace: str | None = Field(default=None, max_length=200)
+    location: str | None = Field(default=None, max_length=200)
+    rate_krw_hour: int | None = Field(default=None, ge=0, le=100_000_000)
     name: str | None = Field(default=None, min_length=1, max_length=200)
     contact: str | None = Field(default=None, max_length=320)
     note: str | None = None
@@ -270,6 +277,11 @@ async def update_wearer(wearer_id: int, body: WearerPatch,
         w.note = body.note.strip()
     if body.is_active is not None:
         w.is_active = body.is_active
+    for field in ("workplace", "location"):
+        if getattr(body, field) is not None:
+            setattr(w, field, getattr(body, field).strip())
+    if "rate_krw_hour" in body.model_fields_set:
+        w.rate_krw_hour = body.rate_krw_hour
     await db.commit()
     return await _state(db)
 
