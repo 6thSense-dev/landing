@@ -23,6 +23,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 `GET /health` returns `{"status":"ok"}`. See `backend/README.md`.
 
+For Collector operations, see [clean footage, combined viewing, and contributor estimates](docs/OPS-CLEAN.md) and the [Raw processing queue](backend/README.md#raw-processing-queue).
+
 ## Frontend
 
 The public site is a **React + Vite** app in `frontend/`. The hero is a **scroll-scrubbed 2D canvas "rig tour"** — a glove frame sequence (`frontend/public/hero/glove/frame-00X.webp`) painted to a canvas as you scroll — alongside an HTML5 `<video>` demo clip. It uses **Framer Motion** (`framer-motion`) for motion and **lucide-react** for icons; **react-router-dom** routes a lazy-loaded partner portal at `/login` and `/portal/*`. It also uses **Three.js** (`three`) for WebGL 3D turntable views (hand, glove, and eye2 models in `frontend/src/lib/`). Self-hosted fonts live in `frontend/public/fonts/` (served as `woff2`, with `.ttf` fallback) and are declared in `frontend/index.html` + `frontend/src/scroll-hero.css`, plus a Google Fonts request in `index.html`.
