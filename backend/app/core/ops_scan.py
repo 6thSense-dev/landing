@@ -31,7 +31,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from app.core.ops_s3 import OpsS3Unavailable, get_settings, _client
+from app.core.ops_s3 import OpsS3Unavailable, get_settings, _client, PLAYABLE
 
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,13 @@ def walk_bucket(prefix: str = "sessions/") -> dict[str, dict]:
                 "recording": recording, "session": session,
                 "prefix": take_prefix + "/", "bytes": 0, "files": 0,
                 "meta_key": None, "uploaded": None, "meta": {}, "error": "",
+                "prefixes": [], "media": [],
             })
+            if take_prefix + "/" not in t["prefixes"]:
+                t["prefixes"].append(take_prefix + "/")
+            if obj["Key"].lower().endswith(PLAYABLE + (".egoc",)):
+                t["media"].append({"key": obj["Key"], "bytes": obj.get("Size", 0),
+                                   "etag": obj.get("ETag", "")})
             t["bytes"] += obj.get("Size", 0)
             t["files"] += 1
             # The LAST object decides: a take is not delivered until its final

@@ -629,3 +629,122 @@ async def test_scan_needs_the_ops_role(app, db_session):
     async with _client(app) as c:
         r = await c.post("/api/ops/scan", cookies={"sid": sid}, headers={"Origin": ORIGIN})
         assert r.status_code == 403
+
+
+def test_raw_queue_uses_verified_content_not_recording_name():
+    from app.core.ops_raw import raw_statuses
+    source = {'key': 'old/rec/video.mp4', 'version_id': 'v1', 'sha256': 'abc', 'size_bytes': 50}
+    manifest = {'recordings': [{'recording': 'rec', 'sources': [source]}]}
+    receipt = dict(source, key='new/rec/video.mp4', source_key=source['key'], source_version_id='v1', etag='same')
+    media = {'key': receipt['key'], 'etag': 'same', 'bytes': 50}
+    inventory = {'rec': {'media': [media]}}
+    def classify():
+        return raw_statuses(inventory, [manifest], [receipt])['rec']
+    assert classify()['status'] == 'processed'
+    inventory['rec']['media'].append({'key': 'new/rec/additional.mp4', 'etag': 'new', 'bytes': 20})
+    assert classify()['status'] == 'partial'
+    assert classify()['pending_files'] == 1
+    inventory['rec']['media'] = [dict(media, etag='replaced')]
+    assert classify()['pending_files'] == 1
+    inventory['rec']['media'] = [media]
+    receipt['sha256'] = 'unverified'
+    assert classify()['pending_files'] == 1
+    assert raw_statuses({'failed': {'media': [{'key': 'bad.mp4', 'bytes': 12}]}}, [], [])['failed']['status'] == 'pending'
+    assert raw_statuses({'empty': {'media': []}}, [], [])['empty']['status'] == 'unavailable'
+    assert raw_statuses({}, [manifest], [])['rec']['status'] == 'processed'
+
+
+@pytest.mark.asyncio
+async def test_raw_scan_tracks_moved_delivery_without_changing_payment(app, db_session, monkeypatch):
+    import app.core.ops_scan as scanner
+    from app.models import OpsSetting
+    from app.models.ops_clean import CleanRun
+    from app.core.ops_raw import RECEIPTS_KEY
+    from app.api.routes.ops import _state
+    rec = 'ego_20260907_180803_ABC123'
+    old = f'sessions/old/ABC123/{rec}/'
+    new = f'sessions/new/OTHER/{rec}/'
+    ep = await _episode(db_session, rec, prefix=old, paid=True, approved=True, amount_krw=42)
+    source = {'key': old+'video.mp4', 'bucket': '6thsense-raw', 'version_id': 'v1', 'sha256': 'sha', 'size_bytes': 50}
+    db_session.add(CleanRun(run_id='run', device_id='ABC123', manifest_key='m', manifest_version='v',
+        manifest_sha256='sha', manifest_json=json.dumps({'recordings': [{'recording': rec, 'sources': [source]}]}),
+        retained_seconds=1, rejected_seconds=0))
+    db_session.add(OpsSetting(key=RECEIPTS_KEY, value=json.dumps([dict(source,
+        key=new+'video.mp4', source_key=source['key'], source_version_id='v1', etag='same')])) )
+    await db_session.commit()
+    monkeypatch.setattr(scanner, 'get_settings', lambda: _Cfg())
+    objects = [{'Key': old+'metadata.json', 'Size': 100},
+               {'Key': new+'video.mp4', 'Size': 50, 'ETag': 'same'}]
+    monkeypatch.setattr(scanner, '_client', lambda cfg: _FakeS3(objects))
+    sid = await _sid(db_session, 'ops')
+    async with _client(app) as c:
+        async def scan():
+            response = await c.post('/api/ops/scan', cookies={'sid': sid}, headers={'Origin': ORIGIN})
+            assert response.status_code == 200
+            return response.json()['episodes'][0]
+        row = await scan()
+        assert row['raw']['status'] == 'processed'
+        assert row['paid'] and row['approved'] and row['amount_krw'] == 42 and row['deleted_at'] is None
+        objects.append({'Key': new+'additional.mp4', 'Size': 20, 'ETag': 'new'})
+        row = await scan()
+        assert row['raw']['status'] == 'partial' and row['raw']['pending_files'] == 1
+        def fail(cfg):
+            raise RuntimeError('S3 unavailable')
+        monkeypatch.setattr(scanner, '_client', fail)
+        response = await c.post('/api/ops/scan', cookies={'sid': sid}, headers={'Origin': ORIGIN})
+        assert response.status_code == 502
+        row = (await c.get('/api/ops/state', cookies={'sid': sid})).json()['episodes'][0]
+        assert row['raw']['status'] == 'partial' and row['amount_krw'] == 42
+
+
+def test_raw_playback_finds_new_prefix_and_excludes_verified_copy(monkeypatch):
+    import app.core.ops_raw as raw
+    from types import SimpleNamespace
+    source = {'bucket': 'raw', 'key': 'old/video.mp4', 'version_id': 'v', 'sha256': 'sha', 'size_bytes': 50}
+    receipt = dict(source, key='new/video.mp4', source_key=source['key'], source_version_id='v', etag='same')
+    calls = []
+    class S3:
+        def get_paginator(self, _): return self
+        def paginate(self, **kw):
+            calls.append(kw['Prefix'])
+            return [{'Contents': [] if kw['Prefix']=='old/' else [
+                {'Key': 'new/video.mp4', 'Size': 50, 'ETag': 'same'},
+                {'Key': 'new/extra.mp4', 'Size': 20, 'ETag': 'new'},
+                {'Key': 'new/empty.mp4', 'Size': 0}]}]
+        def generate_presigned_url(self, *args, **kw): return 'signed'
+    monkeypatch.setattr(raw, '_client', lambda cfg: S3())
+    monkeypatch.setattr(raw, 'get_settings', lambda: SimpleNamespace(bucket='raw', presign_ttl=900))
+    files = raw.pending_playback('rec', {'rec': {'prefixes': ['old/', 'new/']}},
+        [{'recordings': [{'recording': 'rec', 'sources': [source]}]}], [receipt])
+    assert calls == ['old/', 'new/']
+    assert [f['key'] for f in files] == ['new/extra.mp4']
+
+
+def test_valid_legacy_clean_source_without_size_stays_pending():
+    from app.core.ops_raw import raw_statuses
+    manifest = {'recordings': [{'recording': 'rec', 'sources': [
+        {'key': 'raw/video.mp4', 'version_id': 'v', 'sha256': 'sha'}]}]}
+    inventory = {'rec': {'media': [{'key': 'raw/video.mp4', 'etag': 'e', 'bytes': 50}]}}
+    assert raw_statuses(inventory, [manifest], [])['rec']['pending_files'] == 1
+
+
+def test_future_clean_import_fingerprints_pinned_original_version(monkeypatch):
+    import app.core.ops_raw as raw
+    from types import SimpleNamespace
+    source = {'bucket': 'raw', 'key': 'p/video.mp4', 'version_id': 'original', 'sha256': 'sha', 'size_bytes': 50}
+    inventory = {'rec': {'media': [{'key': source['key'], 'etag': 'replacement', 'bytes': 50}]}}
+    manifests = [{'recordings': [{'recording': 'rec', 'sources': [source]}]}]
+    calls = []
+    class S3:
+        def head_object(self, **kw):
+            calls.append(kw)
+            return {'ContentLength': 50, 'ETag': 'original-content'}
+    monkeypatch.setattr(raw, '_client', lambda cfg: S3())
+    monkeypatch.setattr(raw, 'get_settings', lambda: SimpleNamespace(bucket='raw'))
+    receipts = raw.refresh_source_receipts(inventory, manifests, [])
+    assert calls[0]['VersionId'] == 'original'
+    assert raw.raw_statuses(inventory, manifests, receipts)['rec']['pending_files'] == 1
+    inventory['rec']['media'][0]['etag'] = 'original-content'
+    assert raw.raw_statuses(inventory, manifests, receipts)['rec']['status'] == 'processed'
+    assert raw.refresh_source_receipts(inventory, manifests, receipts) == receipts
+    assert len(calls) == 1

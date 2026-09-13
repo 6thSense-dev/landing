@@ -36,6 +36,7 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
   const [paidSel, setPaidSel] = useState("");
   const [approvedSel, setApprovedSel] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const [taskName, setTaskName] = useState("");
   const [taskCat, setTaskCat] = useState("other");
@@ -131,8 +132,9 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
       nameOf, labelOf]);
 
   const rows = useMemo(
-    () => (showDeleted ? matched : matched.filter((e) => !e.deleted_at)),
-    [matched, showDeleted],
+    () => matched.filter((e) => (showDeleted || !e.deleted_at) &&
+      (showArchived || !["processed", "unavailable"].includes(e.raw?.status))),
+    [matched, showDeleted, showArchived],
   );
 
   // Per person, over the WHOLE live ledger rather than the filter: this panel is
@@ -183,7 +185,7 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
   );
 
   const minutes = rows.reduce((a, e) => a + (e.minutes ?? 0), 0);
-  const bytes = rows.reduce((a, e) => a + (e.size_bytes ?? 0), 0);
+  const bytes = rows.reduce((a, e) => a + (e.raw?.raw_bytes ?? e.size_bytes ?? 0), 0);
   const approvedCount = rows.filter((e) => e.approved).length;
   const commitRate = () => {
     // An emptied or unparseable field is a MISTAKE, not an instruction to set the
@@ -202,15 +204,16 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
         {/* Every tile counts what is on screen, not what is in the bucket. A
             filtered view whose totals still describe the whole ledger is how a
             week gets settled against the wrong number. */}
+        <p className="ops-hint">Raw shows files awaiting processing or review, based on the last bucket scan. Ledger minutes are recording metadata estimates. Accepted hours and hourly payment estimates are in Clean.</p>
         <div className="ops-tiles">
           {[
             ["Episodes", fmt(rows.length)],
             ["Approved", fmt(approvedCount)],
-            ["Minutes", fmt(Math.round(minutes))],
+            ["Ledger minutes", fmt(Math.round(minutes))],
             ["Unpaid approved", fmt(payable.length)],
             ["Owed (KRW)", fmt(payable.length * rate)],
             ["Clock unverified", fmt(rows.filter((e) => !e.clock_ok).length)],
-            ["Stored", gb(bytes)],
+            ["Pending raw", gb(bytes)],
             ["Unassigned", fmt(rows.filter((e) => e.wearer_id == null).length)],
             ["Unlabelled", fmt(rows.filter((e) => e.task_id == null).length)],
             ["Deleted", fmt(matched.filter((e) => e.deleted_at).length)],
@@ -270,6 +273,11 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
                        onChange={(e) => setShowDeleted(e.target.checked)} />
                 show deleted
               </label>
+              <label className="ops-check">
+                <input type="checkbox" checked={showArchived}
+                       onChange={(e) => setShowArchived(e.target.checked)} />
+                show processed / unavailable
+              </label>
               <span className="ops-spacer" />
               <button
                 disabled={readOnly || !payable.length || busy === "payall"}
@@ -297,7 +305,7 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
                   <tr>
                     <th /><th>Episode</th><th>Region</th><th>Camera</th>
                     <th>Wearer</th><th>Task</th><th>Started</th><th>Uploaded</th>
-                    <th className="num">Min</th><th>Quality</th>
+                    <th className="num" title="Recording metadata estimate, not pending or accepted time">Ledger min</th><th>Quality</th>
                     <th>Approved</th><th>Paid</th><th>Delete</th>
                   </tr>
                 </thead>
@@ -310,6 +318,10 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
                       </td>
                       <td className="mono">
                         {e.recording}
+                        {e.raw && <div className="ops-chip" title="Based on the last bucket scan. Processed footage is reviewed in Clean.">
+                          {{processed: "Processed · view in Clean", partial: "Processed · raw files remain", pending: "Awaiting processing", unavailable: "No raw media", unknown: "Scan to check raw"}[e.raw.status]}
+                          {e.raw.pending_files > 0 ? ` · ${e.raw.pending_files} files` : ""}
+                        </div>}
                         <div className="ops-chip" title={e.session}>{e.session}</div>
                       </td>
                       <td>{regionOf(e.session)}</td>
@@ -370,7 +382,7 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
                       </td>
                       <td className="num">
                         {e.minutes}
-                        <div className="ops-chip">{sizeChip(e.size_mb)}</div>
+                        <div className="ops-chip">{sizeChip((e.raw?.raw_bytes ?? e.size_bytes ?? 0) / 1e6)}</div>
                       </td>
                       <td>
                         {e.no_metadata ? <span className="ops-chip bad">no metadata</span>
@@ -548,9 +560,8 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
 
             {!preview.loading && !preview.error && preview.files.length === 0 && (
               <p className="ops-muted">
-                <b>Nothing playable in this episode.</b> Older takes hold a raw{" "}
-                <code>capture.egoc</code> container and no mp4 — the video has to be
-                exported from it before anything can play it.
+                <b>No pending playable raw files.</b> Processed footage is available in Clean.
+                Empty files and raw capture.egoc containers cannot play here.
               </p>
             )}
 
@@ -562,7 +573,7 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
                     onChange={(ev) => setPreview({ ...preview, pick: Number(ev.target.value) })}
                   >
                     {preview.files.map((f, i) => (
-                      <option key={f.name} value={i}>
+                      <option key={f.key || f.name} value={i}>
                         {f.name} · {(f.bytes / 1e6).toFixed(1)} MB
                       </option>
                     ))}
