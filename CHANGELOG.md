@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2.0] - 2026-09-13
+
+### Fixed
+
+- Clean can show one verified video joining a contributor’s existing batches in recording-date order, without counting earnings twice.
+- Raw labels partially processed episodes clearly and explains why additional or failed files remain.
+
 ## [0.0.1.0] - 2026-09-13
 
 ### Fixed

@@ -45,6 +45,8 @@ In `/portal/ops`, **Scan bucket** refreshes the `raw_inventory_v1` snapshot of m
 
 Copies in another delivery folder require operator-audited receipts backed by independently verified source/copy hashes. Cameras do not supply these receipts. A shared recording name, upload date, or file size alone does not prove processing, so additional segments and unverified copies remain visible.
 
+**Partly processed** means the recording has an imported clean result but still has files awaiting processing. The label shows the pending file count; its tooltip explains that additional uploads and failed files remain in Raw while completed footage is in Clean.
+
 Fully processed recordings and recordings without nonempty raw media are hidden by default; enable **show processed / unavailable** to see their history. Playback re-lists all known delivery prefixes and omits verified processed copies and empty files. **Pending raw** reports pending bytes, while **Ledger minutes** remain recording metadata estimates. Accepted hours and hourly estimates are in [Clean](../docs/OPS-CLEAN.md). Queue classification does not delete episodes or alter ownership, approvals, or payment history.
 
 ## Environment

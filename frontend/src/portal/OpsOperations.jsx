@@ -318,8 +318,8 @@ export default function OpsOperations({ state, act, busy, rate, readOnly = false
                       </td>
                       <td className="mono">
                         {e.recording}
-                        {e.raw && <div className="ops-chip" title="Based on the last bucket scan. Processed footage is reviewed in Clean.">
-                          {{processed: "Processed · view in Clean", partial: "Processed · raw files remain", pending: "Awaiting processing", unavailable: "No raw media", unknown: "Scan to check raw"}[e.raw.status]}
+                        {e.raw && <div className="ops-chip" title={`${e.raw.pending_files || 0} files still await processing; ${e.raw.processed_files || 0} raw files match verified clean sources. Additional uploads and failed files stay in Raw. Completed footage is in Clean.`}>
+                          {{processed: "Processed · view in Clean", partial: "Partly processed", pending: "Awaiting processing", unavailable: "No raw media", unknown: "Scan to check raw"}[e.raw.status]}
                           {e.raw.pending_files > 0 ? ` · ${e.raw.pending_files} files` : ""}
                         </div>}
                         <div className="ops-chip" title={e.session}>{e.session}</div>
