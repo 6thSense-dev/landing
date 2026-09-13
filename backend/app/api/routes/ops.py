@@ -26,6 +26,7 @@ from app.core.auth_deps import current_user
 from app.core.db import get_session
 from app.core.ops_s3 import OpsS3Unavailable, episode_files
 from app.core.ops_scan import facts_from, walk_bucket
+from app.core.ops_inventory import inventory_coverage
 from app.models import Episode, OpsSetting, Task, User, Wearer
 
 
@@ -142,6 +143,11 @@ async def _state(db: AsyncSession) -> dict:
             "clock_flagged": sum(1 for e in live if e.clock_source != "ntp"),
         },
     }
+
+
+@router.get("/inventory-coverage")
+async def get_inventory_coverage(_: User = Depends(require_ops)) -> dict:
+    return await asyncio.to_thread(inventory_coverage)
 
 
 @router.get("/state")

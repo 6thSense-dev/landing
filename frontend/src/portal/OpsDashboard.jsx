@@ -6,6 +6,7 @@ import IntakeReviewLink from "./IntakeReviewLink.jsx";
 import OpsOperations from "./OpsOperations.jsx";
 import OpsUsers from "./OpsUsers.jsx";
 import OpsClean from "./OpsClean.jsx";
+import OpsInventoryCoverage from "./OpsInventoryCoverage.jsx";
 import "./ops.css";
 
 /** Raw and Users share the episode ledger. Clean owns its QC collection state
@@ -117,7 +118,10 @@ export default function OpsDashboard({ readOnly = false }) {
         {!state ? (
           <p className="ops-muted">{err ? "" : "Loading the ledger…"}</p>
         ) : tab === "clean" && !readOnly ? (<OpsClean onChanged={load} />) : tab === "ops" ? (
-          <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />
+          <>
+            {!readOnly && <OpsInventoryCoverage />}
+            <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />
+          </>
         ) : (
           <OpsUsers readOnly={readOnly} state={state} act={act} busy={busy} />
         )}

@@ -1,0 +1,16 @@
+.ops-inventory { border: 1px solid var(--o-line); border-radius: 10px; background: var(--o-surface); margin-bottom: 18px; font-size: 13px; }
+.ops-inventory > summary { padding: 12px 14px; cursor: pointer; font-weight: 600; }
+.ops-inventory summary:focus-visible, .ops-inventory button:focus-visible { outline: 2px solid var(--o-accent); outline-offset: 3px; }
+.ops-inventory-body { padding: 0 14px 14px; }
+.ops-inventory-body p { line-height: 1.5; }
+.ops-inventory-body button { color: var(--o-text); background: var(--o-surface-2); border: 1px solid var(--o-line); border-radius: 6px; padding: 8px 12px; cursor: pointer; margin-bottom: 10px; }
+.ops-inventory-body button:disabled { opacity: .6; cursor: wait; }
+.ops-inventory code { overflow-wrap: anywhere; font-family: var(--o-mono); }
+.ops-inventory-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 16px 0; }
+.ops-inventory-counts dt { color: var(--o-muted); line-height: 1.4; }
+.ops-inventory-counts dd { margin: 4px 0 0; font-family: var(--o-mono); font-size: 20px; }
+.ops-inventory-status { color: var(--o-ok); }
+.ops-inventory-warning { color: var(--o-warn); }
+.ops-inventory-body details { margin: 12px 0; }
+.ops-inventory-body details summary { cursor: pointer; }
+.ops-inventory-body li { margin: 6px 0; overflow-wrap: anywhere; }
