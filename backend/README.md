@@ -37,6 +37,16 @@ cd backend && pytest -v
 
 Tests use [testcontainers-python](https://testcontainers-python.readthedocs.io/) which boots an ephemeral Postgres in Docker. The Docker daemon must be running.
 
+## Raw processing queue
+
+In `/portal/ops`, **Scan bucket** refreshes the `raw_inventory_v1` snapshot of media keys, sizes, ETags, and delivery prefixes. Raw uses that snapshot to show pending footage separately from the permanent episode and payment ledger. After an upload, cleanup, or clean import, scan again to refresh the queue.
+
+`raw_source_receipts_v1` records verified source fingerprints. A receipt only marks an object processed when it matches a source bucket, key, version, SHA-256, and size in an imported clean manifest; the current raw object must also match the receipt's key, ETag, and size. Scanning can create original-source receipts by reading the exact manifest-pinned S3 version and checking its size and ETag. Missing or inaccessible source versions leave unverified files pending.
+
+Copies in another delivery folder require operator-audited receipts backed by independently verified source/copy hashes. Cameras do not supply these receipts. A shared recording name, upload date, or file size alone does not prove processing, so additional segments and unverified copies remain visible.
+
+Fully processed recordings and recordings without nonempty raw media are hidden by default; enable **show processed / unavailable** to see their history. Playback re-lists all known delivery prefixes and omits verified processed copies and empty files. **Pending raw** reports pending bytes, while **Ledger minutes** remain recording metadata estimates. Accepted hours and hourly estimates are in [Clean](../docs/OPS-CLEAN.md). Queue classification does not delete episodes or alter ownership, approvals, or payment history.
+
 ## Environment
 
 | name | required | purpose |
