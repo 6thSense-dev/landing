@@ -84,7 +84,7 @@ export default function OpsClean({ onChanged }) {
   };
   return <section className="ops-clean" aria-label="Clean footage">
     <div className="ops-clean-intro">
-      <div><h2>Clean footage & retained time</h2><p>Review the retained footage, its contributor, and the estimated payment.</p></div>
+      <div><h2>Clean footage & retained time</h2><p>Review QC outputs, current contributor details, and rate-based estimates.</p></div>
       <button onClick={() => mutate('scan')} disabled={busy}>{busy ? 'Working…' : 'Refresh clean footage'}</button>
     </div>
     {error && <p className="ops-error" role="alert">{error}</p>}
@@ -96,20 +96,23 @@ export default function OpsClean({ onChanged }) {
           <option value="">All contributors</option>{people.map(p => <option key={p.id} value={p.id}>{p.name}{p.workplace ? ` · ${p.workplace}` : ''}</option>)}
         </select></div>
         <div className="ops-tiles">
-          {[[time(total.kept), 'Retained after QC'], [time(total.excluded), 'Excluded'], [total.missing ? 'Rate needed' : money(total.due), 'Estimated · unpaid']].map(([value, label]) => <div className="ops-tile" key={label}><div className="ops-tile-n">{value}</div><div className="ops-tile-l">{label}</div></div>)}
+          {[[time(total.kept), 'Retained after QC'], [time(total.excluded), 'Excluded'], [total.missing ? 'Rate needed' : money(total.due), 'Estimate · not flagged paid']].map(([value, label]) => <div className="ops-tile" key={label}><div className="ops-tile-n">{value}</div><div className="ops-tile-l">{label}</div></div>)}
         </div>
         {data && !runs.length && <div className="ops-panel ops-empty"><h3>No clean footage yet</h3><p>Assign a camera to a contributor, then refresh after QC finishes. Raw recordings remain available in the Raw tab.</p></div>}
         {runs.map(run => {
           const p = byId.get(run.wearer_id);
           return <article className="ops-panel ops-clean-card" key={run.run_id}>
-            <div className="ops-clean-card-head"><div><span className="ops-clean-eyebrow">{p?.workplace || 'Workplace not set'}</span><h3>{p?.name || 'Unassigned contributor'}</h3><p>{p?.location || 'Location not set'} · EGO-{run.device_id}</p></div><span className="ops-clean-status">{run.paid ? 'Paid' : 'Unpaid'}</span></div>
-            <div className="ops-clean-metrics"><div><b>{time(run.retained_seconds)}</b><span>retained</span></div><div><b>{time(run.rejected_seconds)}</b><span>excluded</span></div><div><b>{money(run.estimated_krw)}</b><span>{run.rate_krw_hour == null ? 'set a rate before approval' : `${money(run.rate_krw_hour)} / approved hour`}</span></div></div>
-            <p className="ops-hint">Full intervals with neither hand visible for more than 30 seconds are excluded. Shorter absences are kept. Other idle time still needs review.</p>
+            <div className="ops-clean-card-head"><div><span className="ops-clean-eyebrow">{p?.workplace || 'Workplace not set'}</span><h3>{p?.name || 'Unassigned contributor'}</h3><p>{p?.location || 'Location not set'} · EGO-{run.device_id}</p></div><span className="ops-clean-status">{run.paid ? 'Flagged paid' : 'Not flagged paid'}</span></div>
+            <div className="ops-clean-metrics"><div><b>{time(run.retained_seconds)}</b><span>retained</span></div><div><b>{time(run.rejected_seconds)}</b><span>excluded</span></div><div><b>{money(run.estimated_krw)}</b><span>{run.rate_krw_hour == null ? 'run rate snapshot missing' : `${money(run.rate_krw_hour)} / hour · run rate snapshot`}</span></div></div>
+            <p className="ops-hint">QC-retained time is not verified task-usable time. Task suitability and annotation quality need separate review.</p>
+            <details><summary>Recorded QC policy</summary>{run.policy != null && !(typeof run.policy === 'object' && Object.keys(run.policy).length === 0) && run.policy !== ''
+              ? <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(run.policy, null, 2)}</pre>
+              : <p className="ops-hint">Policy unknown: this run did not provide a policy.</p>}</details>
             <div className="ops-clean-actions"><button onClick={() => play(run)}>Watch joined footage</button><span className="ops-muted">{run.recording_count} source recordings · {time(run.source_seconds)} decoded</span></div>
             {!!run.review_intervals?.length && <details><summary>Idle footage to review ({run.review_intervals.length})</summary><ul>{run.review_intervals.map((item, i) => <li key={i}>{item.recording} · {time(item.start_s)}–{time(item.end_s)} · {item.reason} <button onClick={() => play(run, item)}>Review interval</button></li>)}</ul></details>}
             {!!run.warnings?.length && <details><summary>QC notes ({run.warnings.length})</summary><ul>{run.warnings.map((w, i) => <li key={i}>{typeof w === 'string' ? w : JSON.stringify(w)}</li>)}</ul></details>}
             <details><summary>Source recordings and retained time</summary><div className="ops-tablewrap"><table className="ops-table"><thead><tr><th>Recording</th><th>Decoded</th><th>Retained</th><th>QC</th></tr></thead><tbody>{run.recordings.map(r => <tr key={r.recording}><td className="mono">{r.recording}</td><td>{time(r.source_seconds)}</td><td>{time(r.retained_seconds)}</td><td>{r.status}</td></tr>)}</tbody></table></div></details>
-            <p className="ops-hint">Estimate only. No payment is sent or recorded by importing this collection.</p>
+            <p className="ops-hint">Estimate uses QC-retained time × the run’s hourly rate snapshot. It does not establish collector credit under an agreement or payment settlement. The paid flag is not evidence of a transfer. Importing this collection sends no payment.</p>
           </article>;
         })}
       </div>
@@ -121,8 +124,8 @@ export default function OpsClean({ onChanged }) {
           <button disabled={busy || !device || !wearer}>Save assignment</button><p className="ops-hint">Previously assigned recordings, clean collections, and payment history keep their attribution.</p>
         </form></div>
         <div className="ops-panel"><div className="ops-phead"><h2>Assigned cameras</h2></div><div className="ops-pbody">
-          {(data?.cameras || []).map(camera => { const p = byId.get(camera.wearer_id); return <div className="ops-clean-person" key={camera.device_id}><b>EGO-{camera.device_id}</b><span>{p?.name || 'Unassigned'} · {p?.workplace || 'Workplace not set'}</span><span>{p?.location || 'Location not set'}</span><span>{p?.contact || 'Contact not provided'}</span><span>{p?.rate_krw_hour == null ? 'Rate not set' : `${money(p.rate_krw_hour)} / approved hour`}</span></div>; })}
-          <p className="ops-hint">Edit the person’s workplace, location, contact details, and hourly rate in Users.</p>
+          {(data?.cameras || []).map(camera => { const p = byId.get(camera.wearer_id); return <div className="ops-clean-person" key={camera.device_id}><b>EGO-{camera.device_id}</b><span>{p?.name || 'Unassigned'} · {p?.workplace || 'Workplace not set'}</span><span>{p?.location || 'Location not set'}</span><span>{p?.contact || 'Contact not provided'}</span><span>{p?.rate_krw_hour == null ? 'Rate not set' : `${money(p.rate_krw_hour)} / hour · current contributor rate`}</span></div>; })}
+          <p className="ops-hint">These are current contributor details, not historical agreement evidence. Edit them in Users. Each clean run displays its own saved rate snapshot.</p>
         </div></div>
       </aside>
     </div>
