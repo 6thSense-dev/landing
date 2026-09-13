@@ -12,7 +12,7 @@ import pytest_asyncio
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from app.models import Base, User
+from app.models import User
 
 
 _BACKEND_DIR = Path(__file__).resolve().parents[1]  # backend/
@@ -35,41 +35,37 @@ def _run_alembic(env: dict) -> subprocess.CompletedProcess:
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_to_pre_seed(postgres_container):
-    """Bookend each seed test: set up a clean 0002 state before, clean up after.
+    """Build the real revision 0002 schema, rather than stamping current tables.
 
-    Before:
-    - Create all tables (idempotent).
-    - Stamp alembic_version to 0002 so `alembic upgrade head` will run 0003.
-    - Truncate sessions + users so prior seeded data doesn't interfere.
-
-    After:
-    - Truncate sessions + users to avoid polluting later tests (e.g., test_session_model)
-      that insert the same emails.
-    - Stamp alembic_version back to 0002 so subsequent suites see a consistent state.
+    The URL comes exclusively from our disposable testcontainer. Recreating
+    its public schema isolates seed tests from earlier migration/model tests.
     """
-    engine = create_async_engine(os.environ["DATABASE_URL"])
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS alembic_version "
-                "(version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
-            )
-        )
-        await conn.execute(text("DELETE FROM alembic_version"))
-        await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('0002')"))
-        await conn.execute(text("TRUNCATE sessions, users RESTART IDENTITY CASCADE"))
-    await engine.dispose()
-    yield
-    # Teardown: clean up seeded data and reset version marker.
-    engine = create_async_engine(os.environ["DATABASE_URL"])
-    async with engine.begin() as conn:
-        # Tables may or may not exist (migration may have run); drop_all only what ORM knows.
-        await conn.run_sync(Base.metadata.create_all)  # ensure tables exist before truncate
-        await conn.execute(text("TRUNCATE sessions, users RESTART IDENTITY CASCADE"))
-        await conn.execute(text("DELETE FROM alembic_version"))
-        await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('0002')"))
-    await engine.dispose()
+    url = postgres_container.get_connection_url().replace("psycopg2", "asyncpg")
+    previous_url = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+
+    async def reset_schema():
+        engine = create_async_engine(url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("DROP SCHEMA public CASCADE"))
+                await conn.execute(text("CREATE SCHEMA public"))
+        finally:
+            await engine.dispose()
+
+    try:
+        await reset_schema()
+        result = _alembic(["upgrade", "0002"], {"DATABASE_URL": url})
+        assert result.returncode == 0, result.stderr
+        yield
+    finally:
+        try:
+            await reset_schema()
+        finally:
+            if previous_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = previous_url
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { portalFetch } from './portalFetch.js';
+import OpsActivityReview from './OpsActivityReview.jsx';
 
 const time = (s) => {
   const seconds = Math.round(s || 0);
@@ -20,6 +21,7 @@ export default function OpsClean({ onChanged }) {
   const [assignExisting, setAssignExisting] = useState(false);
   const [preview, setPreview] = useState(null);
   const [message, setMessage] = useState('');
+  const [reviewRun, setReviewRun] = useState(null);
   useEffect(() => {
     if (!preview) return;
     const previous = document.activeElement;
@@ -110,6 +112,8 @@ export default function OpsClean({ onChanged }) {
             {!!run.warnings?.length && <details><summary>QC notes ({run.warnings.length})</summary><ul>{run.warnings.map((w, i) => <li key={i}>{typeof w === 'string' ? w : JSON.stringify(w)}</li>)}</ul></details>}
             <details><summary>Source recordings and retained time</summary><div className="ops-tablewrap"><table className="ops-table"><thead><tr><th>Recording</th><th>Decoded</th><th>Retained</th><th>QC</th></tr></thead><tbody>{run.recordings.map(r => <tr key={r.recording}><td className="mono">{r.recording}</td><td>{time(r.source_seconds)}</td><td>{time(r.retained_seconds)}</td><td>{r.status}</td></tr>)}</tbody></table></div></details>
             <p className="ops-hint">Estimate only. No payment is sent or recorded by importing this collection.</p>
+            <button type="button" onClick={() => setReviewRun(reviewRun === run.run_id ? null : run.run_id)}>{reviewRun === run.run_id ? 'Close task review' : 'Review task activity'}</button>
+            {reviewRun === run.run_id && <OpsActivityReview key={run.run_id} runId={run.run_id} />}
           </article>;
         })}
       </div>

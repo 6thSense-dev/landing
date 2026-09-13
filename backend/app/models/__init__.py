@@ -6,3 +6,5 @@ from app.models.user import User
 __all__ = ["Base", "Episode", "Lead", "OpsSetting", "Session", "Task", "User", "Wearer"]
 
 from app.models.ops_clean import CleanRun, OpsCamera
+
+from app.models.ops_activity_review import ActivityReview
