@@ -11,11 +11,12 @@ test("coverage is explicit, partial stays unknown, failed refresh clears old cou
     let status = 200;
     if (path === "/api/auth/me") data = { id: 1, role: "ops", email: "fixture@example.test" };
     else if (path === "/api/ops/state") data = { episodes: [], wearers: [], tasks: [] };
+    else if (path === "/api/ops/inventory-sources") data = { sources: [{ id: 'operations', label: 'Operations raw', bucket: 'synthetic-fixture', prefix: '', expected_owner: null }] };
     else if (path === "/api/ops/inventory-coverage") {
       checks++;
       if (checks > 1) status = 503;
       else data = {
-        bucket: "synthetic-fixture", scope_prefix: "", observed_at: "2026-09-13T00:00:00Z",
+        source_id: 'operations', bucket: "synthetic-fixture", scope_prefix: "", observed_at: "2026-09-13T00:00:00Z",
         listing_complete: false, stop_reason: "object_limit", objects_observed: 10000,
         recognized_recording_prefixes: 3, recordings_missing_metadata: 2,
         unrecognized_objects: 9990, collision_recording_names: 1,

@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +27,7 @@ from app.core.db import get_session
 from app.core.ops_s3 import OpsS3Unavailable, episode_files
 from app.core.ops_scan import facts_from, walk_bucket
 from app.core.ops_inventory import inventory_coverage
+from app.core.ops_inventory_sources import source_registry, InvalidInventorySources, UnknownInventorySource
 from app.models import Episode, OpsSetting, Task, User, Wearer
 
 
@@ -145,9 +146,27 @@ async def _state(db: AsyncSession) -> dict:
     }
 
 
+@router.get("/inventory-sources")
+async def get_inventory_sources(response: Response, _: User = Depends(require_ops)) -> dict:
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        return source_registry()
+    except InvalidInventorySources:
+        raise HTTPException(503, 'Recording source configuration is invalid.')
+
+
 @router.get("/inventory-coverage")
-async def get_inventory_coverage(_: User = Depends(require_ops)) -> dict:
-    return await asyncio.to_thread(inventory_coverage)
+async def get_inventory_coverage(response: Response, source_id: str = Query(default='operations', min_length=1, max_length=64),
+                                 _: User = Depends(require_ops)) -> dict:
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        if source_id == 'operations':
+            return await asyncio.to_thread(inventory_coverage)
+        return await asyncio.to_thread(inventory_coverage, source_id)
+    except InvalidInventorySources:
+        raise HTTPException(503, 'Recording source configuration is invalid.')
+    except UnknownInventorySource:
+        raise HTTPException(404, 'Unknown recording source.')
 
 
 @router.get("/state")
