@@ -15,6 +15,7 @@ WHAT THIS DOES NOT DO
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -27,6 +28,9 @@ from app.core.db import get_session
 from app.core.ops_s3 import OpsS3Unavailable, episode_files
 from app.core.ops_scan import facts_from, walk_bucket
 from app.models import Episode, OpsSetting, Task, User, Wearer
+from app.models.ops_clean import CleanRun
+from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_playback, refresh_source_receipts
+from app.core.ops_s3 import get_settings as raw_settings
 
 
 router = APIRouter(prefix="/api/ops", tags=["ops"])
@@ -115,6 +119,15 @@ def _episode_json(e: Episode) -> dict:
     }
 
 
+async def _raw_context(db: AsyncSession):
+    snapshot = json.loads(await _setting(db, INVENTORY_KEY) or '{}')
+    receipts = json.loads(await _setting(db, RECEIPTS_KEY) or '[]')
+    manifests = [json.loads(m) for m in (await db.execute(select(CleanRun.manifest_json))).scalars()]
+    if snapshot.get('bucket') != raw_settings().bucket:
+        return None, manifests, [r for r in receipts if r.get('bucket') == raw_settings().bucket]
+    return snapshot['takes'], manifests, [r for r in receipts if r.get('bucket') == snapshot['bucket']]
+
+
 async def _state(db: AsyncSession) -> dict:
     eps = (await db.execute(
         select(Episode).order_by(Episode.started_at.desc().nullslast(),
@@ -124,8 +137,10 @@ async def _state(db: AsyncSession) -> dict:
     tasks = (await db.execute(
         select(Task).order_by(Task.category, Task.name))).scalars().all()
     live = [e for e in eps if e.deleted_at is None]
+    inventory, manifests, receipts = await _raw_context(db)
+    raw = raw_statuses(inventory, manifests, receipts) if inventory is not None else {}
     return {
-        "episodes": [_episode_json(e) for e in eps],
+        "episodes": [{**_episode_json(e), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),
         "last_scan": await _setting(db, SCAN_KEY),
         "wearers": [_wearer_json(w) for w in wearers],
@@ -214,6 +229,12 @@ async def scan_bucket(_: User = Depends(require_ops),
             e.duration_s = facts["duration_s"]; changed = True
         updated += changed
 
+    inventory = {rec: {"prefixes": t.get("prefixes", [t["prefix"]]), "media": t.get("media", [])}
+                 for rec, t in takes.items()}
+    _, manifests, receipts = await _raw_context(db)
+    receipts = await asyncio.to_thread(refresh_source_receipts, inventory, manifests, receipts)
+    await _put_setting(db, RECEIPTS_KEY, json.dumps(receipts))
+    await _put_setting(db, INVENTORY_KEY, json.dumps({"bucket": raw_settings().bucket, "takes": inventory}))
     await _put_setting(db, SCAN_KEY, _now().isoformat(timespec="seconds"))
     await db.commit()
     out = await _state(db)
@@ -569,7 +590,9 @@ async def list_episode_files(recording: str, _: User = Depends(require_ops),
     """
     e = await _episode_or_404(db, recording)
     try:
-        files = episode_files(e.prefix)
+        inventory, manifests, receipts = await _raw_context(db)
+        files = (await asyncio.to_thread(pending_playback, recording, inventory, manifests, receipts)
+                 if inventory is not None and recording in inventory else await asyncio.to_thread(episode_files, e.prefix))
     except OpsS3Unavailable as exc:
         # A configuration problem is not a 500: the operator can read this and
         # fix it, and the rest of the board still works without playback.
