@@ -60,22 +60,24 @@ export default function OpsClean({ onChanged }) {
   const people = data?.wearers || [];
   const byId = useMemo(() => new Map(people.map(p => [p.id, p])), [people]);
   const runs = (data?.runs || []).filter(r => !person || String(r.wearer_id) === person);
+  const collections = (data?.collections || []).filter(c => !person || String(c.wearer_id) === person);
   const total = runs.reduce((a, r) => ({ kept: a.kept + r.retained_seconds, excluded: a.excluded + r.rejected_seconds,
     due: a.due + (!r.paid ? r.estimated_krw || 0 : 0), missing: a.missing || (!r.paid && r.estimated_krw == null) }), { kept: 0, excluded: 0, due: 0, missing: false });
   const play = async (run, review = null) => {
     setError(''); setPlaybackError(false);
     try {
-      const response = await portalFetch(`/api/ops/clean/runs/${encodeURIComponent(run.run_id)}/files`);
+      const path = run.collection_id ? `/api/ops/clean/collections/${encodeURIComponent(run.collection_id)}/files` : `/api/ops/clean/runs/${encodeURIComponent(run.run_id)}/files`;
+      const response = await portalFetch(path);
       if (!response.ok) throw new Error(response.data?.detail || 'Could not load playback.');
       const files = response.data.files || [];
       const index = review ? files.findIndex(f => f.role === 'recording_preview' && f.recording === review.recording) : files.findIndex(f => f.role === 'joined_preview');
-      setPreview({ run, files, index: Math.max(0, index), start: review?.clean_start_s || 0 });
+      setPreview({ run, path, files, index: Math.max(0, index), start: review?.clean_start_s || 0 });
     } catch (e) { setError(e.message); }
   };
   const renewVideo = async () => {
     const current = preview;
     const position = video.current?.currentTime || 0;
-    const response = await portalFetch(`/api/ops/clean/runs/${encodeURIComponent(current.run.run_id)}/files`);
+    const response = await portalFetch(current.path);
     if (!response.ok) { setPlaybackError(true); return; }
     const files = response.data.files || [];
     const index = files.findIndex(f => f.key === current.files[current.index].key);
@@ -88,6 +90,7 @@ export default function OpsClean({ onChanged }) {
       <button onClick={() => mutate('scan')} disabled={busy}>{busy ? 'Working…' : 'Refresh clean footage'}</button>
     </div>
     {error && <p className="ops-error" role="alert">{error}</p>}
+    {!!data?.collection_errors && <p className="ops-error" role="alert">A combined video could not be verified against its source batches. Individual batches and payment estimates remain available.</p>}
     {message && <p className="ops-note" role="status">{message}</p>}
     {!data && !error && <p className="ops-muted">Loading clean footage…</p>}
     <div className="ops-clean-layout">
@@ -98,6 +101,11 @@ export default function OpsClean({ onChanged }) {
         <div className="ops-tiles">
           {[[time(total.kept), 'Retained after QC'], [time(total.excluded), 'Excluded'], [total.missing ? 'Rate needed' : money(total.due), 'Estimated · unpaid']].map(([value, label]) => <div className="ops-tile" key={label}><div className="ops-tile-n">{value}</div><div className="ops-tile-l">{label}</div></div>)}
         </div>
+        {collections.map(collection => <article className="ops-panel ops-clean-card" key={collection.collection_id}>
+          <div className="ops-clean-card-head"><div><span className="ops-clean-eyebrow">Combined clean footage</span><h3>{byId.get(collection.wearer_id)?.name || 'Contributor'}</h3><p>{collection.label}</p></div></div>
+          <div className="ops-clean-actions"><button onClick={() => play(collection)}>Watch all clean footage</button><span className="ops-muted">{time(collection.retained_seconds)} · {collection.recordings.length} recordings · {collection.source_runs.length} batches</span></div>
+          <p className="ops-hint">One video in recording-date order. Its footage is already included in the batch estimates below; joining it adds no payment.</p>
+        </article>)}
         {data && !runs.length && <div className="ops-panel ops-empty"><h3>No clean footage yet</h3><p>Assign a camera to a contributor, then refresh after QC finishes. Raw recordings remain available in the Raw tab.</p></div>}
         {runs.map(run => {
           const p = byId.get(run.wearer_id);

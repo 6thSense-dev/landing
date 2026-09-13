@@ -6,12 +6,34 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.routes.ops import require_ops, _wearer_json
+from app.api.routes.ops import require_ops, _wearer_json, _setting
 from app.core.db import get_session
 from app.core.ops_clean import committed_results, estimate_krw, playback
+from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
 from app.models import CleanRun, OpsCamera, Episode, Wearer, User
 
 router = APIRouter(prefix='/api/ops/clean', tags=['ops'])
+
+
+async def viewing_collections(db, runs):
+    valid, errors = [], 0
+    try:
+        configured = json.loads(await _setting(db, COLLECTIONS_KEY) or '[]')
+        if not isinstance(configured, list):
+            raise ValueError('Invalid collection configuration')
+    except (ValueError, TypeError):
+        return [], 1
+    seen = set()
+    for doc in configured:
+        try:
+            validate_collection(doc, runs)
+            if doc['collection_id'] in seen:
+                raise ValueError('Duplicate collection')
+            seen.add(doc['collection_id'])
+            valid.append(doc)
+        except (ValueError, KeyError, TypeError, AttributeError, OverflowError):
+            errors += 1
+    return valid, errors
 
 
 async def state(db):
@@ -31,7 +53,9 @@ async def state(db):
                      'recordings': [{'recording': r['recording'], 'source_seconds': r.get('source_seconds', 0),
                                      'retained_seconds': sum(i['end_s'] - i['start_s'] for i in r.get('intervals', []) if i['disposition'] == 'keep'),
                                      'status': r.get('status', 'completed')} for r in doc['recordings']]})
-    return {'runs': rows, 'wearers': [_wearer_json(w) for w in wearers],
+    collections, collection_errors = await viewing_collections(db, runs)
+    return {'runs': rows, 'collections': [{k: c[k] for k in ('collection_id', 'wearer_id', 'label', 'retained_seconds', 'source_runs', 'recordings')} for c in collections],
+            'collection_errors': collection_errors, 'wearers': [_wearer_json(w) for w in wearers],
             'cameras': [{'device_id': c.device_id, 'wearer_id': c.wearer_id} for c in cameras]}
 
 
@@ -120,3 +144,16 @@ async def files(run_id: str, _: User = Depends(require_ops), db: AsyncSession = 
         return {'files': await asyncio.to_thread(playback, json.loads(run.manifest_json))}
     except Exception as exc:
         raise HTTPException(502, 'Clean playback is temporarily unavailable.') from exc
+
+
+@router.get('/collections/{collection_id}/files')
+async def collection_files(collection_id: str, _: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
+    runs = (await db.execute(select(CleanRun))).scalars().all()
+    collections, _errors = await viewing_collections(db, runs)
+    doc = next((c for c in collections if c['collection_id'] == collection_id), None)
+    if doc is None:
+        raise HTTPException(404, 'This viewing collection is unavailable or its source results changed.')
+    try:
+        return {'files': await asyncio.to_thread(collection_playback, doc)}
+    except Exception as exc:
+        raise HTTPException(502, 'Combined playback is temporarily unavailable.') from exc
