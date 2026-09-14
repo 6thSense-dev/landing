@@ -39,7 +39,8 @@ No users have been created in this pool.
 - Pool: `us-west-2_mZ3Sz9xvE`
 - Public Synapse client: `7c90capng6klmt2h1uhjnm919j` (no client secret)
 - Issuer: `https://cognito-idp.us-west-2.amazonaws.com/us-west-2_mZ3Sz9xvE`
-- Registration: closed. SMS delivery: not tested. Mobile UI: not connected.
+- Registration: closed. AWS sandbox SMS delivery: verified on 2026-09-14.
+  Cognito signup delivery: not tested. Mobile UI: not connected.
 
 Catalog's `infra/contributor-identity.yaml` provisions a separate contributor
 pool, public mobile app client, signup gate, scoped SMS role, and logging role in
@@ -50,8 +51,12 @@ The signup gate defaults to closed (`SignupEnabled=false`). A successful
 CloudFormation deployment does not establish SMS delivery. Both inspected AWS
 accounts were in the SMS sandbox with a USD 1 monthly spending limit. General
 registration needs AWS SMS production access, an appropriate spend quota, a
-controlled Korean-number delivery test, and launch abuse controls. No production
-access request or contributor SMS was sent by this implementation pass.
+Cognito signup delivery test, and launch abuse controls. No production-access
+request has been submitted. On 2026-09-14, the operator authorized a Korean
+mobile test, received the AWS sandbox verification SMS, and returned its code.
+AWS accepted the code and lists the masked destination `+82 10-****-3400` as
+`Verified`. The account remains in the sandbox. No OTP or full phone number is
+stored in these notes; no contributor account was created for this test.
 
 Cognito confirmation, resend, password sign-in, and current-user attribute reads
 are implemented in Synapse `src/lib/contributor/registration.ts`. Provider
@@ -105,15 +110,16 @@ Local tests cover server code/phone validation, closed registration, prevention
 of client verification claims, real SDK signing with fake credentials, rejection
 of caller-chosen destinations, malformed assignment refusal, OTP failures and
 provider verification state. TypeScript and lint checks cover the modified
-Synapse source. These tests do not prove an SMS reached a Korean handset or that
-a deployed camera is using the broker.
+Synapse source. Separately, the controlled AWS sandbox SMS test was verified
+on 2026-09-14 at 17:45 UTC. That establishes delivery to the authorized handset;
+the Cognito signup flow and deployed-camera broker path still need live tests.
 
 Recorded checks: 15 Python signup tests and 140 targeted Synapse/broker tests
 passed; Synapse TypeScript and targeted ESLint passed. CloudFormation source,
 Lambda artifact digest, immutable routing attribute and restricted mobile
 write-attribute configuration were read back from AWS and verified.
 
-Next: complete the controlled SMS test and production-access process, integrate
+Next: test the Cognito signup SMS flow and complete production access, integrate
 the real mobile registration screen and authenticated contributor service,
 publish approved collection agreements, provision verified camera assignments,
 then validate the upload path before enabling contributor registration.
