@@ -54,3 +54,7 @@ Confirmed Korean pilot roster:
 6. Verified Wise recipient onboarding, sandbox integration evidence, production configuration and settlement reconciliation before automated funding.
 
 See Synapse `docs/storage/CONTRIBUTOR-PILOT-2026-09-14.md` for existing AWS findings and pilot constraints. No production terms, account, camera claim or payment is created by synchronizing this contract.
+
+## Provisioned document storage
+
+The private `6thsense-contributor-records` bucket is deployed. See [the storage integration contract](CONTRIBUTOR-STORAGE.md) for its prefixes and verified configuration. This storage provisioning does not activate app registration, record consent or move credentials into S3.
