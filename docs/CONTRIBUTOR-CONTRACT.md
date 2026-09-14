@@ -46,7 +46,7 @@ Confirmed Korean pilot roster:
 
 ## Required integration before production app onboarding
 
-1. Trusted invitation redemption, authenticated mobile account service and explicit account-to-contributor linking.
+1. Server-validated region enrollment, authenticated mobile account service and explicit account-to-contributor linking.
 2. Approved regional agreement documents and durable versioned consent receipts.
 3. Verified camera claims, assignment history and capture-time attribution receipts.
 4. Idempotent complete-upload intake, a running QC/recovery worker, source-pinned results and reconciliation.
@@ -58,3 +58,7 @@ See Synapse `docs/storage/CONTRIBUTOR-PILOT-2026-09-14.md` for existing AWS find
 ## Provisioned document storage
 
 The private `6thsense-contributor-records` bucket is deployed. See [the storage integration contract](CONTRIBUTOR-STORAGE.md) for its prefixes and verified configuration. This storage provisioning does not activate app registration, record consent or move credentials into S3.
+
+## Region codes and phone verification
+
+See [the region and SMS integration](CONTRIBUTOR-REGISTRATION.md) for `ko2026` → Korea, the separate contributor Cognito pool, and signed upload tags. The region code is a public collection selector, not proof of camera ownership or an upload credential. Phone verification must come from Cognito and match the enrolled country. Registration remains closed while SMS delivery and the real app/server onboarding integration are incomplete.
