@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.3.0] - 2026-09-14
+
+### Fixed
+
+- Clean now shows one section per contributor with combined playback, retained time, and the total unpaid estimate. Batch details, individual videos, and review notes remain expandable within that section.
+
 ## [0.0.2.0] - 2026-09-13
 
 ### Fixed

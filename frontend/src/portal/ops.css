@@ -347,6 +347,10 @@
 .ops-clean-actions { margin:20px 0; }
 .ops-clean details { margin-top:16px; border-top:1px solid var(--o-line); padding-top:16px; font-size:13px; }
 .ops-clean summary { cursor:pointer; }
+.ops-clean-batch { margin-top:20px; padding-top:16px; border-top:1px solid var(--o-line); }
+.ops-clean-batch h4 { margin:0 0 12px; }
+.ops-clean-batch > p { color:var(--o-muted); line-height:1.6; }
+.ops-clean-batch .ops-tablewrap { margin-top:16px; }
 .ops-clean .ops-check { display:flex; align-items:flex-start; gap:8px; margin:16px 0; line-height:1.5; }
 .ops-clean .ops-check input { width:auto; margin-top:3px; }
 .ops-clean-modal { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000; padding:5vh 5vw; overflow:auto; }
