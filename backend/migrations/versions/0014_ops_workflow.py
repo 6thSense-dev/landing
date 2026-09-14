@@ -13,54 +13,54 @@ def upgrade():
     # Frozen DDL: future ORM changes must not change this migration.
     op.execute("""
 CREATE TABLE ops_footage_reviews (
-	run_id VARCHAR(120) NOT NULL, 
-	recording VARCHAR(200) NOT NULL, 
-	manifest_sha256 VARCHAR(64) NOT NULL, 
-	decision VARCHAR(24) NOT NULL, 
-	reviewer VARCHAR(320) NOT NULL, 
-	reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	collection_date VARCHAR(10), 
-	note TEXT NOT NULL, 
-	PRIMARY KEY (run_id, recording), 
+	run_id VARCHAR(120) NOT NULL,
+	recording VARCHAR(200) NOT NULL,
+	manifest_sha256 VARCHAR(64) NOT NULL,
+	decision VARCHAR(24) NOT NULL,
+	reviewer VARCHAR(320) NOT NULL,
+	reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	collection_date VARCHAR(10),
+	note TEXT NOT NULL,
+	PRIMARY KEY (run_id, recording),
 	FOREIGN KEY(run_id) REFERENCES ops_clean_runs (run_id)
 )
     """)
     op.execute("""
 CREATE TABLE ops_payouts (
-	id VARCHAR(36) NOT NULL, 
-	wearer_id BIGINT NOT NULL, 
-	amount_krw INTEGER NOT NULL, 
-	accepted_seconds FLOAT NOT NULL, 
-	status VARCHAR(32) NOT NULL, 
-	approved_by VARCHAR(320) NOT NULL, 
-	approved_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL, 
-	recipient_id VARCHAR(80) NOT NULL, 
-	source_currency VARCHAR(3) NOT NULL, 
-	wise_profile_id VARCHAR(80) NOT NULL, 
-	wise_environment VARCHAR(16) NOT NULL, 
-	recipient_hash VARCHAR(128) NOT NULL, 
-	quote_id VARCHAR(100), 
-	transfer_id VARCHAR(100), 
-	provider_status VARCHAR(80), 
-	error TEXT NOT NULL, 
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	PRIMARY KEY (id), 
-	FOREIGN KEY(wearer_id) REFERENCES ops_wearers (id), 
+	id VARCHAR(36) NOT NULL,
+	wearer_id BIGINT NOT NULL,
+	amount_krw INTEGER NOT NULL,
+	accepted_seconds FLOAT NOT NULL,
+	status VARCHAR(32) NOT NULL,
+	approved_by VARCHAR(320) NOT NULL,
+	approved_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	scheduled_for TIMESTAMP WITH TIME ZONE NOT NULL,
+	recipient_id VARCHAR(80) NOT NULL,
+	source_currency VARCHAR(3) NOT NULL,
+	wise_profile_id VARCHAR(80) NOT NULL,
+	wise_environment VARCHAR(16) NOT NULL,
+	recipient_hash VARCHAR(128) NOT NULL,
+	quote_id VARCHAR(100),
+	transfer_id VARCHAR(100),
+	provider_status VARCHAR(80),
+	error TEXT NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (id),
+	FOREIGN KEY(wearer_id) REFERENCES ops_wearers (id),
 	UNIQUE (transfer_id)
 )
     """)
     op.execute("""
 CREATE TABLE ops_payout_items (
-	run_id VARCHAR(120) NOT NULL, 
-	recording VARCHAR(200) NOT NULL, 
-	payout_id VARCHAR(36) NOT NULL, 
-	manifest_sha256 VARCHAR(64) NOT NULL, 
-	accepted_seconds FLOAT NOT NULL, 
-	rate_krw_hour INTEGER NOT NULL, 
-	collection_date VARCHAR(10) NOT NULL, 
-	PRIMARY KEY (run_id, recording), 
-	FOREIGN KEY(run_id) REFERENCES ops_clean_runs (run_id), 
+	run_id VARCHAR(120) NOT NULL,
+	recording VARCHAR(200) NOT NULL,
+	payout_id VARCHAR(36) NOT NULL,
+	manifest_sha256 VARCHAR(64) NOT NULL,
+	accepted_seconds FLOAT NOT NULL,
+	rate_krw_hour INTEGER NOT NULL,
+	collection_date VARCHAR(10) NOT NULL,
+	PRIMARY KEY (run_id, recording),
+	FOREIGN KEY(run_id) REFERENCES ops_clean_runs (run_id),
 	FOREIGN KEY(payout_id) REFERENCES ops_payouts (id)
 )
     """)
@@ -69,30 +69,30 @@ CREATE INDEX ix_ops_payout_items_payout_id ON ops_payout_items (payout_id)
     """)
     op.execute("""
 CREATE TABLE ops_payout_recipients (
-	wearer_id BIGINT NOT NULL, 
-	wise_recipient_id VARCHAR(80) NOT NULL, 
-	recipient_hash VARCHAR(128) NOT NULL, 
-	wise_profile_id VARCHAR(80) NOT NULL, 
-	wise_environment VARCHAR(16) NOT NULL, 
-	verified_name VARCHAR(200) NOT NULL, 
-	updated_by VARCHAR(320) NOT NULL, 
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	PRIMARY KEY (wearer_id), 
+	wearer_id BIGINT NOT NULL,
+	wise_recipient_id VARCHAR(80) NOT NULL,
+	recipient_hash VARCHAR(128) NOT NULL,
+	wise_profile_id VARCHAR(80) NOT NULL,
+	wise_environment VARCHAR(16) NOT NULL,
+	verified_name VARCHAR(200) NOT NULL,
+	updated_by VARCHAR(320) NOT NULL,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+	PRIMARY KEY (wearer_id),
 	FOREIGN KEY(wearer_id) REFERENCES ops_wearers (id)
 )
     """)
     op.execute("""
 CREATE TABLE ops_processing_jobs (
-	recording VARCHAR(200) NOT NULL, 
-	fingerprint VARCHAR(64) NOT NULL, 
-	state VARCHAR(32) NOT NULL, 
-	reason TEXT NOT NULL, 
-	input_json TEXT NOT NULL, 
-	attempts INTEGER NOT NULL, 
-	lease_token VARCHAR(36), 
-	lease_until TIMESTAMP WITH TIME ZONE, 
-	result_run_id VARCHAR(120), 
-	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	recording VARCHAR(200) NOT NULL,
+	fingerprint VARCHAR(64) NOT NULL,
+	state VARCHAR(32) NOT NULL,
+	reason TEXT NOT NULL,
+	input_json TEXT NOT NULL,
+	attempts INTEGER NOT NULL,
+	lease_token VARCHAR(36),
+	lease_until TIMESTAMP WITH TIME ZONE,
+	result_run_id VARCHAR(120),
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
 	PRIMARY KEY (recording)
 )
     """)
