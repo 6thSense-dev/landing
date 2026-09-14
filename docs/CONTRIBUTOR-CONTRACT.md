@@ -61,4 +61,4 @@ The private `6thsense-contributor-records` bucket is deployed. See [the storage 
 
 ## Region codes and phone verification
 
-See [the region and SMS integration](CONTRIBUTOR-REGISTRATION.md) for `ko2026` → Korea, the separate contributor Cognito pool, and signed upload tags. The region code is a public collection selector, not proof of camera ownership or an upload credential. Phone verification must come from Cognito and match the enrolled country. Registration remains closed while SMS delivery and the real app/server onboarding integration are incomplete.
+See [the region and SMS integration](CONTRIBUTOR-REGISTRATION.md) for `Korea666`, `China666`, `Vietnam666`, and `India666`, the separate contributor Cognito pool, and signed upload tags. The old `ko2026` code is retired. Only Korea has an agreed rate (KRW 11,000/hour); the other rates remain unset. The region code is a public collection selector, not proof of camera ownership or an upload credential. Phone verification must come from Cognito and match the enrolled country. Registration remains closed pending production SMS access, per-country delivery setup and the real app/server onboarding integration.
