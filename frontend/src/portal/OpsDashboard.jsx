@@ -5,6 +5,7 @@ import WorkspaceLink from "./WorkspaceLink.jsx";
 import IntakeReviewLink from "./IntakeReviewLink.jsx";
 import OpsOperations from "./OpsOperations.jsx";
 import OpsUsers from "./OpsUsers.jsx";
+import OpsPayments from "./OpsPayments.jsx";
 import OpsClean from "./OpsClean.jsx";
 import "./ops.css";
 
@@ -14,6 +15,7 @@ import "./ops.css";
 const TABS = [
   { key: "ops", label: "Raw" },
   { key: "clean", label: "Clean" },
+  { key: "payment", label: "Payment" },
   { key: "users", label: "Users" },
 ];
 
@@ -26,14 +28,17 @@ export default function OpsDashboard({ readOnly = false }) {
   const [note, setNote] = useState("");
 
   const load = useCallback(async () => {
-    const r = await portalFetch(readOnly ? "/api/workspace/ops/state" : "/api/ops/state");
-    if (!r.ok) return setErr(`Could not load the ledger (HTTP ${r.status}).`);
-    setErr("");
-    setState(r.data);
+    try {
+      const r = await portalFetch(readOnly ? "/api/workspace/ops/state" : "/api/ops/state");
+      if (!r.ok) throw Error(`Could not load the ledger (HTTP ${r.status}).`);
+      setErr(""); setState(r.data);
+    } catch (e) { setErr(e.message); }
   }, [readOnly]);
 
   useEffect(() => {
     load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
   }, [load]);
 
   // Every mutation returns the whole new state, so no screen can drift from the
@@ -43,16 +48,16 @@ export default function OpsDashboard({ readOnly = false }) {
   const act = useCallback(async (key, path, body) => {
     if (readOnly) { setNote("Learning preview is read-only. Open Operations from Workspace to make changes."); return null; }
     setBusy(key);
-    const r = await portalFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
-    setBusy("");
-    if (!r.ok) {
-      setErr(r.data?.detail || `That did not work (HTTP ${r.status}).`);
-      return null;
-    }
-    setErr("");
-    setState(r.data);
-    return r.data;
-  }, [readOnly]);
+    try {
+      const r = await portalFetch(path, { method: "POST", body: JSON.stringify(body ?? {}) });
+      if (!r.ok) throw Error(r.data?.detail || `That did not work (HTTP ${r.status}).`);
+      setErr("");
+      if (path === '/api/ops/clean/cameras') await load();
+      else setState(r.data);
+      return r.data;
+    } catch (e) { setErr(e.message); return null; }
+    finally { setBusy(""); }
+  }, [readOnly, load]);
 
   const rate = state?.rate_krw ?? 0;
   const lastScan = state?.last_scan ?? "";
@@ -75,7 +80,7 @@ export default function OpsDashboard({ readOnly = false }) {
       <header className="ops-head">
         <h1>Collector operations</h1>
         <nav className="ops-tabs">
-          {TABS.filter(t => !readOnly || t.key !== "clean").map((t) => (
+          {TABS.filter(t => !readOnly || !["clean", "payment"].includes(t.key)).map((t) => (
             <button
               key={t.key}
               className={`ops-tab${tab === t.key ? " is-on" : ""}`}
@@ -116,7 +121,7 @@ export default function OpsDashboard({ readOnly = false }) {
 
         {!state ? (
           <p className="ops-muted">{err ? "" : "Loading the ledger…"}</p>
-        ) : tab === "clean" && !readOnly ? (<OpsClean onChanged={load} />) : tab === "ops" ? (
+        ) : tab === "clean" && !readOnly ? (<OpsClean onChanged={load} />) : tab === "payment" && !readOnly ? (<OpsPayments onReview={() => setTab("clean")} />) : tab === "ops" ? (
           <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />
         ) : (
           <OpsUsers readOnly={readOnly} state={state} act={act} busy={busy} />

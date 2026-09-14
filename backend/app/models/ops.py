@@ -7,10 +7,10 @@ WHY THESE TABLES EXIST AT ALL
   trail and no second reader. These tables are that file, in Postgres.
 
 WHY A WEARER IS NOT A USER
-  `users` is the login table. A wearer is a person who carried a camera; almost
-  none of them will ever log in, and the ones who do must not become one row
-  with two meanings. Deleting a login must not delete the payment history of
-  the person it belonged to, which a shared table cannot promise.
+  `users` is the portal login table. A wearer is the durable contributor identity.
+  Synapse app accounts will explicitly link to contributors after verification;
+  an operator-entered roster row is not proof of app registration or consent.
+  Revoking a login must never delete the contributor's footage/payment history.
 
 WHY THE EPISODE CARRIES ITS OWN wearer_id
   The laptop ledger attributes an episode by looking up which collector held

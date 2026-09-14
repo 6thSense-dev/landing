@@ -93,25 +93,6 @@ async def test_writes_are_behind_the_origin_check(app, db_session):
 
 # --- approve / pay ------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_pay_refuses_an_unapproved_episode(app, db_session):
-    sid = await _sid(db_session, "ops")
-    await _episode(db_session)
-    async with _client(app) as c:
-        res = await c.post("/api/ops/episodes/ego_test_0001/pay",
-                           json={"value": True, "amount_krw": 10320},
-                           cookies={"sid": sid}, headers={"Origin": ORIGIN})
-    assert res.status_code == 409
-
-    async with _client(app) as c:
-        await c.post("/api/ops/episodes/ego_test_0001/approve", json={"value": True},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        ok = await c.post("/api/ops/episodes/ego_test_0001/pay",
-                          json={"value": True, "amount_krw": 10320},
-                          cookies={"sid": sid}, headers={"Origin": ORIGIN})
-    assert ok.status_code == 200
-    row = next(e for e in ok.json()["episodes"] if e["recording"] == "ego_test_0001")
-    assert row["paid"] is True and row["amount_krw"] == 10320
 
 
 # --- assignment ---------------------------------------------------------------
@@ -187,31 +168,6 @@ async def test_delete_kind_must_be_soft_or_hard(app, db_session):
 
 # --- import -------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_import_merges_and_never_regenerates(app, db_session):
-    """A re-import must not wipe decisions. The laptop ledger enforced this on
-    itself and it is the one property this data cannot survive losing."""
-    sid = await _sid(db_session, "ops")
-    payload = {"episodes": {"ego_a": {"session": "s1", "device_id": "D1",
-                                      "duration_s": 60, "bytes": 10},
-                            "ego_b": {"session": "s1", "device_id": "D2"}},
-               "payments": {"ego_a": {"paid": True, "amount": 0}}}
-    async with _client(app) as c:
-        first = await c.post("/api/ops/import", json=payload,
-                             cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert first.json()["added"] == 2
-        # A tick with amount 0 is carried VERBATIM -- inventing a rate here
-        # would fabricate a payment record.
-        a = next(e for e in first.json()["episodes"] if e["recording"] == "ego_a")
-        assert a["paid"] is True and a["amount_krw"] == 0
-
-        await c.post("/api/ops/episodes/ego_b/approve", json={"value": True},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        again = await c.post("/api/ops/import", json=payload,
-                             cookies={"sid": sid}, headers={"Origin": ORIGIN})
-    assert again.json()["added"] == 0
-    b = next(e for e in again.json()["episodes"] if e["recording"] == "ego_b")
-    assert b["approved"] is True
 
 
 # --- task labels --------------------------------------------------------------
@@ -284,73 +240,10 @@ async def test_retiring_a_task_does_not_delete_its_episodes(app, db_session):
 
 # --- the rate and settling a batch --------------------------------------------
 
-@pytest.mark.asyncio
-async def test_rate_persists_and_prices_a_payment(app, db_session):
-    """A payment with no explicit amount is stamped with the board's rate.
-
-    The old default was 0, so a client that forgot the field recorded a payment
-    of zero -- indistinguishable in the ledger from a shift that was not paid.
-    """
-    sid = await _sid(db_session, "ops")
-    await _episode(db_session, "ego_rate_1", duration_s=600, approved=True)
-    async with _client(app) as c:
-        r = await c.post("/api/ops/rate", json={"rate_krw": 11000},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 200
-        assert r.json()["rate_krw"] == 11000
-
-        r = await c.post("/api/ops/episodes/ego_rate_1/pay", json={"value": True},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 200
-        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_rate_1")
-        assert row["paid"] is True and row["amount_krw"] == 11000
-
-        # And the rate survives a reload rather than living in one browser.
-        assert (await c.get("/api/ops/state",
-                            cookies={"sid": sid})).json()["rate_krw"] == 11000
 
 
-@pytest.mark.asyncio
-async def test_bulk_pay_settles_the_batch_at_the_rate(app, db_session):
-    sid = await _sid(db_session, "ops")
-    for rec in ("ego_b1", "ego_b2"):
-        await _episode(db_session, rec, duration_s=300, approved=True)
-    async with _client(app) as c:
-        await c.post("/api/ops/rate", json={"rate_krw": 9000},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        r = await c.post("/api/ops/pay-bulk",
-                         json={"recordings": ["ego_b1", "ego_b2", "ego_b1"]},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 200
-        assert r.json()["changed"] == 2                  # de-duplicated
-        rows = {e["recording"]: e for e in r.json()["episodes"]}
-        assert all(rows[k]["paid"] and rows[k]["amount_krw"] == 9000
-                   for k in ("ego_b1", "ego_b2"))
 
 
-@pytest.mark.asyncio
-async def test_bulk_pay_is_all_or_nothing(app, db_session):
-    """One unapproved row fails the batch. A partial run would leave the
-    operator believing somebody was paid who was not."""
-    sid = await _sid(db_session, "ops")
-    await _episode(db_session, "ego_ok", duration_s=300, approved=True)
-    await _episode(db_session, "ego_notyet", duration_s=300, approved=False)
-    async with _client(app) as c:
-        r = await c.post("/api/ops/pay-bulk",
-                         json={"recordings": ["ego_ok", "ego_notyet"]},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 409
-        assert "not approved" in r.json()["detail"]
-
-        r = await c.post("/api/ops/pay-bulk", json={"recordings": ["ego_ok", "ego_ghost"]},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 404
-
-        # Neither attempt paid the approved one.
-        rows = {e["recording"]: e
-                for e in (await c.get("/api/ops/state",
-                                      cookies={"sid": sid})).json()["episodes"]}
-        assert rows["ego_ok"]["paid"] is False
 
 
 # --- the Users tab -------------------------------------------------------------
@@ -408,42 +301,8 @@ async def test_updating_an_unknown_person_is_404(app, db_session):
 
 # --- regressions found in the pre-deploy audit ---------------------------------
 
-@pytest.mark.asyncio
-async def test_a_rate_change_cannot_reprice_an_already_paid_episode(app, db_session):
-    """Settling is a one-way stamp. Re-ticking after the rate moved must not
-    rewrite what the ledger says somebody was paid."""
-    sid = await _sid(db_session, "ops")
-    await _episode(db_session, "ego_stamp", duration_s=600, approved=True)
-    async with _client(app) as c:
-        await c.post("/api/ops/rate", json={"rate_krw": 10320},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        await c.post("/api/ops/episodes/ego_stamp/pay", json={"value": True},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        await c.post("/api/ops/rate", json={"rate_krw": 11000},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        # Tick it again at the new rate: the recorded amount must not move.
-        r = await c.post("/api/ops/episodes/ego_stamp/pay", json={"value": True},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_stamp")
-        assert row["amount_krw"] == 10320
 
 
-@pytest.mark.asyncio
-async def test_bulk_pay_refuses_deleted_episodes(app, db_session):
-    sid = await _sid(db_session, "ops")
-    await _episode(db_session, "ego_live", duration_s=300, approved=True)
-    await _episode(db_session, "ego_dead", duration_s=300, approved=True)
-    async with _client(app) as c:
-        await c.post("/api/ops/episodes/ego_dead/delete",
-                     json={"kind": "soft", "reason": "test clip"},
-                     cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        r = await c.post("/api/ops/pay-bulk",
-                         json={"recordings": ["ego_live", "ego_dead"]},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 409 and "deleted" in r.json()["detail"]
-        rows = {e["recording"]: e
-                for e in (await c.get("/api/ops/state", cookies={"sid": sid})).json()["episodes"]}
-        assert rows["ego_live"]["paid"] is False
 
 
 @pytest.mark.asyncio
@@ -457,28 +316,6 @@ async def test_a_negative_amount_is_rejected_not_clamped(app, db_session):
         assert r.status_code == 422
 
 
-@pytest.mark.asyncio
-async def test_paying_with_no_rate_set_is_refused_not_booked_as_zero(app, db_session):
-    """Migration 0011 seeds the rate at 0, so this is the state of every fresh
-    deploy. A ₩0 settlement is indistinguishable from an unpaid one."""
-    sid = await _sid(db_session, "ops")
-    await _episode(db_session, "ego_norate", duration_s=600, approved=True)
-    async with _client(app) as c:
-        r = await c.post("/api/ops/episodes/ego_norate/pay", json={"value": True},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 409 and "rate" in r.json()["detail"].lower()
-
-        r = await c.post("/api/ops/pay-bulk", json={"recordings": ["ego_norate"]},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 409
-
-        # Deliberate zero is still allowed, but it has to be said out loud.
-        r = await c.post("/api/ops/episodes/ego_norate/pay",
-                         json={"value": True, "amount_krw": 0},
-                         cookies={"sid": sid}, headers={"Origin": ORIGIN})
-        assert r.status_code == 200
-        row = next(e for e in r.json()["episodes"] if e["recording"] == "ego_norate")
-        assert row["paid"] is True and row["amount_krw"] == 0
 
 
 # --- scanning the bucket -------------------------------------------------------
@@ -748,3 +585,36 @@ def test_future_clean_import_fingerprints_pinned_original_version(monkeypatch):
     assert raw.raw_statuses(inventory, manifests, receipts)['rec']['status'] == 'processed'
     assert raw.refresh_source_receipts(inventory, manifests, receipts) == receipts
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("path,body", [
+    ("episodes/ego_legacy/pay", {"value": True, "amount_krw": 11000}),
+    ("episodes/ego_legacy/pay", {"value": False}),
+    ("episodes/ego_legacy/approve", {"value": False}),
+    ("pay-bulk", {"recordings": ["ego_legacy", "missing"]}),
+    ("rate", {"rate_krw": 11000}),
+    ("import", {"payments": {"ego_legacy": {"paid": True, "amount": 500}}}),
+])
+@pytest.mark.asyncio
+async def test_retired_raw_financial_endpoints_preserve_history(app, db_session, path, body):
+    sid = await _sid(db_session, "ops")
+    old = await _episode(db_session, "ego_legacy", approved=True, paid=True, amount_krw=10320)
+    async with _client(app) as c:
+        r = await c.post("/api/ops/" + path, json=body, cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert r.status_code == 410, r.text
+    await db_session.refresh(old)
+    assert old.paid and old.approved and old.amount_krw == 10320
+
+
+@pytest.mark.asyncio
+async def test_import_merges_source_facts_without_overwriting_historical_decisions(app, db_session):
+    sid = await _sid(db_session, "ops")
+    await _episode(db_session, "ego_a", approved=True, paid=True, amount_krw=0)
+    payload = {"episodes": {"ego_a": {"session": "s1", "device_id": "D1", "duration_s": 60}, "ego_b": {"session": "s1", "device_id": "D2"}}}
+    async with _client(app) as c:
+        first = await c.post("/api/ops/import", json=payload, cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert first.status_code == 200 and first.json()["added"] == 1
+        again = await c.post("/api/ops/import", json=payload, cookies={"sid": sid}, headers={"Origin": ORIGIN})
+        assert again.status_code == 200 and again.json()["added"] == 0
+        a = next(e for e in again.json()["episodes"] if e["recording"] == "ego_a")
+        assert a["paid"] and a["approved"] and a["amount_krw"] == 0

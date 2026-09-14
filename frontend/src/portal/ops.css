@@ -360,3 +360,10 @@
 .ops-clean-modal a { color:var(--o-accent); display:block; margin-top:12px; }
 @media(max-width:1000px) { .ops-clean-layout { grid-template-columns:1fr; } }
 @media(max-width:600px) { .ops-clean-card { padding:16px; } .ops-clean-metrics { grid-template-columns:1fr; gap:16px; } .ops-clean .ops-tiles { grid-template-columns:1fr; } .ops-clean-intro h2 { font-size:22px; } .ops-clean-filters { align-items:stretch; flex-direction:column; } }
+
+.ops-footage-review { border-top: 1px solid var(--line, rgba(255,255,255,.12)); padding: 16px 0; }
+.ops-footage-review summary { cursor: pointer; overflow-wrap: anywhere; }
+.ops-footage-review textarea { display: block; width: 100%; min-height: 72px; background: #1c1810; color: #f4f1ea; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 12px; }
+.ops-payout-recipient { margin: 24px 0; }
+.ops-payout-recipient input { max-width: 280px; }
+.ops-clean-card details { margin: 16px 0; }

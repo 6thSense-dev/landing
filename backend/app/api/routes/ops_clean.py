@@ -1,4 +1,4 @@
-"""Ops-only clean footage and camera attribution. Payment is never automatic."""
+"""Ops-only clean footage and camera attribution. Review and payment use separate ledgers."""
 import asyncio
 import json
 import re
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.routes.ops import require_ops, _wearer_json, _setting
+from app.api.routes.ops import require_ops, _wearer_json, _setting, _put_setting
 from app.core.db import get_session
 from app.core.ops_clean import committed_results, estimate_krw, playback
 from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
@@ -54,8 +54,9 @@ async def state(db):
                                      'retained_seconds': sum(i['end_s'] - i['start_s'] for i in r.get('intervals', []) if i['disposition'] == 'keep'),
                                      'status': r.get('status', 'completed')} for r in doc['recordings']]})
     collections, collection_errors = await viewing_collections(db, runs)
-    return {'runs': rows, 'collections': [{k: c[k] for k in ('collection_id', 'wearer_id', 'label', 'retained_seconds', 'source_runs', 'recordings')} for c in collections],
-            'collection_errors': collection_errors, 'wearers': [_wearer_json(w) for w in wearers],
+    from app.core.ops_ledger import footage_ledger
+    return {'ledger': await footage_ledger(db), 'runs': rows, 'collections': [{k: c[k] for k in ('collection_id', 'wearer_id', 'label', 'retained_seconds', 'source_runs', 'recordings')} for c in collections],
+            'scan_errors': json.loads(await _setting(db, 'clean_scan_errors') or '[]'), 'collection_errors': collection_errors, 'wearers': [_wearer_json(w) for w in wearers],
             'cameras': [{'device_id': c.device_id, 'wearer_id': c.wearer_id} for c in cameras]}
 
 
@@ -96,7 +97,7 @@ async def assign_camera(body: CameraIn, _: User = Depends(require_ops), db: Asyn
 
 
 @router.post('/scan')
-async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
+async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_session), skip_invalid: bool = False):
     try:
         results = await asyncio.to_thread(committed_results)
     except Exception as exc:
@@ -107,32 +108,46 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
     by_id = {r.run_id: r for r in existing}
     used = {rec['recording'] for run in existing for rec in json.loads(run.manifest_json)['recordings'] if rec.get('source_seconds', 0) > 0}
     used_hashes = {s['sha256'] for run in existing for rec in json.loads(run.manifest_json)['recordings'] for s in rec.get('sources', [])}
+    errors = list(getattr(results, 'errors', []))
     added = 0
     for doc, key, version, digest in results:
-        if doc['run_id'] in by_id:
-            if by_id[doc['run_id']].manifest_sha256 != digest:
-                raise HTTPException(409, 'An existing QC run changed; its earnings were not replaced.')
-            continue
-        names = {r['recording'] for r in doc['recordings'] if r.get('source_seconds', 0) > 0}
-        hashes = {s['sha256'] for r in doc['recordings'] for s in r.get('sources', [])}
-        if names & used or hashes & used_hashes:
-            raise HTTPException(409, 'These recordings already have a clean result. Review supersession before importing another payable run.')
-        paid_raw = (await db.execute(select(Episode.recording).where(Episode.recording.in_(names), Episode.paid.is_(True)))).scalars().all()
-        if paid_raw:
-            raise HTTPException(409, 'Some source recordings are already paid in the raw ledger. Reconcile those payments before importing an unpaid estimate.')
-        camera = await db.get(OpsCamera, doc['device_id'])
-        wearer = await db.get(Wearer, camera.wearer_id) if camera and camera.wearer_id else None
-        if wearer is None or not wearer.is_active:
-            raise HTTPException(409, f"Assign EGO-{doc['device_id']} to a contributor before importing clean footage.")
-        db.add(CleanRun(run_id=doc['run_id'], device_id=doc['device_id'], wearer_id=wearer.id,
-                        manifest_key=key, manifest_version=version, manifest_sha256=digest,
-                        manifest_json=json.dumps(doc), retained_seconds=doc['retained_seconds'],
-                        rejected_seconds=doc['rejected_seconds'], rate_krw_hour=wearer.rate_krw_hour))
-        used |= names
-        used_hashes |= hashes
-        added += 1
+        try:
+            if doc['run_id'] in by_id:
+                if by_id[doc['run_id']].manifest_sha256 != digest:
+                    raise HTTPException(409, 'An existing QC run changed; its earnings were not replaced.')
+                continue
+            names = {r['recording'] for r in doc['recordings'] if r.get('source_seconds', 0) > 0}
+            hashes = {s['sha256'] for r in doc['recordings'] for s in r.get('sources', [])}
+            if names & used or hashes & used_hashes:
+                raise HTTPException(409, 'These recordings already have a clean result. Review supersession before importing another payable run.')
+            paid_raw = (await db.execute(select(Episode.recording).where(Episode.recording.in_(names), Episode.paid.is_(True)))).scalars().all()
+            if paid_raw:
+                raise HTTPException(409, 'Some source recordings are already paid in the raw ledger. Reconcile those payments before importing an unpaid estimate.')
+            camera = await db.get(OpsCamera, doc['device_id'])
+            # An existing recording's contributor wins over today's camera holder.
+            owners = set((await db.execute(select(Episode.wearer_id).where(Episode.recording.in_(names), Episode.wearer_id.is_not(None)))).scalars())
+            if len(owners) > 1:
+                raise HTTPException(409, 'This QC batch contains multiple contributors; split the batch before importing.')
+            owner = next(iter(owners)) if owners else camera.wearer_id if camera else None
+            wearer = await db.get(Wearer, owner) if owner else None
+            if wearer is None or not wearer.is_active:
+                raise HTTPException(409, f"Assign EGO-{doc['device_id']} to a contributor before importing clean footage.")
+            imported_run = CleanRun(run_id=doc['run_id'], device_id=doc['device_id'], wearer_id=wearer.id,
+                            manifest_key=key, manifest_version=version, manifest_sha256=digest,
+                            manifest_json=json.dumps(doc), retained_seconds=doc['retained_seconds'],
+                            rejected_seconds=doc['rejected_seconds'], rate_krw_hour=wearer.rate_krw_hour)
+            db.add(imported_run)
+            by_id[doc['run_id']] = imported_run
+            used |= names
+            used_hashes |= hashes
+            added += 1
+        except HTTPException as exc:
+            if not skip_invalid:
+                raise
+            errors.append({'run_id': doc['run_id'], 'error': str(exc.detail)})
+    await _put_setting(db, 'clean_scan_errors', json.dumps(errors))
     await db.commit()
-    return {**await state(db), 'imported': added, 'scan_errors': getattr(results, 'errors', [])}
+    return {**await state(db), 'imported': added, 'scan_errors': errors}
 
 
 @router.get('/runs/{run_id}/files')

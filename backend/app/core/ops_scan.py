@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -149,6 +150,14 @@ def walk_bucket(prefix: str = "sessions/") -> dict[str, dict]:
 def facts_from(t: dict) -> dict:
     """The columns a take's own bytes justify. No ops decisions in here."""
     m = t.get("meta") or {}
+    if not isinstance(m, dict):
+        m = {}
+    def number(key):
+        try:
+            value = float(m.get(key) or 0)
+            return max(0, value) if math.isfinite(value) else 0
+        except (ValueError, TypeError):
+            return 0
     return {
         "session": t["session"],
         "prefix": t["prefix"],
@@ -158,11 +167,11 @@ def facts_from(t: dict) -> dict:
         "device_id": str(m.get("device_id") or device_from(t["recording"]))[:32],
         "started_at": _parse_dt(m.get("start_time")),
         "uploaded_at": t.get("uploaded"),
-        "duration_s": float(m.get("duration_s") or 0),
+        "duration_s": number("duration_s"),
         "size_bytes": int(t["bytes"]),
         "files": int(t["files"]),
-        "frames": int(m.get("frame_count") or 0),
-        "dropped": int(m.get("dropped_frames") or 0),
+        "frames": int(number("frame_count")),
+        "dropped": int(number("dropped_frames")),
         "complete": bool(m.get("complete", True)),
         "truncated": bool(m.get("truncated", False)),
         "clock_source": str(m.get("clock_source") or "")[:16],

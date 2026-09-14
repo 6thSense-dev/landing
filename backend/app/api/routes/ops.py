@@ -16,19 +16,22 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth_deps import current_user
 from app.core.db import get_session
 from app.core.ops_s3 import OpsS3Unavailable, episode_files
 from app.core.ops_scan import facts_from, walk_bucket
-from app.models import Episode, OpsSetting, Task, User, Wearer
+from app.models import OpsCamera, Episode, OpsSetting, Task, User, Wearer
 from app.models.ops_clean import CleanRun
+from app.models import ProcessingJob
+from app.core.ops_ledger import contributor_summary
 from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_playback, refresh_source_receipts
 from app.core.ops_s3 import get_settings as raw_settings
 
@@ -139,8 +142,13 @@ async def _state(db: AsyncSession) -> dict:
     live = [e for e in eps if e.deleted_at is None]
     inventory, manifests, receipts = await _raw_context(db)
     raw = raw_statuses(inventory, manifests, receipts) if inventory is not None else {}
+    jobs = {j.recording: {"state": j.state, "reason": j.reason, "attempts": j.attempts, "updated_at": j.updated_at.isoformat()} for j in (await db.execute(select(ProcessingJob))).scalars()}
     return {
-        "episodes": [{**_episode_json(e), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
+        "contributor_stats": await contributor_summary(db),
+        "cameras": [{"device_id": c.device_id, "wearer_id": c.wearer_id} for c in (await db.execute(select(OpsCamera))).scalars()],
+        "onboarding": {"account_service_connected": False, "terms_status": "terms_not_configured", "required_agreements": ["participation", "privacy", "collection"]},
+        "processing": {"automatic_scan": os.getenv("OPS_AUTOMATION_ENABLED") == "true", "worker_access_configured": bool(os.getenv("OPS_PROCESSOR_TOKEN"))},
+        "episodes": [{**_episode_json(e), "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),
         "last_scan": await _setting(db, SCAN_KEY),
         "wearers": [_wearer_json(w) for w in wearers],
@@ -197,6 +205,7 @@ async def scan_bucket(_: User = Depends(require_ops),
             detail=f"The bucket could not be read: {type(exc).__name__}: {exc}"[:300],
         ) from exc
 
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
     known = {e.recording: e for e in
              (await db.execute(select(Episode))).scalars().all()}
 
@@ -235,6 +244,9 @@ async def scan_bucket(_: User = Depends(require_ops),
     receipts = await asyncio.to_thread(refresh_source_receipts, inventory, manifests, receipts)
     await _put_setting(db, RECEIPTS_KEY, json.dumps(receipts))
     await _put_setting(db, INVENTORY_KEY, json.dumps({"bucket": raw_settings().bucket, "takes": inventory}))
+    await db.flush()
+    from app.core.ops_processing import reconcile
+    await reconcile(db, takes, manifests, receipts)
     await _put_setting(db, SCAN_KEY, _now().isoformat(timespec="seconds"))
     await db.commit()
     out = await _state(db)
@@ -409,11 +421,7 @@ class FlagIn(BaseModel):
 async def approve_episode(recording: str, body: FlagIn,
                           _: User = Depends(require_ops),
                           db: AsyncSession = Depends(get_session)) -> dict:
-    e = await _episode_or_404(db, recording)
-    e.approved = body.value
-    e.approved_at = _now() if body.value else None
-    await db.commit()
-    return await _state(db)
+    raise HTTPException(410, "Raw no longer accepts approval or payment changes. Review Clean footage and use Payment.")
 
 
 class PayIn(BaseModel):
@@ -429,23 +437,7 @@ class PayIn(BaseModel):
 async def pay_episode(recording: str, body: PayIn,
                       _: User = Depends(require_ops),
                       db: AsyncSession = Depends(get_session)) -> dict:
-    e = await _episode_or_404(db, recording)
-    # Paying an unapproved episode is almost always a misclick on the wrong row.
-    if body.value and not e.approved:
-        raise HTTPException(status_code=409, detail="Approve the episode first.")
-    amount = await _amount_for(db, body.amount_krw) if body.value else 0
-    # Settling is a one-way stamp. Re-ticking an already-paid episode after the
-    # rate moved would rewrite what the ledger says somebody was paid, which is
-    # the one thing a payment record must never do.
-    if body.value and not e.paid:
-        e.paid_at = _now()
-        e.amount_krw = max(0, amount)
-    elif not body.value:
-        e.paid_at = None
-        e.amount_krw = 0
-    e.paid = body.value
-    await db.commit()
-    return await _state(db)
+    raise HTTPException(410, "Raw no longer accepts approval or payment changes. Review Clean footage and use Payment.")
 
 
 class PayBulkIn(BaseModel):
@@ -457,54 +449,7 @@ class PayBulkIn(BaseModel):
 @router.post("/pay-bulk")
 async def pay_bulk(body: PayBulkIn, _: User = Depends(require_ops),
                    db: AsyncSession = Depends(get_session)) -> dict:
-    """Settle a whole filtered batch in one write.
-
-    ALL OR NOTHING, and deliberately so. The operator's mental model is "pay
-    this week's approved episodes"; a partial run that quietly skipped four
-    rows leaves them believing a person was paid who was not, and there is
-    nothing in the board that would ever show the difference. So an unknown
-    recording or an unapproved one fails the batch and names the count.
-    """
-    wanted = list(dict.fromkeys(body.recordings))       # de-dup, keep order
-    if not wanted:
-        raise HTTPException(status_code=422, detail="No episodes were selected.")
-
-    eps = (await db.execute(
-        select(Episode).where(Episode.recording.in_(wanted)))).scalars().all()
-    if len(eps) != len(wanted):
-        missing = sorted(set(wanted) - {e.recording for e in eps})
-        raise HTTPException(
-            status_code=404,
-            detail=f"{len(missing)} of these are not in the ledger "
-                   f"(e.g. {missing[0]}). Nothing was paid.")
-
-    if body.value:
-        gone = [e.recording for e in eps if e.deleted_at is not None]
-        if gone:
-            raise HTTPException(
-                status_code=409,
-                detail=f"{len(gone)} of these are deleted (e.g. {gone[0]}). Nothing was paid.")
-        unapproved = [e.recording for e in eps if not e.approved]
-        if unapproved:
-            raise HTTPException(
-                status_code=409,
-                detail=f"{len(unapproved)} of these are not approved "
-                       f"(e.g. {unapproved[0]}). Nothing was paid.")
-
-    amount = await _amount_for(db, body.amount_krw) if body.value else 0
-    now = _now()
-    for e in eps:
-        if body.value and not e.paid:
-            e.paid_at = now
-            e.amount_krw = max(0, amount)
-        elif not body.value:
-            e.paid_at = None
-            e.amount_krw = 0
-        e.paid = body.value
-    await db.commit()
-    out = await _state(db)
-    out["changed"] = len(eps)
-    return out
+    raise HTTPException(410, "Raw no longer accepts approval or payment changes. Review Clean footage and use Payment.")
 
 
 class RateIn(BaseModel):
@@ -514,20 +459,7 @@ class RateIn(BaseModel):
 @router.post("/rate")
 async def set_rate(body: RateIn, _: User = Depends(require_ops),
                    db: AsyncSession = Depends(get_session)) -> dict:
-    """Set the amount per approved episode.
-
-    Changing it does NOT reprice anything already paid. Each payment carries
-    the amount it was settled at, which is the only version of this number a
-    collector could ever be shown and told is what they were paid.
-    """
-    row = (await db.execute(
-        select(OpsSetting).where(OpsSetting.key == RATE_KEY))).scalar_one_or_none()
-    if row is None:
-        db.add(OpsSetting(key=RATE_KEY, value=str(body.rate_krw)))
-    else:
-        row.value = str(body.rate_krw)
-    await db.commit()
-    return await _state(db)
+    raise HTTPException(410, "Per-episode Raw pricing is retired. Set contributor hourly rates in Users.")
 
 
 class DeleteIn(BaseModel):
@@ -620,6 +552,8 @@ async def import_ledger(body: ImportIn, _: User = Depends(require_ops),
     the table from the source would wipe approvals and payments, which is the
     one thing this data cannot survive.
     """
+    if body.payments:
+        raise HTTPException(410, 'Import historical payments through an audited migration; use Payment for new payouts.')
     known = {r for (r,) in (await db.execute(select(Episode.recording))).all()}
     added = 0
     for rec, ep in (body.episodes or {}).items():
