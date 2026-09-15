@@ -21,6 +21,14 @@ def pytest_configure(config):
 
 @pytest.fixture(scope="session")
 def postgres_container():
+    external = os.getenv("TEST_DATABASE_URL")
+    if external:
+        from urllib.parse import urlparse
+        if not urlparse(external).path.rsplit("/", 1)[-1].endswith("_test"):
+            raise ValueError("TEST_DATABASE_URL must name an isolated *_test database")
+        os.environ["DATABASE_URL"] = external
+        yield None
+        return
     with PostgresContainer("postgres:16-alpine") as pg:
         # Inject for any module that calls get_settings().
         url = pg.get_connection_url().replace("psycopg2", "asyncpg")

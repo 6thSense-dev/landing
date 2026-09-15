@@ -27,6 +27,7 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
     else if (path === '/api/ops/clean/runs/run/files') data = { files: [{ key: 'left.mp4', url: '/test-left.mp4', role: 'left_video', recording }, { key: 'right.mp4', url: '/test-right.mp4', role: 'right_video', recording }] };
     else if (path === '/api/ops/payments/review') { reviewed = true; data = { ok: true }; }
     else if (path === '/api/ops/payments/state') data = payment();
+    else if (path === '/api/ops/contributors') data = { accounts: [], claims: [], recipients: [] };
     else if (path === '/api/ops/payments/approve') { approved = true; data = payment(); }
     else return route.fulfill({ status: 404 });
     return route.fulfill({ json: data });

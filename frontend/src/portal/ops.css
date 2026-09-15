@@ -261,6 +261,27 @@
   margin: 0; font-size: 11px; font-weight: 500; color: var(--o-muted);
   text-transform: uppercase; letter-spacing: 0.06em;
 }
+.ops-mobile-requests { margin-bottom: 18px; }
+.ops-mobile-requests .ops-phead { flex-wrap: wrap; }
+.ops-mobile-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.ops-mobile-columns > div { min-width: 0; }
+.ops-mobile-columns h3 { margin: 8px 0 14px; font-size: 15px; }
+.ops-mobile-request { display: grid; gap: 12px; padding: 16px 0; border-top: 1px solid var(--o-line); min-width: 0; }
+.ops-mobile-request h4 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.ops-mobile-request h4 span { color: var(--o-muted); font-size: 12px; font-weight: 400; }
+.ops-mobile-reference { margin: 0; font-family: var(--o-mono); overflow-wrap: anywhere; }
+.ops-mobile-request .ops-check { align-items: flex-start; line-height: 1.6; }
+.ops-mobile-request .ops-check input { flex: 0 0 auto; margin-top: 4px; }
+.ops-mobile-request button { justify-self: start; white-space: normal; text-align: left; }
+.ops-mobile-bank-summary { display: grid; gap: 8px; margin: 0; font-size: 13px; }
+.ops-mobile-bank-summary > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+.ops-mobile-bank-summary dt { color: var(--o-muted); }
+.ops-mobile-bank-summary dd { margin: 0; overflow-wrap: anywhere; }
+.ops-mobile-recovery { display: grid; gap: 10px; min-width: 0; }
+.ops-mobile-recovery input, .ops-mobile-recovery select { min-width: 0; max-width: 100%; }
+.ops-mobile-recovery textarea { width: 100%; min-width: 0; box-sizing: border-box; resize: vertical; background: var(--o-surface-2); color: var(--o-text); border: 1px solid var(--o-line); border-radius: 7px; padding: 8px 10px; font: inherit; font-size: 13px; }
+.ops-mobile-request :focus-visible { outline: 2px solid var(--o-accent); outline-offset: 3px; }
+@media (max-width: 900px) { .ops-mobile-columns { grid-template-columns: 1fr; gap: 16px; } }
 /* Text inputs only. An unscoped `input` here stretched the Approved and Paid
    checkboxes to 97x13 -- the two most-clicked controls on the board. */
 .ops-tablewrap input[type="text"],

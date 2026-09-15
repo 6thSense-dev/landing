@@ -211,12 +211,16 @@ async def scan_bucket(_: User = Depends(require_ops),
     known = {e.recording: e for e in
              (await db.execute(select(Episode))).scalars().all()}
 
+    from app.core.contributor_attribution import owner_at_capture
+    from app.core.ops_sources import source_registry
+    confirmed_sources = await source_registry(db)
     added = updated = 0
     for rec, t in takes.items():
         facts = facts_from(t)
         e = known.get(rec)
         if e is None:
-            db.add(Episode(recording=rec, **facts))
+            owner = None if rec in confirmed_sources else await owner_at_capture(db, facts)
+            db.add(Episode(recording=rec, wearer_id=owner, **facts))
             added += 1
             continue
         # Refresh only what can grow, and backfill what was never set. Notably
