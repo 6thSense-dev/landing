@@ -73,6 +73,8 @@ def eligible(entries, due, basis):
         and e["collection_date"]
         and e["collection_date"] < end
         and e["rate_krw_hour"] is not None
+        and e["allocated_krw"] is not None
+        and not e.get("allocation_needs_reconciliation", False)
     ]
     qualifying = sum(
         e["retained_seconds"]

@@ -27,6 +27,7 @@ def entry(**kw):
         review_status="reviewed",
         collection_date="2026-09-01",
         rate_krw_hour=11000,
+        allocated_krw=44000,
         **kw,
     )
 
@@ -35,7 +36,7 @@ def test_accumulated_threshold_strict_and_excludes_current_week_unreviewed_reser
     due = friday(datetime(2026, 9, 14, tzinfo=timezone.utc))
     a = entry()
     assert not eligible([a], due, "accumulated")[0]
-    b = {**a, "recording": "b", "retained_seconds": 1}
+    b = {**a, "recording": "b", "retained_seconds": 1, "allocated_krw": 3}
     assert len(eligible([a, b], due, "accumulated")[0]) == 2
     assert not eligible([a, b], due, "weekly")[0]
     for field, value in [

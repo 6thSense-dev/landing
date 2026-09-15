@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4.1] - 2026-09-14
+
+### Fixed
+
+- Allocate each Clean run's rounded KRW total consistently across recordings so splitting reviews or payouts cannot change the final amount.
+- Backfill confirmed camera ownership for historical IDs with mixed case or surrounding spaces. Existing owners, paid sources and Clean/payment records remain unchanged.
+
 ## [0.0.4.0] - 2026-09-14
 
 Prepared release. This entry records the implementation, not a completed deployment.
