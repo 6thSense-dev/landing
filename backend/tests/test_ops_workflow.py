@@ -62,7 +62,7 @@ def test_missing_metadata_recovers_and_transient_failure_never_rejects():
 
 
 @pytest.mark.asyncio
-async def test_payment_requires_review_reserves_once_and_locks_review(
+async def test_payment_requires_review_fences_recipient_reserves_once_and_locks_review(
     app, db_session, monkeypatch
 ):
     monkeypatch.setenv("WISE_PROFILE_ID", "123")
@@ -127,12 +127,36 @@ async def test_payment_requires_review_reserves_once_and_locks_review(
                 headers={"Origin": ORIGIN},
             )
 
+        initial = await c.get("/api/ops/payments/state", cookies={"sid": sid})
+        body["expected_recipient_revision"] = initial.json()["contributors"][0]["recipient"]["revision"]
+        assert len(body["expected_recipient_revision"]) == 64
+        missing_revision = {k: v for k, v in body.items() if k != "expected_recipient_revision"}
+        assert (await post("approve", missing_revision)).status_code == 422
         assert (await post("approve", body)).status_code == 409
         assert (
             await post("review", {**review, "watched_all": False})
         ).status_code == 422
         r = await post("review", review)
         assert r.status_code == 200, r.text
+        # Another operator can change bank details for the same Wise ID or
+        # replace that recipient entirely while this operator's page is open.
+        from app.core.wise import WiseClient
+        monkeypatch.setenv("WISE_API_TOKEN", "test-only")
+        latest_revision = body["expected_recipient_revision"]
+        for recipient_id, recipient_hash in [(321, "new-bank-details"), (999, "replacement")]:
+            monkeypatch.setattr(WiseClient, "recipient", lambda self, rid, digest=recipient_hash: {
+                "active": True, "hash": digest, "currency": "KRW",
+                "profileId": 123, "name": {"fullName": "Verified contributor"},
+            })
+            changed = await post("recipient", {
+                "wearer_id": person.id, "recipient_id": recipient_id, "confirm_recipient": True,
+            })
+            assert changed.status_code == 200, changed.text
+            latest_revision = changed.json()["contributors"][0]["recipient"]["revision"]
+            stale = await post("approve", body)
+            assert stale.status_code == 409 and "recipient changed" in stale.text
+            assert not (await db_session.execute(select(PayoutItem))).scalars().all()
+        body["expected_recipient_revision"] = latest_revision
         r = await post("approve", body)
         assert r.status_code == 200, r.text
         assert r.json()["payouts"][0]["status"] == "approved"
@@ -150,6 +174,21 @@ async def test_payment_requires_review_reserves_once_and_locks_review(
         ).status_code == 410
     assert len((await db_session.execute(select(PayoutItem))).scalars().all()) == 1
     assert not run.paid
+
+
+@pytest.mark.parametrize("field,value", [
+    ("wise_recipient_id", "new-id"), ("recipient_hash", "new-hash"),
+    ("wise_profile_id", "new-profile"), ("wise_environment", "production"),
+    ("verified_name", "New name"), ("wearer_id", 2),
+])
+def test_recipient_revision_covers_all_approval_identity_fields(field, value):
+    from types import SimpleNamespace
+    from app.api.routes.ops_payments import recipient_revision
+    recipient = SimpleNamespace(wearer_id=1, wise_recipient_id="321", recipient_hash="hash",
+                                wise_profile_id="123", wise_environment="sandbox", verified_name="Name")
+    original = recipient_revision(recipient)
+    setattr(recipient, field, value)
+    assert recipient_revision(recipient) != original
 
 
 @pytest.mark.asyncio
@@ -327,6 +366,103 @@ async def test_automatic_import_skips_unassigned_result_and_preserves_original_c
     assert result["imported"] == 1 and len(result["scan_errors"]) == 1
     assert result["runs"][0]["wearer_id"] == original.id
     assert result["runs"][0]["rate_krw_hour"] == 11000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("second_owner", ["missing", "unassigned", "different"])
+async def test_clean_batch_requires_every_recording_to_have_the_same_resolved_owner(
+    db_session, monkeypatch, second_owner
+):
+    import copy
+    from app.api.routes import ops_clean
+    from app.core.ops_clean import validate_manifest
+    from app.models import Episode, OpsCamera
+    from tests.test_ops_artifacts import multimodal_manifest
+
+    original = Wearer(name="Original contributor", rate_krw_hour=11000)
+    current = Wearer(name="Current camera holder", rate_krw_hour=22000)
+    db_session.add_all([original, current])
+    await db_session.flush()
+    doc = multimodal_manifest()
+    first_name = doc["recordings"][0]["recording"]
+    second_name = first_name.replace("120000", "130000")
+    second = copy.deepcopy(doc["recordings"][0])
+    second["recording"] = second_name
+    second["sources"][0]["key"] = second["sources"][0]["key"].replace(first_name, second_name)
+    second["sources"][0]["sha256"] = "c" * 64
+    doc["recordings"].append(second)
+    for output in list(doc["outputs"]):
+        item = copy.deepcopy(output)
+        item["recording"] = second_name
+        prefix, filename = item["key"].rsplit("/", 1)
+        item["key"] = prefix + "/second-" + filename
+        doc["outputs"].append(item)
+    for field in ("source_seconds", "retained_seconds", "rejected_seconds"):
+        doc[field] *= 2
+    validate_manifest(doc)
+    db_session.add_all([
+        Episode(recording=first_name, wearer_id=original.id),
+        OpsCamera(device_id=doc["device_id"], wearer_id=current.id),
+    ])
+    second_episode = None
+    if second_owner != "missing":
+        second_episode = Episode(
+            recording=second_name,
+            wearer_id=current.id if second_owner == "different" else None,
+        )
+        db_session.add(second_episode)
+    await db_session.commit()
+    monkeypatch.setattr(ops_clean, "committed_results", lambda: [(doc, "result", "v1", "d" * 64)])
+
+    held = await ops_clean.scan(None, db_session, skip_invalid=True)
+    assert held["imported"] == 0 and len(held["scan_errors"]) == 1
+    expected = "multiple contributors" if second_owner == "different" else "confirmed contributor"
+    assert expected in held["scan_errors"][0]["error"]
+    assert not (await db_session.execute(select(CleanRun))).scalars().all()
+    if second_owner == "different":
+        assert second_episode.wearer_id == current.id
+        return
+
+    # Only explicitly resolving the missing episode owner allows this batch;
+    # today's different camera holder must never fill in this evidence.
+    if second_episode is None:
+        second_episode = Episode(recording=second_name)
+        db_session.add(second_episode)
+    second_episode.wearer_id = original.id
+    await db_session.commit()
+    imported = await ops_clean.scan(None, db_session, skip_invalid=True)
+    assert imported["imported"] == 1 and not imported["scan_errors"]
+    assert imported["runs"][0]["wearer_id"] == original.id
+    assert imported["runs"][0]["rate_krw_hour"] == 11000
+
+
+@pytest.mark.asyncio
+async def test_new_attribution_gate_preserves_existing_paid_historical_ledger(db_session, monkeypatch):
+    from app.api.routes import ops_clean
+    from app.models import OpsCamera
+
+    original = Wearer(name="Historical contributor", rate_krw_hour=11000)
+    current = Wearer(name="New camera holder", rate_krw_hour=22000)
+    db_session.add_all([original, current])
+    await db_session.flush()
+    doc = manifest()
+    paid_at = datetime(2026, 9, 10, tzinfo=timezone.utc)
+    historical = CleanRun(
+        run_id=doc["run_id"], device_id=doc["device_id"], wearer_id=original.id,
+        manifest_key="historical", manifest_version="v1", manifest_sha256="a" * 64,
+        manifest_json=json.dumps(doc), retained_seconds=60, rejected_seconds=40,
+        rate_krw_hour=11000, paid=True, paid_at=paid_at, amount_krw=183,
+    )
+    # No Episode owner remains to resolve; already imported, paid history is
+    # still authoritative even after this camera changes hands.
+    db_session.add_all([historical, OpsCamera(device_id=doc["device_id"], wearer_id=current.id)])
+    await db_session.commit()
+    monkeypatch.setattr(ops_clean, "committed_results", lambda: [(doc, "historical", "v1", "a" * 64)])
+    result = await ops_clean.scan(None, db_session)
+    assert result["imported"] == 0 and not result["scan_errors"]
+    await db_session.refresh(historical)
+    assert (historical.wearer_id, historical.rate_krw_hour, historical.paid,
+            historical.paid_at, historical.amount_krw) == (original.id, 11000, True, paid_at, 183)
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,6 @@
 """Payment approval reserves exact reviewed footage; future footage is never included."""
 
+import hashlib
 import json
 import os
 import uuid
@@ -43,7 +44,21 @@ def configuration():
             and os.getenv("WISE_SOURCE_CURRENCY", "USD")
         ),
         "automatic_funding_enabled": os.getenv("OPS_WISE_AUTO_FUND") == "true",
+        "automatic_payouts_enabled": os.getenv("OPS_PAYOUT_AUTOMATION_ENABLED") == "true",
     }
+
+
+def recipient_revision(recipient):
+    """Fence approval against the exact recipient the operator reviewed."""
+    identity = [
+        recipient.wearer_id,
+        recipient.wise_recipient_id,
+        recipient.recipient_hash,
+        recipient.wise_profile_id,
+        recipient.wise_environment,
+        recipient.verified_name,
+    ]
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
 
 
 def eligible(entries, due, basis):
@@ -108,6 +123,7 @@ async def state(db):
                 "recipient": {
                     "id": recipient.wise_recipient_id,
                     "name": recipient.verified_name,
+                    "revision": recipient_revision(recipient),
                 }
                 if recipient
                 else None,
@@ -205,6 +221,7 @@ class ApproveIn(BaseModel):
     wearer_id: int
     entries: list[EntryIn] = Field(min_length=1, max_length=2000)
     expected_amount_krw: int = Field(gt=0)
+    expected_recipient_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
     approve_payment: bool = False
 
 
@@ -219,6 +236,10 @@ async def approve(body: ApproveIn, user=Depends(require_ops), db=Depends(get_ses
     if not person or not person.is_active or not recipient:
         raise HTTPException(
             409, "An active contributor and verified Wise recipient are required."
+        )
+    if recipient_revision(recipient) != body.expected_recipient_revision:
+        raise HTTPException(
+            409, "Payment recipient changed. Reload and review the recipient before approving."
         )
     if recipient.wise_profile_id != os.getenv(
         "WISE_PROFILE_ID", ""
@@ -309,6 +330,9 @@ async def recipient(
         raise HTTPException(
             409, "Select a KRW recipient belonging to the configured Wise profile."
         )
+    # Use the same transaction lock as approval so its recipient snapshot cannot
+    # change between checking the displayed revision and reserving the footage.
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306131)"))
     row = await db.get(PayoutRecipient, person.id)
     if not row:
         row = PayoutRecipient(wearer_id=person.id)

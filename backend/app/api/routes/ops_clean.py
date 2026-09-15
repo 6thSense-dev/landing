@@ -126,19 +126,25 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
             paid_raw = (await db.execute(select(Episode.recording).where(Episode.recording.in_(names), Episode.paid.is_(True)))).scalars().all()
             if paid_raw:
                 raise HTTPException(409, 'Some source recordings are already paid in the raw ledger. Reconcile those payments before importing an unpaid estimate.')
-            camera = await db.get(OpsCamera, doc['device_id'])
-            # An existing recording's contributor wins over today's camera holder.
-            owners = set((await db.execute(select(Episode.wearer_id).where(Episode.recording.in_(names), Episode.wearer_id.is_not(None)))).scalars())
-            if len(owners) > 1:
-                raise HTTPException(409, 'This QC batch contains multiple contributors; split the batch before importing.')
-            owner = next(iter(owners)) if owners else camera.wearer_id if camera else None
-            wearer = await db.get(Wearer, owner) if owner else None
-            if wearer is None or not wearer.is_active:
-                raise HTTPException(409, f"Assign EGO-{doc['device_id']} to a contributor before importing clean footage.")
             try:
                 validate_artifacts(doc)
             except (ValueError, KeyError, TypeError) as exc:
                 raise HTTPException(409, 'New Clean imports require both eye videos, full frame sequences, IMU and a shared timeline. Existing historical ledger entries are preserved.') from exc
+            # A current camera holder cannot establish the owner of historical
+            # footage. Resolve every decoded recording before assigning a batch.
+            episode_owners = dict((await db.execute(
+                select(Episode.recording, Episode.wearer_id).where(Episode.recording.in_(names))
+            )).all())
+            if names - episode_owners.keys() or any(owner is None for owner in episode_owners.values()):
+                raise HTTPException(409, 'Every decoded recording needs a confirmed contributor before importing. Scan Raw and resolve its attribution in Users.')
+            owners = set(episode_owners.values())
+            if len(owners) > 1:
+                raise HTTPException(409, 'This QC batch contains multiple contributors; split the batch before importing.')
+            camera = await db.get(OpsCamera, doc['device_id']) if not owners else None
+            owner = next(iter(owners)) if owners else camera.wearer_id if camera else None
+            wearer = await db.get(Wearer, owner) if owner else None
+            if wearer is None or not wearer.is_active:
+                raise HTTPException(409, f"Assign EGO-{doc['device_id']} to a contributor before importing clean footage.")
             imported_run = CleanRun(run_id=doc['run_id'], device_id=doc['device_id'], wearer_id=wearer.id,
                             manifest_key=key, manifest_version=version, manifest_sha256=digest,
                             manifest_json=json.dumps(doc), retained_seconds=doc['retained_seconds'],

@@ -13,7 +13,7 @@ Implementation branch: `feat/ops-workflow-ledgers`. Local implementation; not a 
 
 The Korean pilot uses KRW 11,000/hour. Eligibility requires strictly more than 14,400 seconds of accumulated unpaid, reviewed retained footage with confirmed collection dates. Friday scheduling defaults to 18:00 Asia/Seoul and includes completed Monday–Sunday collection weeks plus earlier unpaid balances. The API fixes the threshold basis to accumulated unpaid time for this pilot.
 
-Recipient verification checks the configured Wise profile, KRW currency, active state and recipient hash. Approval snapshots recipient ID/hash, profile, environment, target amount and source currency. Transfer retries use the payout UUID as `customerTransactionId`.
+Recipient verification checks the configured Wise profile, KRW currency, active state and recipient hash. Approval must match the recipient revision displayed to the operator, then snapshots recipient ID/hash, profile, environment, target amount and source currency. A recipient change requires a refreshed review; refreshing clears the prior approval checkbox. Transfer retries use the payout UUID as `customerTransactionId`.
 
 `approved` → `quoted` → `awaiting_funding` / `processing` → `sent`. A returned/cancelled transfer becomes `needs_attention` and its footage stays reserved. Funding completion is not recipient receipt. `sent` remains distinct from `paid`. A verified settlement/delivery reconciliation is still needed before implementing the final paid transition. No manual unreserve/reissue shortcut is provided for an uncertain transfer outcome.
 
@@ -21,7 +21,8 @@ Configuration uses server-side environment variables; never enter a token into a
 
 | Variable | Default / purpose |
 | --- | --- |
-| `OPS_AUTOMATION_ENABLED` | `false`; enables five-minute scan and payout reconciliation loop |
+| `OPS_AUTOMATION_ENABLED` | `false`; enables the five-minute automation loop and scans |
+| `OPS_PAYOUT_AUTOMATION_ENABLED` | `false`; separate opt-in required for payout reconciliation/creation inside the automation loop |
 | `OPS_PROCESSOR_TOKEN` | unset; bearer credential for a separate recovery/QC worker |
 | `WISE_API_TOKEN` | unset; server-side Wise credential |
 | `WISE_PROFILE_ID` | unset; verify the actual account/profile before use |
@@ -29,7 +30,7 @@ Configuration uses server-side environment variables; never enter a token into a
 | `WISE_SOURCE_CURRENCY` | `USD`; proposed funding default; recipient amount remains fixed KRW |
 | `OPS_WISE_AUTO_FUND` | `false`; must be explicitly enabled for balance funding after approval |
 
-The scheduler uses a PostgreSQL advisory lock across API replicas. Only approved, due reservations are sent. If a Friday attempt is interrupted, subsequent ticks reconcile the same transfer identity; a retry may therefore occur after Friday. Allow up to five business days after initiation in contributor copy, while showing actual provider progress. The adapter has local fake-provider tests; real Wise sandbox/production credentials and transfer requirements have not been validated in this workspace.
+The scheduler uses a PostgreSQL advisory lock across API replicas. Scans can run while payout execution stays disabled, even when Wise credentials are configured. Both automation flags must be enabled to process approved, due reservations. If a Friday attempt is interrupted, subsequent ticks reconcile the same transfer identity; a retry may therefore occur after Friday. Allow up to five business days after initiation in contributor copy, while showing actual provider progress. The adapter has local fake-provider tests; real Wise sandbox/production credentials and transfer requirements have not been validated in this workspace.
 
 Official Wise references: [personal API tokens](https://docs.wise.com/guides/developer/auth-and-security/personal-api-token), [SMB payouts](https://docs.wise.com/guides/product/send-money/use-cases/payouts-smbs), [balance funding](https://docs.wise.com/guides/product/send-money/funding/fund-from-balance).
 

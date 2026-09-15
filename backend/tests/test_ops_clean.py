@@ -72,6 +72,7 @@ async def test_import_is_unpaid_idempotent_and_rate_is_snapshotted(app,db_sessio
     wearer=Wearer(name='Contributor One',rate_krw_hour=11000);db_session.add(wearer);await db_session.commit()
     db_session.add(OpsCamera(device_id='ABC123',wearer_id=wearer.id));await db_session.commit()
     doc=multimodal_manifest();monkeypatch.setattr(ops_clean,'committed_results',lambda:[(doc,'qc-results/factory-test/result.json','v1','a'*64)])
+    await _episode(db_session,doc['recordings'][0]['recording'],wearer_id=wearer.id)
     async with _client(app) as c:
         async def scan():return await c.post('/api/ops/clean/scan',cookies={'sid':sid},headers={'Origin':ORIGIN})
         first=await scan();assert first.status_code==200,first.text

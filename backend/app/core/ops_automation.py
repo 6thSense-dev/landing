@@ -78,6 +78,8 @@ async def advance_payout(db, p, client):
 
 
 async def payout_tick():
+    if os.getenv("OPS_PAYOUT_AUTOMATION_ENABLED", "false") != "true":
+        return
     if not os.getenv("WISE_API_TOKEN") or not os.getenv("WISE_PROFILE_ID"):
         return
     client = WiseClient()

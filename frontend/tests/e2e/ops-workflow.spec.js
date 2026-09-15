@@ -11,7 +11,7 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
   const payment = () => ({
     configuration: { threshold_basis: 'accumulated', wise_configured: true, wise_environment: 'sandbox', source_currency: 'USD', automatic_funding_enabled: false },
     scheduled_for: '2026-09-18T09:00:00Z', collection_week: ['2026-09-07', '2026-09-14'],
-    contributors: [{ ...person, wearer_id: 1, entries: [{ ...entry, review_status: reviewed ? 'reviewed' : 'needs_review' }], due_krw: approved ? 0 : 55000, qualifying_seconds: reviewed && !approved ? 18000 : 0, eligible_krw: reviewed && !approved ? 55000 : 0, eligible_entries: reviewed && !approved ? [{ run_id: 'run', recording, manifest_sha256: entry.manifest_sha256 }] : [], recipient: { id: '123', name: person.name } }],
+    contributors: [{ ...person, wearer_id: 1, entries: [{ ...entry, review_status: reviewed ? 'reviewed' : 'needs_review' }], due_krw: approved ? 0 : 55000, qualifying_seconds: reviewed && !approved ? 18000 : 0, eligible_krw: reviewed && !approved ? 55000 : 0, eligible_entries: reviewed && !approved ? [{ run_id: 'run', recording, manifest_sha256: entry.manifest_sha256 }] : [], recipient: { id: '123', name: person.name, revision: 'b'.repeat(64) } }],
     payouts: approved ? [{ id: 'payout', wearer_id: 1, amount_krw: 55000, scheduled_for: '2026-09-18T09:00:00Z', status: 'approved', approved_by: 'ops@example.test' }] : [],
   });
   await page.route('**/api/**', async route => {
@@ -57,10 +57,14 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
   await expect(page.getByText('Sandbox — test transfers only', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve Payment' })).toBeDisabled();
   await page.getByLabel(/I approve ₩55,000 for this reviewed footage/).check();
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Approve Payment' })).toBeDisabled();
+  await page.getByLabel(/I approve ₩55,000 for this reviewed footage/).check();
   await page.getByRole('button', { name: 'Approve Payment' }).click();
   await expect(page.getByRole('cell', { name: 'approved', exact: true })).toBeVisible();
   const payload = requests.find(r => r.path.endsWith('/approve')).body;
   expect(payload.expected_amount_krw).toBe(55000);
+  expect(payload.expected_recipient_revision).toBe('b'.repeat(64));
   expect(payload.entries).toEqual([{ run_id: 'run', recording, manifest_sha256: entry.manifest_sha256 }]);
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('payment.png'), fullPage: true });

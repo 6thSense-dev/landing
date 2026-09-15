@@ -35,41 +35,26 @@ def _run_alembic(env: dict) -> subprocess.CompletedProcess:
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_to_pre_seed(postgres_container):
-    """Bookend each seed test: set up a clean 0002 state before, clean up after.
+    """Build the actual 0002 schema, then remove the test schema afterward.
 
-    Before:
-    - Create all tables (idempotent).
-    - Stamp alembic_version to 0002 so `alembic upgrade head` will run 0003.
-    - Truncate sessions + users so prior seeded data doesn't interfere.
-
-    After:
-    - Truncate sessions + users to avoid polluting later tests (e.g., test_session_model)
-      that insert the same emails.
-    - Stamp alembic_version back to 0002 so subsequent suites see a consistent state.
+    Creating today's ORM tables and stamping them as 0002 is not a valid old
+    schema: later CREATE TABLE migrations must be able to run normally.
     """
     engine = create_async_engine(os.environ["DATABASE_URL"])
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS alembic_version "
-                "(version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
-            )
-        )
-        await conn.execute(text("DELETE FROM alembic_version"))
-        await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('0002')"))
-        await conn.execute(text("TRUNCATE sessions, users RESTART IDENTITY CASCADE"))
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
     await engine.dispose()
-    yield
-    # Teardown: clean up seeded data and reset version marker.
-    engine = create_async_engine(os.environ["DATABASE_URL"])
-    async with engine.begin() as conn:
-        # Tables may or may not exist (migration may have run); drop_all only what ORM knows.
-        await conn.run_sync(Base.metadata.create_all)  # ensure tables exist before truncate
-        await conn.execute(text("TRUNCATE sessions, users RESTART IDENTITY CASCADE"))
-        await conn.execute(text("DELETE FROM alembic_version"))
-        await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('0002')"))
-    await engine.dispose()
+    prepared = _alembic(["upgrade", "0002"])
+    assert prepared.returncode == 0, prepared.stderr
+    try:
+        yield
+    finally:
+        engine = create_async_engine(os.environ["DATABASE_URL"])
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

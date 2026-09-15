@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.0.4.0] - 2026-09-14
+
+Prepared release. This entry records the implementation, not a completed deployment.
+
+### Added
+
+- Separate Raw processing, Clean review, Payment and Users workflows. Raw monitors pending, recoverable and rejected sources; approval and payment controls move to the contributor ledgers.
+- Durable processing claims, expiring worker leases and exact source receipt reconciliation. Missing data requires recovery or a recorded rejection reason; matching episode names alone cannot clear Raw.
+- Clean v2 requires separate left/right videos, every retained frame for both eyes, measured IMU, a frame index and a shared sensor timeline. Both eyes use the same accepted intervals, and accepted time is counted once.
+- Recording-specific footage review, collection-date confirmation, exclusion breakdowns and immutable payout reservations. Korean payouts use KRW 11,000/hour, strictly more than four accumulated unpaid reviewed hours and Friday 18:00 Korea scheduling for completed collection weeks.
+- Contributor contact, workplace, location, camera assignments and decoded-time summaries, with the four confirmed Korean camera contributors seeded by migration `0014`.
+- Registration integration contracts for `Korea666`, `China666`, `Vietnam666` and `India666`, country-specific phone verification, private contributor document storage and upload-region attribution. Mobile onboarding and account linking remain a separate integration.
+
+### Fixed
+
+- New Clean batches require a confirmed owner for every decoded recording and a single contributor across the batch. The current camera holder cannot silently replace missing historical ownership.
+- Payment approval is bound to the exact recipient details shown to the operator. Recipient changes require a refreshed review; refreshing clears previous payment confirmation.
+- Automated scans and payout execution have separate controls. `OPS_PAYOUT_AUTOMATION_ENABLED` defaults to `false`, independently of scan scheduling and Wise balance funding.
+- Existing Clean footage, contributor attribution, rate snapshots and historical payment values remain unchanged. Legacy video-only results remain viewable and are identified as historical exports.
+
+### Rollout requirements
+
+- Apply migration `0014` before releasing the new API and Ops UI.
+- Companion catalog changes prepare AWS on-demand extraction from trusted, reviewed plans and publication of verified Clean artifacts. This is not an automatic activity-QC planner; that planner and the complete mobile trial remain pending. No deployed worker or completed backfill is claimed here.
+- Validate Wise credentials, recipient requirements, retries, returned transfers and settlement reconciliation before enabling production payouts. A sent transfer remains distinct from confirmed payment; this release does not itself initiate a payout.
+
 ## [0.0.3.0] - 2026-09-14
 
 ### Fixed

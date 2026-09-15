@@ -17,6 +17,7 @@ export default function OpsPayments({ onReview }) {
       const r = await portalFetch("/api/ops/payments/state");
       if (!r.ok) throw Error(r.data?.detail || "Could not load payments.");
       setData(r.data);
+      setConfirm({});
     } catch (e) {
       setError(e.message);
     }
@@ -76,6 +77,10 @@ export default function OpsPayments({ onReview }) {
             {data.configuration.wise_configured
               ? "Wise credentials configured"
               : "Wise connection needed"}{" "}
+            ·{" "}
+            {data.configuration.automatic_payouts_enabled
+              ? "Scheduled payouts enabled after approval"
+              : "Scheduled payouts disabled"}{" "}
             ·{" "}
             {data.configuration.automatic_funding_enabled
               ? "Automatic funding enabled after approval"
@@ -246,6 +251,7 @@ export default function OpsPayments({ onReview }) {
                   busy ||
                   !confirm[p.wearer_id] ||
                   !p.recipient ||
+                  !p.recipient.revision ||
                   !p.is_active ||
                   !p.eligible_entries.length ||
                   !data.configuration.source_currency
@@ -255,6 +261,7 @@ export default function OpsPayments({ onReview }) {
                     wearer_id: p.wearer_id,
                     entries: p.eligible_entries,
                     expected_amount_krw: p.eligible_krw,
+                    expected_recipient_revision: p.recipient.revision,
                     approve_payment: true,
                   })
                 }

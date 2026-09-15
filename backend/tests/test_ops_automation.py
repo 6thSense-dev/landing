@@ -4,6 +4,36 @@ from app.core.ops_automation import advance_payout
 from app.core.wise import WiseClient, WiseError
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enabled", [None, "false", "true"])
+async def test_payout_loop_requires_separate_opt_in_even_with_wise_credentials(monkeypatch, enabled):
+    from app.core import ops_automation
+    monkeypatch.setenv("OPS_AUTOMATION_ENABLED", "true")
+    monkeypatch.setenv("WISE_API_TOKEN", "test-only")
+    monkeypatch.setenv("WISE_PROFILE_ID", "123")
+    if enabled is None:
+        monkeypatch.delenv("OPS_PAYOUT_AUTOMATION_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("OPS_PAYOUT_AUTOMATION_ENABLED", enabled)
+    calls = []
+
+    class EmptyDB:
+        async def __aenter__(self):
+            calls.append("database")
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def execute(self, statement):
+            return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: []))
+
+    monkeypatch.setattr(ops_automation, "WiseClient", lambda: calls.append("wise"))
+    monkeypatch.setattr(ops_automation, "get_sessionmaker", lambda: EmptyDB)
+    await ops_automation.payout_tick()
+    assert calls == (["wise", "database"] if enabled == "true" else [])
+
+
 class DB:
     async def commit(self):
         pass
