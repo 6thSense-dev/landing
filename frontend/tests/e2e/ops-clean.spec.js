@@ -51,7 +51,8 @@ test('one contributor card combines totals and playback while preserving batch r
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await card.locator('summary').filter({ hasText: 'Flagged footage' }).click();
   await card.getByRole('button', { name: 'Review interval' }).click();
-  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('1');
+  await expect(page.getByLabel('Video', { exact: true }).locator('option')).toHaveCount(1);
+  await expect(page.locator('.ops-clean-modal video')).toHaveAttribute('src', '/test-recording.mp4');
   expect(requests.some(r => r.path === '/api/ops/clean/runs/first/files')).toBe(true);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expectNoHorizontalOverflow(page);
