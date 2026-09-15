@@ -1,4 +1,4 @@
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
 for (const scenario of ['missing', 'ambiguous', 'no-position', 'matched']) {
@@ -192,9 +192,19 @@ test('synthetic contextual media decodes, seeks and plays in the production bund
     else if (path.endsWith('/files')) data = { files: [{ key: 'preview.mp4', role: 'recording_preview', recording: 'recording-a', url: '/fixture-decoded.webm', version_id: 'synthetic-v1' }] };
     await route.fulfill({ json: data });
   });
-  await page.route('**/fixture-decoded.webm', route => route.fulfill({
-    contentType: 'video/webm', path: fileURLToPath(new URL('../../../backend/app/intake_fixture/preview.webm', import.meta.url)),
-  }));
+  const media = readFileSync(new URL('../../../backend/app/intake_fixture/preview.webm', import.meta.url));
+  await page.route('**/fixture-decoded.webm', route => {
+    // Model the byte-range behavior of the pinned object server, not a
+    // nonseekable whole-body mock. No external media request is made.
+    const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/);
+    const start = range ? Number(range[1]) : 0;
+    const end = range && range[2] ? Math.min(Number(range[2]), media.length - 1) : media.length - 1;
+    return route.fulfill({ status: range ? 206 : 200, contentType: 'video/webm',
+      headers: { 'accept-ranges': 'bytes', 'content-length': String(end - start + 1),
+        ...(range ? { 'content-range': `bytes ${start}-${end}/${media.length}` } : {}) },
+      body: media.subarray(start, end + 1),
+    });
+  });
   await page.goto('/portal/ops');
   await page.getByRole('button', { name: 'Clean', exact: true }).click();
   await page.getByText('Flagged footage to review (1)', { exact: true }).click();
