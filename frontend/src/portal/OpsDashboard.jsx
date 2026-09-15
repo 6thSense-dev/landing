@@ -124,7 +124,7 @@ export default function OpsDashboard({ readOnly = false }) {
         ) : tab === "clean" && !readOnly ? (<OpsClean onChanged={load} />) : tab === "payment" && !readOnly ? (<OpsPayments onReview={() => setTab("clean")} />) : tab === "ops" ? (
           <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />
         ) : (
-          <OpsUsers readOnly={readOnly} state={state} act={act} busy={busy} />
+          <OpsUsers readOnly={readOnly} state={state} act={act} busy={busy} onChanged={load} />
         )}
       </div>
 

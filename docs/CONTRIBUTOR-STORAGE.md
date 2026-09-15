@@ -13,10 +13,11 @@ Seven initial objects were written and read back: `_meta/README.md`, `_meta/layo
 
 | Information | Authority / location |
 | --- | --- |
-| Login passwords, MFA, account recovery, access/refresh tokens | Authentication service. Existing company-account Cognito pools are integration candidates; no user pool or login configuration was changed here. Existing portal authentication stays unchanged. |
+| Login passwords, MFA, account recovery, access/refresh tokens | Separate contributor Cognito pool; see [identity resources](CONTRIBUTOR-REGISTRATION.md#aws-identity-resources). Staff identity and portal authentication remain separate. Bucket provisioning did not change a login configuration. |
 | Current contributor profile, account link, contact, camera assignment, collection and payment ledger | Application database. Resolve the verified identity-provider issuer + subject to a stable contributor ID. |
 | Approved agreement documents | S3 `terms/<region>/<agreement>/<version>/<locale>.<ext>` |
-| Durable consent evidence | S3 `consent-receipts/<contributor-id>/<receipt-id>.json`, referenced by the database |
+| Founder publication approval | Insert-only application `OpsSetting` records at `contributor_terms_audit_<publication-id>`, preserving authenticated founder identity, time, routing and exact document versions/hashes. An upload alone does not publish terms. |
+| Durable consent evidence | Original immutable snapshot in `contributor_consents`; staff export writes S3 `consent-receipts/<account-subject>/<receipt-id>.json` without replacing an existing object. |
 | Contributor/account metadata exports | S3 `profile-exports/<contributor-id>/<export-id>.json` |
 | Camera details and assignment-history exports | S3 `camera-exports/<device-id>/<assignment-id>/<export-id>.json` |
 | Payout approval and provider reconciliation evidence | S3 `payment-receipts/<contributor-id>/<payout-id>/<event-id>.json` |
@@ -27,9 +28,9 @@ S3 exports are evidence and document storage, not the mutable authority for owne
 
 Use a backend-only, least-privilege IAM identity. The existing camera upload identities cannot be reused. Contributor-facing downloads must authenticate the account, verify the database relationship, and sign access only to that contributor's specific object/version. No permanent AWS credentials belong in the phone app. No new backend IAM grant or cross-account grant was made during bucket provisioning.
 
-On registration, the backend should persist the account/contributor link, approved agreement versions and server-recorded consent receipt, then create the corresponding S3 evidence with a stable receipt ID. Use a durable outbox/retry path so an S3 interruption cannot fabricate consent or lose an accepted registration event. Camera ownership remains a verified, effective-dated database assignment; writing a camera JSON file cannot claim a device. Payment evidence does not initiate or mark a payout as settled.
+The [mobile pilot](CONTRIBUTOR-MOBILE-PILOT.md) persists account links and server-timestamped consent snapshots in the database. Publication requires an explicitly allowlisted founder and four complete documents per language: `participation`, `privacy`, `collection`, and `international_transfer`. Consent pins all four versions, hashes and the selected locale. `POST /api/ops/contributors/consents/export` retries those original snapshots with stable receipt IDs and conditional S3 writes. An S3 interruption leaves the originals available; automatic export scheduling remains pending. Camera ownership remains a verified, effective-dated database assignment; writing a camera JSON file cannot claim a device. Payment evidence does not initiate or mark a payout as settled.
 
-Only infrastructure and the layout are provisioned. No real contributor profile, camera assignment, payment receipt, production agreement or legal-consent receipt was uploaded. Login/registration, database export jobs and contributor-authorized download endpoints still require integration. The app preview's agreement text remains unapproved.
+At the 2026-09-14 provisioning checkpoint, only infrastructure and the layout were created. The subsequent mobile API implements authenticated agreement downloads, version/hash verification and explicit consent export using the configured Ops AWS credentials. Production agreements and real pilot consent are still absent, and profile/camera export jobs remain unimplemented. The app preview's agreement text remains unapproved.
 
 ## Source and verification
 

@@ -312,7 +312,7 @@ class RecipientIn(BaseModel):
 async def recipient(
     body: RecipientIn, user=Depends(require_ops), db=Depends(get_session)
 ):
-    from app.core.wise import WiseClient
+    from app.core.wise import WiseClient, recipient_confirmation_required
 
     if not body.confirm_recipient:
         raise HTTPException(422, "Confirm the recipient belongs to this contributor.")
@@ -329,7 +329,8 @@ async def recipient(
             "Wise recipient verification failed. Check the connection and recipient ID.",
         )
     if (
-        not info.get("active")
+        recipient_confirmation_required(info)
+        or not info.get("active")
         or not info.get("hash")
         or info.get("currency") != "KRW"
         or str(info.get("profileId")) != os.getenv("WISE_PROFILE_ID")

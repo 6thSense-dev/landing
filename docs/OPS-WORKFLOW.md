@@ -1,13 +1,13 @@
 # Ops contributor workflow
 
-Implementation branch: `feat/ops-workflow-ledgers`. Local implementation; not a deployment record. See [the Synapse contract](CONTRIBUTOR-CONTRACT.md) for mobile registration, terms and remaining integrations.
+Workflow foundation: `feat/ops-workflow-ledgers`; mobile extension: `feat/contributor-mobile-pilot-20260915`. This guide describes implementation behavior, not proof of a completed trial. See [the Synapse contract](CONTRIBUTOR-CONTRACT.md) and [mobile pilot](CONTRIBUTOR-MOBILE-PILOT.md) for registration, terms and remaining acceptance work.
 
 ## Screens and authority
 
 - **Raw** monitors the current `6thsense-raw` inventory, outstanding source files, validation/recovery queue and rejected history. Current manifests plus exact source receipts determine whether files are represented in Clean. A matching episode name alone cannot clear the backlog. Old approve/pay/rate endpoints return HTTP 410; historical payment fields remain unchanged.
 - **Clean** starts with region selection and all-time decoded, accepted, and excluded hours from the original Clean runs. Within a region it groups footage once per contributor or business, keeps playback and review inside that region, and records recording-specific review against the immutable manifest SHA-256. Filtering sources does not change region totals. Operators confirm collection dates when camera time is unreliable, review retained footage and flagged intervals, and can hold footage with a reason. See [Clean browsing and region attribution](OPS-CLEAN.md) for missing/mixed-region handling and the distinction from pending Raw footage.
 - **Payment** shows exclusion reasons, review status, eligibility, exact payout approval and transfer history. Approval reserves the displayed recordings and rate snapshots in one transaction. New footage is never added to an existing approval. Unique payout items prevent a recording from being reserved twice.
-- **Users** manages contributor contact/workplace/location/rate, supervised camera assignments and time totals derived from decoded Clean intervals. It separates unprocessed raw episodes and unconfirmed collection dates. Manual roster entries do not establish app identity or consent.
+- **Users** manages contributor contact/workplace/location/rate, supervised camera assignments and time totals derived from decoded Clean intervals. Its **Mobile contributor requests** panel approves pending camera requests after physical verification and current consent, reviews masked bank submissions, and exposes audited recipient recovery. Each recipient link requires a separate ownership confirmation; payment approval stays in Payment. Manual roster entries do not establish app identity or consent.
 
 ## Payment policy and operation
 
@@ -32,7 +32,7 @@ Configuration uses server-side environment variables; never enter a token into a
 | `WISE_SOURCE_CURRENCY` | `USD`; proposed funding default; recipient amount remains fixed KRW |
 | `OPS_WISE_AUTO_FUND` | `false`; must be explicitly enabled for balance funding after approval |
 
-The scheduler uses a PostgreSQL advisory lock across API replicas. Scans can run while payout execution stays disabled, even when Wise credentials are configured. Both automation flags must be enabled to process approved, due reservations. If a Friday attempt is interrupted, subsequent ticks reconcile the same transfer identity; a retry may therefore occur after Friday. Allow up to five business days after initiation in contributor copy, while showing actual provider progress. The adapter has local fake-provider tests; real Wise sandbox/production credentials and transfer requirements have not been validated in this workspace.
+The scheduler uses a PostgreSQL advisory lock across API replicas. Scans can run while payout execution stays disabled, even when Wise credentials are configured. Both automation flags must be enabled to process approved, due reservations. If a Friday attempt is interrupted, subsequent ticks reconcile the same transfer identity; a retry may therefore occur after Friday. Allow up to five business days after initiation in contributor copy, while showing actual provider progress. Live recipient requirements were checked for the mobile adapter, and local fake-provider tests cover retries; a real pilot recipient, funding, delivery and return trial is still pending.
 
 Official Wise references: [personal API tokens](https://docs.wise.com/guides/developer/auth-and-security/personal-api-token), [SMB payouts](https://docs.wise.com/guides/product/send-money/use-cases/payouts-smbs), [balance funding](https://docs.wise.com/guides/product/send-money/funding/fund-from-balance).
 
@@ -53,7 +53,7 @@ The worker still needs implementation/deployment and source-pinned integration t
 
 - Apply migration `0014` before this API/UI version. It adds new ledgers and the four user-confirmed roster assignments, preserving non-null existing attribution and all historical payment values.
 - Connect and verify the recovery/QC worker before describing intake as automatic processing. Archive buckets from the prior inventory remain a separate migration/triage concern; the Ops scanner targets the configured current raw bucket.
-- Finish mobile account linking, production agreement documents/consent receipts and capture-time assignment history before real app contributor onboarding.
+- Publish production agreements and exercise the implemented mobile account linking, consent receipts and supervised capture-time assignment history with a real account and camera. Apply additive migration `0016` before the mobile API/UI; its audit tables must be retained on rollback once populated.
 - Validate Wise recipient requirements, funding, retry/return handling and settlement reconciliation in sandbox before enabling production funding.
 
-This implementation does not itself pay anyone, delete originals, provision app accounts or record contributor consent.
+Deploying this implementation does not itself pay anyone, delete originals, create an app account or record contributor consent. Those require the user's authenticated actions or the separate operator workflow.

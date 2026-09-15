@@ -91,6 +91,8 @@ async def assign_camera(body: CameraIn, _: User = Depends(require_ops), db: Asyn
         db.add(OpsCamera(device_id=device, wearer_id=wearer.id))
     else:
         camera.wearer_id = wearer.id
+    from app.core.contributor_attribution import end_mobile_assignment
+    await end_mobile_assignment(db, device, wearer.id)
     if body.assign_unassigned_recordings:
         registry = await source_registry(db)
         normalized = func.replace(func.upper(func.trim(Episode.device_id)), 'EGO-', '')

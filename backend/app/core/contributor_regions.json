@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "collections": [
+    {
+      "area_code": "korea666",
+      "registration_enabled": true,
+      "routing_version": "kr-2026-v1",
+      "collection_id": "korea-contributors",
+      "country": "KR",
+      "region": "korea",
+      "dial_code": "82",
+      "national_prefix": "0",
+      "phone_pattern": "^\\+8210[0-9]{8}$",
+      "raw_bucket": "6thsense-raw",
+      "currency": "KRW",
+      "hourly_rate_minor": 11000
+    },
+    {
+      "area_code": "china666",
+      "registration_enabled": true,
+      "routing_version": "cn-2026-v1",
+      "collection_id": "china-contributors",
+      "country": "CN",
+      "region": "china",
+      "dial_code": "86",
+      "national_prefix": "",
+      "phone_pattern": "^\\+861[3-9][0-9]{9}$",
+      "raw_bucket": "6thsense-raw",
+      "currency": "CNY",
+      "hourly_rate_minor": null
+    },
+    {
+      "area_code": "vietnam666",
+      "registration_enabled": true,
+      "routing_version": "vn-2026-v1",
+      "collection_id": "vietnam-contributors",
+      "country": "VN",
+      "region": "vietnam",
+      "dial_code": "84",
+      "national_prefix": "0",
+      "phone_pattern": "^\\+84[35789][0-9]{8}$",
+      "raw_bucket": "6thsense-raw",
+      "currency": "VND",
+      "hourly_rate_minor": null
+    },
+    {
+      "area_code": "india666",
+      "registration_enabled": true,
+      "routing_version": "in-2026-v1",
+      "collection_id": "india-contributors",
+      "country": "IN",
+      "region": "india",
+      "dial_code": "91",
+      "national_prefix": "0",
+      "phone_pattern": "^\\+91[6-9][0-9]{9}$",
+      "raw_bucket": "6thsense-raw",
+      "currency": "INR",
+      "hourly_rate_minor": null
+    }
+  ]
+}

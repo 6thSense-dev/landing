@@ -36,6 +36,7 @@ cd backend && pytest -v
 ```
 
 Tests use [testcontainers-python](https://testcontainers-python.readthedocs.io/) which boots an ephemeral Postgres in Docker. The Docker daemon must be running.
+Alternatively, set `TEST_DATABASE_URL` to a disposable PostgreSQL database whose name ends in `_test`, using a `postgresql+asyncpg://` URL. The fixtures create and drop application tables; do not point them at a development or production ledger. See the [mobile pilot test command](../docs/CONTRIBUTOR-MOBILE-PILOT.md#deployment-and-validation).
 
 ## Raw processing queue
 
@@ -57,6 +58,12 @@ Fully processed recordings and recordings without nonempty raw media are hidden 
 | `SENSEPROBE_CORS_ORIGINS` | no | Comma-separated allowed origins. Default covers local Vite (5173/4173). |
 | `SENSEPROBE_RATE_LIMIT` | no | slowapi limit applied to `POST /api/leads`. Default `5/minute`. |
 | `PORT` | no | Auto-injected by Railway in production. |
+| `CONTRIBUTOR_COGNITO_POOL` / `CONTRIBUTOR_COGNITO_CLIENT` | for mobile accounts | Separate contributor pool and public app-client identifiers; both are required for token acceptance. |
+| `CONTRIBUTOR_COGNITO_REGION` | no | Contributor Cognito region; defaults to `us-west-2`. |
+| `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` | for terms publication | Comma-separated exact authenticated staff emails authorized by company founders; whitespace/case normalized. Empty or absent denies publication, including staff with the `founder` role. Do not infer identities or configure without founder direction. |
+| `CONTRIBUTOR_SIGNUP_MODE` | no | Public configuration label; defaults to `closed`. The Cognito signup gate remains the authority for who can register. |
+
+The [contributor pilot guide](../docs/CONTRIBUTOR-MOBILE-PILOT.md) documents `/api/contributor/*`, staff supervision in `/api/ops/contributors/*`, migration `0016`, versioned agreement storage and recipient recovery. Terms use the configured `OPS_AWS_ACCESS_KEY_ID` / `OPS_AWS_SECRET_ACCESS_KEY` pair and `OPS_S3_REGION`; credentials need the relevant terms read and consent-export write permissions. Wise configuration remains server-only and follows the [Ops payment workflow](../docs/OPS-WORKFLOW.md#payment-policy-and-operation).
 
 ## Deploy (Railway)
 
