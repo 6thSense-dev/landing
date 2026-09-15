@@ -131,3 +131,41 @@ async def test_migration_0004_downgrade_restores_email_unique(postgres_container
     # missing its new columns for later tests (whose create_all no-ops on an
     # existing table).
     assert _alembic("downgrade", "base").returncode == 0
+
+
+@pytest.mark.asyncio
+async def test_migration_0015_normalizes_confirmed_camera_ids_without_reassigning_paid_sources(postgres_container):
+    result = _alembic("upgrade", "0014")
+    assert result.returncode == 0, result.stderr
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    try:
+        async with engine.begin() as conn:
+            from sqlalchemy import text
+            owner = (await conn.execute(text("SELECT wearer_id FROM ops_cameras WHERE device_id='16A4A5'"))).scalar_one()
+            other = (await conn.execute(text("SELECT wearer_id FROM ops_cameras WHERE device_id='16A2B6'"))).scalar_one()
+            cases = [
+                ('lower', 'ego-16a4a5', None, False, owner),
+                ('spaces', ' EGO-16A4A5 ', None, False, owner),
+                ('bare', '16a4a5', None, False, owner),
+                ('assigned', 'ego-16a4a5', other, False, other),
+                ('paid', ' ego-16a4a5 ', None, True, None),
+                ('unknown', 'ABC123', None, False, None),
+                ('invalid_prefix', 'wrong-EGO-16A4A5', None, False, None),
+                ('blank', '', None, False, None),
+            ]
+            for name, device, wearer, paid, expected in cases:
+                await conn.execute(text("INSERT INTO ops_episodes (recording,device_id,wearer_id,paid) VALUES (:name,:device,:wearer,:paid)"),
+                                   dict(name=name,device=device,wearer=wearer,paid=paid))
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        async with engine.connect() as conn:
+            rows = dict((await conn.execute(text("SELECT recording,wearer_id FROM ops_episodes"))).all())
+        assert rows == {name:expected for name, device, wearer, paid, expected in cases}
+        result = _alembic("downgrade", "0014")
+        assert result.returncode == 0, result.stderr
+        async with engine.connect() as conn:
+            assert dict((await conn.execute(text("SELECT recording,wearer_id FROM ops_episodes"))).all()) == rows
+    finally:
+        await engine.dispose()
+        result = _alembic("downgrade", "base")
+        assert result.returncode == 0, result.stderr
