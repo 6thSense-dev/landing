@@ -75,8 +75,14 @@ bookkeeping fields; it does not expose bank details or private document URLs.
 
 ## Validation and rollout checkpoint
 
-The release's 62 tests and frontend build passed. Coverage includes exact-run
+The release's 62 backend tests, frontend build, and three responsive Ops workflow
+tests passed. Coverage includes exact-run
 reconciliation, unchanged time/rate/QC, separate incentive accounting, idempotent
 retries, and rejection of ambiguous evidence or unsupported settlement claims.
-API and frontend deployments are in progress at this checkpoint; successful
-local validation does not establish a completed live rollout.
+
+The API and frontend were deployed on 2026-09-15 from code commit
+`c6bd555a411bf9b4c4db30090c1a3d2e4eeadee2`. Both Railway deployments succeeded.
+Live verification matched deployed API source hashes, reconciled the payment
+history with the covered Clean ledger, and confirmed the public frontend bundle
+contains the incentive breakdown and unverified-delivery label. Private evidence
+and reconciliation results remain outside tracked documentation.
