@@ -25,6 +25,7 @@ test('task declaration preserves exact time and conflict draft without payment w
   });
   await page.goto('/portal/ops');
   await page.getByRole('button', { name: 'Clean', exact: true }).click();
+  await page.getByText('Batch details & source recordings (1)', { exact: true }).click();
   await page.getByRole('button', { name: 'Review task activity' }).click();
   const review = page.getByRole('region', { name: 'Task activity review' });
   await review.getByLabel('Task ID', { exact: true }).fill('manipulation');
