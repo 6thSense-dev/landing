@@ -1,6 +1,6 @@
 # Contributor region enrollment and SMS verification
 
-Implementation pass: 2026-09-14. Firebase is not required. Cognito manages phone
+Identity infrastructure pass: 2026-09-14; mobile pilot status updated 2026-09-15. Firebase is not required. Cognito manages phone
 verification and credentials; contributor documents remain in the private
 `6thsense-contributor-records` bucket. No password, OTP, or session token belongs
 in an S3 object, camera configuration, analytics event, or application log.
@@ -63,8 +63,8 @@ are unchanged, and a live gate invocation still returns `registration_not_open`.
 - Pool: `us-west-2_mZ3Sz9xvE`
 - Public Synapse client: `7c90capng6klmt2h1uhjnm919j` (no client secret)
 - Issuer: `https://cognito-idp.us-west-2.amazonaws.com/us-west-2_mZ3Sz9xvE`
-- Registration: closed. AWS sandbox SMS delivery: verified on 2026-09-14.
-  Cognito signup delivery: not tested. Mobile UI: not connected.
+- General registration: closed. AWS sandbox SMS delivery: verified on 2026-09-14.
+  The prepared [mobile pilot](CONTRIBUTOR-MOBILE-PILOT.md) is restricted to that verified Korean destination. The mobile UI and account API are connected in source; actual Cognito signup and the complete hardware/payment trial still need validation.
 
 Catalog's `infra/contributor-identity.yaml` provisions a separate contributor
 pool, public mobile app client, signup gate, scoped SMS role, and logging role in
@@ -94,12 +94,12 @@ errors become fixed error codes; no raw response body reaches the UI. The
 confirmation call forbids alias reassignment. An unverified or foreign phone
 cannot produce the client's `phone_verified` display state.
 
-This module is not yet connected to the in-memory contributor preview or a
-released mobile screen. Keep preview consent and earnings separate. A server
-integrating it must validate the access token's issuer, client ID, token use and
-subject, then read current Cognito verification attributes. Client booleans or
-decoded JWT payloads alone are not verification. Persist refresh credentials
-only through the native secure store when the mobile auth UI is integrated.
+The pilot's `LiveContributor.tsx` now uses this module and the authenticated
+contributor API; preview consent and earnings stay separate. The backend checks
+issuer, client ID, token use and subject, then calls Cognito GetUser to verify
+the access token and current phone/routing attributes. Staff cookies cannot
+authenticate a contributor. The completed app/hardware/payment trial is still
+pending; connecting the UI is not delivery evidence.
 
 ## Upload policy
 
@@ -133,6 +133,7 @@ cutover, prove capture-time assignment binding (including delayed uploads after
 a camera changes hands), firmware support for the signed headers, one complete
 upload, and preservation of these references/tags in Clean output manifests.
 No historical source attribution, Raw objects or payment records are changed.
+The current mobile pilot instead uses supervised camera approval and manual SD-card offload into the existing raw layout. Its scanner checks trusted capture time against stored assignment intervals; it does not provision broker entitlements or deploy firmware.
 
 ## Verification and remaining rollout
 
@@ -153,18 +154,17 @@ write-attribute configuration were read back from AWS and verified.
 
 1. **SMS:** complete the actual Cognito signup/confirmation test, production SMS
    access and spend quota, per-country sender/template setup, and delivery tests.
-2. **Real app onboarding:** connect the registration client to the mobile UI and
-   authenticated contributor service, secure session storage and recovery,
-   account/profile/payment details, and approved regional terms with durable
-   consent receipts. The existing preview is still sample data.
-3. **Camera ownership and uploads:** persist verified claims and assignment
-   history, bind recordings to their capture-time owner and region, deploy the
-   broker/firmware integration, and test delayed uploads after reassignment.
+2. **Real app onboarding:** exercise the connected pilot UI and contributor
+   service with a user-created account, publish approved regional terms and
+   verify durable consent/export. The separate preview remains sample data.
+3. **Camera ownership and uploads:** test the implemented supervised claims and
+   capture-time assignment history on real hardware, including delayed SD-card
+   uploads after reassignment. Broker/firmware integration remains pending.
 4. **Processing and ledgers:** run the recovery/QC workers, reconcile incomplete
    uploads and exclusions, deploy the revised Ops Raw/Clean/Users views, and
-   expose each contributor's real uploaded/accepted/rejected-time ledger.
-5. **Payments:** agree China/Vietnam/India rates, finish recipient onboarding and
-   real Wise sandbox tests, deploy operator approval and Friday scheduling, and
+   verify the account-scoped dashboard against the uploaded and reviewed ledger.
+5. **Payments:** agree China/Vietnam/India rates, exercise the implemented
+   recipient onboarding/recovery and operator approval with real Wise tests, and
    reconcile delivery/returns before enabling automatic funding. The threshold
    remains strictly more than four hours of accumulated unpaid accepted time.
 6. **End-to-end pilot:** complete one real account → camera → upload → Clean
