@@ -96,11 +96,13 @@ async def test_unassigned_camera_cannot_create_earnings(app,db_session,monkeypat
         assert res.status_code==409
     assert not (await db_session.execute(select(CleanRun))).scalars().all()
 
-@pytest.mark.parametrize('tamper',[None,'digest','size','metadata','marker','mixed'])
+@pytest.mark.parametrize('tamper',[None,'digest','size','metadata','marker','mixed','legacy_calibration'])
 def test_import_checks_committed_marker_and_output(tamper,monkeypatch):
     import hashlib,json,io
     from app.core import ops_clean
-    doc=manifest();body=json.dumps(doc).encode();digest=hashlib.sha256(body).hexdigest()
+    doc=manifest()
+    if tamper=='legacy_calibration': doc['outputs'][0].update(role='calibration',recording='foreign')
+    body=json.dumps(doc).encode();digest=hashlib.sha256(body).hexdigest()
     marker={'manifest':{'key':'qc-results/factory-test/result.json','version_id':'v1','sha256':digest}}
     if tamper=='digest':marker['manifest']['sha256']='c'*64
     if tamper=='marker':marker['manifest']['key']='qc-results/different/result.json'

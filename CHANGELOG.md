@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5.0] - 2026-09-15
+
+### Fixed
+
+- Require each new retained Clean recording to include versioned, camera-matched calibration alongside stereo video, frames, IMU and timing.
+- Verify calibration file contents, image geometry and hashes before importing a new result. Historical Clean playback and existing earnings remain readable without rewriting payment records.
+
 ## [0.0.4.1] - 2026-09-14
 
 ### Fixed
