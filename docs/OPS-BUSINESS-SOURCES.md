@@ -102,3 +102,15 @@ They are excluded from individual contributor totals, payout eligibility and
 payment approval. Reviewing footage does not settle the business contract or
 create a payment. See [Clean browsing](OPS-CLEAN.md) and the
 [Ops workflow](OPS-WORKFLOW.md) for the shared playback and review behavior.
+
+## Deployment checkpoint
+
+Version `0.0.8.0` code `7831807` is deployed to Railway: API
+`2cf021d6-d0d6-4025-a91b-1d8c0a8823c9` and frontend
+`861ab230-4e62-4d17-9c6e-1fe642a8638f` both succeeded. All live API source
+hashes match the release; the public frontend serves the business-source
+labels, source filter and review controls. API health passes, and the two
+existing paid Clean runs retain their original accepted time. Validation passed
+210 backend Ops tests, 10 frontend unit tests, the production build and 24
+responsive browser tests. Deployment verification does not establish that a
+particular media conversion or Raw cleanup has finished.
