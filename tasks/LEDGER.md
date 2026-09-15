@@ -65,3 +65,11 @@ The current payment route, Clean import/attribution route, ledger arithmetic, ar
 | `959ad8654906111220b538c916194540ffd0c0bf` | Prove additive review migration preserves historical and reserved workflow rows |
 | `87a179d02214de8bff50fe7c174e53d08fdef062` | Document current workflow compatibility and evidence boundaries |
 | `3dc0c7e6d03cdffec248d1d16d9537c98d69045f` | Model seekable byte-range media responses in contextual playback test |
+
+### Publication outcome and verified receipt
+
+- Completed: pushed `intake/operations-integration-20260915`; created exactly one draft PR against `main`, titled **Integrate intake review and inventory with current Operations**.
+- PR URL: https://github.com/6thSense-dev/landing/pull/58
+- `verifiedSHA`: `914069bc1236f47079f4dda5b75ecdd9c34a6cd5`. Before this receipt commit, `git rev-parse HEAD`, `git ls-remote origin refs/heads/intake/operations-integration-20260915`, and GitHub PR `headRefOid` all returned this exact SHA; PR `isDraft=true`, base `main`.
+- This final receipt commit records the already verified publication SHA (a commit cannot embed its own SHA). After its push, final local/remote/PR equality is checked again and reported in the hand-back.
+- Blocked: no publication blockers. Production/access validation remains outside this authorized scope and unverified as detailed above. No implementation/test changes, cloud/secret calls, merge, deployment, older PR closure, or worktree deletion occurred.
