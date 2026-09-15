@@ -1,6 +1,7 @@
 """Required multimodal outputs for new Clean results; legacy ledgers stay readable."""
 import math
 import re
+from app.core.ops_calibration import recording_camera
 
 SCHEMA = "6thsense-clean-qc/2"
 PROFILE = "stereo-imu-frames/1"
@@ -81,7 +82,7 @@ def validate_artifacts(doc, *, require_calibration=True):
                 raise ValueError("Calibration source, artifact and timeline hashes must agree")
             if source.get("version_id") in (None, "", "null") or source.get("bucket") not in ("6thsense-raw", "6thsense-deploy-artifacts") or not source.get("key"):
                 raise ValueError("Version-pinned calibration source is required")
-            if calibration.get("device_id") != name.rsplit("_", 1)[-1].upper() or calibration.get("image_size") != a[2:]:
+            if calibration.get("device_id") != recording_camera(name) or calibration.get("image_size") != a[2:]:
                 raise ValueError("Calibration camera/resolution disagrees with this recording")
             if calibration.get("coordinate_frame") != "native_unrotated_eye_pixels" or calibration.get("output_rotation_degrees") != layout["rotation_degrees"] or set(calibration.get("eye_mapping", {})) != {"left", "right"} or set(calibration["eye_mapping"].values()) != {"cam0", "cam1"}:
                 raise ValueError("Explicit calibration pixel coordinates and eye mapping are required")

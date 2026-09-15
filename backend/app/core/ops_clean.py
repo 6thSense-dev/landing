@@ -7,7 +7,7 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from app.core.ops_s3 import _client, get_settings
 from app.core.ops_artifacts import SCHEMA as MULTIMODAL_SCHEMA, validate_artifacts
-from app.core.ops_calibration import validate_calibration
+from app.core.ops_calibration import validate_calibration, recording_camera
 
 SCHEMA = '6thsense-clean-qc/1'
 
@@ -47,7 +47,7 @@ def validate_manifest(doc):
             raise ValueError('Invalid recording duration')
         if not isinstance(rec.get('recording'), str) or rec['recording'] in seen:
             raise ValueError('Duplicate or missing recording identity')
-        if not re.fullmatch(r'ego_[0-9]{8}_[0-9]{6}_[A-Fa-f0-9]{6}', rec['recording']) or rec['recording'].rsplit('_', 1)[-1].upper() != doc['device_id']:
+        if recording_camera(rec['recording']) != doc['device_id']:
             raise ValueError('Recording identity must identify its source camera')
         seen.add(rec['recording'])
         intervals = rec.get('intervals', [])

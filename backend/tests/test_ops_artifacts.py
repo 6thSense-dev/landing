@@ -186,3 +186,29 @@ def test_committed_calibration_is_read_and_verified(fault):
         with pytest.raises(ValueError): _committed_result(S3(),"qc-results/factory-test/_SUCCESS.json")
     else:
         assert _committed_result(S3(),"qc-results/factory-test/_SUCCESS.json")[0] == doc
+
+
+@pytest.mark.parametrize('suffix', ['_s01', '_s11', '_s100'])
+def test_legacy_cut_identity_keeps_camera_and_calibration(suffix):
+    from app.core.ops_calibration import validate_calibration
+    doc = multimodal_manifest(); rec = doc['recordings'][0]
+    old = rec['recording']; rec['recording'] += suffix
+    for source in rec['sources']: source['key'] = source['key'].replace(old, rec['recording'])
+    for output in doc['outputs']: output['recording'] = rec['recording']
+    assert validate_manifest(doc)
+    validate_artifacts(doc)
+    assert validate_calibration(calibration_fixture(), rec['recording'], rec['media']['layout'])['device_id'] == 'ABC123'
+
+
+@pytest.mark.parametrize('fault', ['wrong_camera', 'wrong_source_segment', 'zero_segment', 'arbitrary_suffix', 'wrong_calibration'])
+def test_legacy_cut_cannot_bypass_source_camera_checks(fault):
+    doc = multimodal_manifest(); rec = doc['recordings'][0]
+    old = rec['recording']; rec['recording'] += '_s11'
+    if fault == 'wrong_camera': rec['recording'] = rec['recording'].replace('ABC123', 'FFFFFF')
+    if fault == 'zero_segment': rec['recording'] = old + '_s00'
+    if fault == 'arbitrary_suffix': rec['recording'] += '_ABC123'
+    for source in rec['sources']: source['key'] = source['key'].replace(old, rec['recording'])
+    for output in doc['outputs']: output['recording'] = rec['recording']
+    if fault == 'wrong_source_segment': rec['sources'][0]['key'] = rec['sources'][0]['key'].replace('_s11/', '_s12/')
+    if fault == 'wrong_calibration': rec['media']['calibration']['device_id'] = 'FFFFFF'
+    with pytest.raises(ValueError): validate_manifest(doc)
