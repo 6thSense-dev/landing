@@ -19,7 +19,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +34,9 @@ from app.models import ProcessingJob
 from app.core.ops_ledger import contributor_summary
 from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_playback, refresh_source_receipts
 from app.core.ops_s3 import get_settings as raw_settings
+from app.core.ops_inventory import inventory_coverage
+from app.core.ops_inventory_sources import source_registry, InvalidInventorySources, UnknownInventorySource
+
 
 
 router = APIRouter(prefix="/api/ops", tags=["ops"])
@@ -165,6 +168,29 @@ async def _state(db: AsyncSession) -> dict:
             "clock_flagged": sum(1 for e in live if e.clock_source != "ntp"),
         },
     }
+
+
+@router.get("/inventory-sources")
+async def get_inventory_sources(response: Response, _: User = Depends(require_ops)) -> dict:
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        return source_registry()
+    except InvalidInventorySources:
+        raise HTTPException(503, 'Recording source configuration is invalid.')
+
+
+@router.get("/inventory-coverage")
+async def get_inventory_coverage(response: Response, source_id: str = Query(default='operations', min_length=1, max_length=64),
+                                 _: User = Depends(require_ops)) -> dict:
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        if source_id == 'operations':
+            return await asyncio.to_thread(inventory_coverage)
+        return await asyncio.to_thread(inventory_coverage, source_id)
+    except InvalidInventorySources:
+        raise HTTPException(503, 'Recording source configuration is invalid.')
+    except UnknownInventorySource:
+        raise HTTPException(404, 'Unknown recording source.')
 
 
 @router.get("/state")
