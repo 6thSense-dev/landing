@@ -34,7 +34,7 @@ test('one contributor card combines totals and playback while preserving batch r
   const card = page.locator('.ops-clean-card');
   await expect(card).toHaveCount(1);
   await expect(card.getByRole('heading', { name: '한규태', exact: true })).toHaveCount(1);
-  await expect(card.locator('.ops-clean-metrics')).toContainText('₩86,389');
+  await expect(card.locator('.ops-clean-metrics')).not.toContainText('₩');
   await expect(card.locator('.ops-clean-metrics')).toContainText('7h 51m 13s');
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('clean-collapsed.png'), fullPage: true });
@@ -58,12 +58,12 @@ test('one contributor card combines totals and playback while preserving batch r
   expect(requests.every(r => r.method === 'GET')).toBe(true);
 });
 
-test('missing combined video keeps one contributor, batch access, and correct partial-payment state', async ({ page }) => {
+test('missing combined video keeps one contributor, batch access, and footage-only state', async ({ page }) => {
   await openClean(page, { runs: [{ ...first, paid: true }, second], collections: [], collection_errors: 1, wearers: [person], cameras: [] });
   const card = page.locator('.ops-clean-card');
   await expect(card).toHaveCount(1);
-  await expect(card.locator('.ops-clean-status')).toHaveText('Partly paid');
-  await expect(card.locator('.ops-clean-metrics')).toContainText('₩24,368');
+  await expect(card.locator('.ops-clean-status')).toHaveText('Footage ledger');
+  await expect(card.locator('.ops-clean-metrics')).not.toContainText('₩');
   await expect(page.getByRole('alert')).toContainText('could not be verified');
   await card.locator('summary').filter({ hasText: 'Batch details' }).click();
   await expect(card.getByRole('button', { name: 'Watch batch 1' })).toBeVisible();
@@ -76,7 +76,7 @@ test('new batch outside the joined video remains accessible without claiming ful
   await expect(card).toHaveCount(1);
   await expect(card.getByRole('button', { name: 'Watch all clean footage' })).toHaveCount(0);
   await expect(card.getByRole('button', { name: 'Watch combined footage' })).toBeVisible();
-  await expect(card.locator('.ops-clean-metrics')).toContainText('₩97,389');
+  await expect(card.locator('.ops-clean-metrics')).toContainText('8h 51m 13s');
   await card.locator('summary').filter({ hasText: 'Batch details' }).click();
   await expect(card.getByRole('button', { name: 'Watch batch 3' })).toBeVisible();
 });

@@ -1,0 +1,57 @@
+# Ops contributor workflow
+
+Implementation branch: `feat/ops-workflow-ledgers`. Local implementation; not a deployment record. See [the Synapse contract](CONTRIBUTOR-CONTRACT.md) for mobile registration, terms and remaining integrations.
+
+## Screens and authority
+
+- **Raw** monitors the current `6thsense-raw` inventory, outstanding source files, validation/recovery queue and rejected history. Current manifests plus exact source receipts determine whether files are represented in Clean. A matching episode name alone cannot clear the backlog. Old approve/pay/rate endpoints return HTTP 410; historical payment fields remain unchanged.
+- **Clean** groups footage once per contributor, retains joined playback and batch provenance, and records recording-specific review against the immutable manifest SHA-256. Operators confirm collection dates when camera time is unreliable, review retained footage and flagged intervals, and can withhold footage with a reason.
+- **Payment** shows exclusion reasons, review status, eligibility, exact payout approval and transfer history. Approval reserves the displayed recordings and rate snapshots in one transaction. New footage is never added to an existing approval. Unique payout items prevent a recording from being reserved twice.
+- **Users** manages contributor contact/workplace/location/rate, supervised camera assignments and time totals derived from decoded Clean intervals. It separates unprocessed raw episodes and unconfirmed collection dates. Manual roster entries do not establish app identity or consent.
+
+## Payment policy and operation
+
+The Korean pilot uses KRW 11,000/hour. Eligibility requires strictly more than 14,400 seconds of accumulated unpaid, reviewed retained footage with confirmed collection dates. Friday scheduling defaults to 18:00 Asia/Seoul and includes completed Monday–Sunday collection weeks plus earlier unpaid balances. The API fixes the threshold basis to accumulated unpaid time for this pilot.
+
+Recipient verification checks the configured Wise profile, KRW currency, active state and recipient hash. Approval must match the recipient revision displayed to the operator, then snapshots recipient ID/hash, profile, environment, target amount and source currency. A recipient change requires a refreshed review; refreshing clears the prior approval checkbox. Transfer retries use the payout UUID as `customerTransactionId`.
+
+`approved` → `quoted` → `awaiting_funding` / `processing` → `sent`. A returned/cancelled transfer becomes `needs_attention` and its footage stays reserved. Funding completion is not recipient receipt. `sent` remains distinct from `paid`. A verified settlement/delivery reconciliation is still needed before implementing the final paid transition. No manual unreserve/reissue shortcut is provided for an uncertain transfer outcome.
+
+Configuration uses server-side environment variables; never enter a token into an Ops form or commit it:
+
+| Variable | Default / purpose |
+| --- | --- |
+| `OPS_AUTOMATION_ENABLED` | `false`; enables the five-minute automation loop and scans |
+| `OPS_PAYOUT_AUTOMATION_ENABLED` | `false`; separate opt-in required for payout reconciliation/creation inside the automation loop |
+| `OPS_PROCESSOR_TOKEN` | unset; bearer credential for a separate recovery/QC worker |
+| `WISE_API_TOKEN` | unset; server-side Wise credential |
+| `WISE_PROFILE_ID` | unset; verify the actual account/profile before use |
+| `WISE_ENVIRONMENT` | `sandbox`; explicit `production` required for real transfers |
+| `WISE_SOURCE_CURRENCY` | `USD`; proposed funding default; recipient amount remains fixed KRW |
+| `OPS_WISE_AUTO_FUND` | `false`; must be explicitly enabled for balance funding after approval |
+
+The scheduler uses a PostgreSQL advisory lock across API replicas. Scans can run while payout execution stays disabled, even when Wise credentials are configured. Both automation flags must be enabled to process approved, due reservations. If a Friday attempt is interrupted, subsequent ticks reconcile the same transfer identity; a retry may therefore occur after Friday. Allow up to five business days after initiation in contributor copy, while showing actual provider progress. The adapter has local fake-provider tests; real Wise sandbox/production credentials and transfer requirements have not been validated in this workspace.
+
+Official Wise references: [personal API tokens](https://docs.wise.com/guides/developer/auth-and-security/personal-api-token), [SMB payouts](https://docs.wise.com/guides/product/send-money/use-cases/payouts-smbs), [balance funding](https://docs.wise.com/guides/product/send-money/funding/fund-from-balance).
+
+## Recovery/QC integration
+
+This branch implements diagnosis, durable leases and result verification. **It does not deploy a media recovery or activity-QC worker.** A configured token indicates worker access configuration, not a running worker.
+
+1. Scans wait for six hours of upload stability before proposing recovery/QC. This is a provisional rule for legacy camera deliveries; a verified completion manifest should replace the delay for the new app workflow.
+2. Missing/malformed metadata, absent media, incomplete stereo pairs and truncated capture require recovery. Transient storage failures retry; exhausted infrastructure retries require operator attention. A worker must attempt recoverable source versions/alternate deliveries before returning `irrecoverable` with a reason.
+3. Worker calls `POST /api/ops/processing/claim` with its bearer token and an allowed `Origin` header (the Ops CSRF middleware still applies). Claim returns recording, fingerprint, input inventory, lease token and expiry. Send `outcome: heartbeat` to `/result` before the 30-minute lease expires. Stale source fingerprints or leases are refused.
+4. The worker must pin source S3 versions and checksums, validate/decode source timelines, avoid double-counting stereo pairs and duplicate/repackaged sources, preserve available timing/sensor provenance, and apply the collection's approved QC policy. The ink-factory rule removes entire neither-hand-visible intervals longer than 30 seconds and excludes computer/phone work; do not silently apply that activity-specific exclusion to other work categories.
+5. New results must satisfy `6thsense-clean-qc/2`: separate left/right videos, every retained frame for both eyes, measured IMU, frame index and shared sensor timeline. See [Raw → Clean artifacts](RAW-TO-CLEAN-ARTIFACTS.md) for the local extraction stage and output contract. Claims advertise this requirement; both new import and worker completion reject video-only evidence. Publish all pinned outputs before `_SUCCESS.json`. S3 writes belong to the external worker; these API routes do not move or delete objects. Worker completion references the imported run, then Raw reconciliation checks exact source receipts before clearing the backlog. Existing v1 ledger entries remain readable and are labelled as historical video exports; backfilling modalities must not create another payable run.
+6. Existing paid sources, overlapping payable runs, mixed contributors and changed existing manifests are held. Additional source files attached to an already-processed recording require explicit non-overlapping segmentation/supersession; the current importer will not create another payable run for the same positive-duration recording.
+
+The worker still needs implementation/deployment and source-pinned integration tests. Container/stereo recovery quality, hands visibility and computer-work exclusion are not inferred from this queue's status. The UI and docs must not say an episode was cleaned until its committed output and source receipts are verified.
+
+## Rollout dependencies
+
+- Apply migration `0014` before this API/UI version. It adds new ledgers and the four user-confirmed roster assignments, preserving non-null existing attribution and all historical payment values.
+- Connect and verify the recovery/QC worker before describing intake as automatic processing. Archive buckets from the prior inventory remain a separate migration/triage concern; the Ops scanner targets the configured current raw bucket.
+- Finish mobile account linking, production agreement documents/consent receipts and capture-time assignment history before real app contributor onboarding.
+- Validate Wise recipient requirements, funding, retry/return handling and settlement reconciliation in sandbox before enabling production funding.
+
+This implementation does not itself pay anyone, delete originals, provision app accounts or record contributor consent.

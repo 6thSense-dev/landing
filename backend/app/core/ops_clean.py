@@ -6,6 +6,7 @@ import os
 import re
 from decimal import Decimal, ROUND_HALF_UP
 from app.core.ops_s3 import _client, get_settings
+from app.core.ops_artifacts import SCHEMA as MULTIMODAL_SCHEMA, validate_artifacts
 
 SCHEMA = '6thsense-clean-qc/1'
 
@@ -23,7 +24,7 @@ def estimate_krw(seconds, rate):
 def validate_manifest(doc):
     if not isinstance(doc, dict):
         raise ValueError('QC document must be an object')
-    if doc.get('schema') != SCHEMA or not re.fullmatch(r'[a-zA-Z0-9_-]{1,120}', doc.get('run_id', '')):
+    if doc.get('schema') not in (SCHEMA, MULTIMODAL_SCHEMA) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,120}', doc.get('run_id', '')):
         raise ValueError('Unknown QC schema or invalid run ID')
     if not re.fullmatch(r'[A-F0-9]{6}', doc.get('device_id', '')):
         raise ValueError('Invalid source camera')
@@ -82,14 +83,21 @@ def validate_manifest(doc):
     outputs = doc.get('outputs', [])
     if kept and not outputs:
         raise ValueError('Retained footage has no clean outputs')
+    output_keys = set()
     for output in outputs:
         key = output.get('key', '')
+        if key in output_keys:
+            raise ValueError('Duplicate output reference')
+        output_keys.add(key)
         if not key.startswith(f"clean/{doc['run_id']}/") or any(p in ('', '.', '..') for p in key.split('/')):
             raise ValueError('Output outside this clean run')
-        if not key.endswith(('.mp4', '.m3u8')) or output.get('version_id') in (None, '', 'null') or output.get('bytes', 0) <= 0:
+        extensions = ('.mp4', '.m3u8') if doc['schema'] == SCHEMA else ('.mp4', '.tar', '.csv', '.json')
+        if not key.endswith(extensions) or output.get('version_id') in (None, '', 'null') or type(output.get('bytes')) is not int or output['bytes'] <= 0:
             raise ValueError('Invalid output reference')
         if not re.fullmatch(r'[a-f0-9]{64}', output.get('sha256', '')):
             raise ValueError('Output digest is required')
+    if doc['schema'] == MULTIMODAL_SCHEMA:
+        validate_artifacts(doc)
     return doc
 
 

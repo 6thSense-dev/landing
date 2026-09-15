@@ -1,19 +1,9 @@
 import { useMemo, useState } from "react";
+import CameraAssignments from "./CameraAssignments.jsx";
 import { fmt } from "./opsShared.js";
 
-/**
- * USERS — the people who carry cameras, and nothing else.
- *
- * THESE ARE NOT PORTAL SIGN-INS. `ops_wearers` is deliberately a different
- * table from `users`: almost no camera carrier will ever log in, and the few
- * who might must not become one row with two meanings. Deleting a login must
- * never delete the payment history of the person it belonged to.
- *
- * There is no delete button, on purpose. A person is attached to episodes that
- * were reviewed and possibly paid; removing the row would leave a settled
- * payment with nobody's name on it. "Retire" clears them out of the pickers and
- * keeps every past attribution intact.
- */
+/** Contributor records preserve footage/payment history independently of login access.
+ * App registration and versioned consent will link to these stable identities. */
 
 /** Hours, never a decimal — a decimal reads as a headcount-derived figure. */
 function hhmm(seconds) {
@@ -38,25 +28,7 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
   // What each person has actually delivered. Accepted MINUTES, not episode
   // count: an episode is 2 to 25 minutes, so counting episodes flatters whoever
   // records in short bursts and is not the basis anything is paid on.
-  const stats = useMemo(() => {
-    const by = new Map();
-    for (const e of episodes) {
-      if (e.deleted_at || e.wearer_id == null) continue;
-      let s = by.get(e.wearer_id);
-      if (!s) {
-        s = { episodes: 0, approvedSec: 0, unpaid: 0, devices: new Set(), last: "" };
-        by.set(e.wearer_id, s);
-      }
-      s.episodes += 1;
-      if (e.device_id) s.devices.add(e.device_id);
-      if (e.started_at && e.started_at > s.last) s.last = e.started_at;
-      if (e.approved) {
-        s.approvedSec += (e.minutes ?? 0) * 60;
-        if (!e.paid) s.unpaid += 1;
-      }
-    }
-    return by;
-  }, [episodes]);
+  const stats = useMemo(() => new Map((state.contributor_stats || []).map(s => [s.wearer_id, { ...s, devices: new Set(s.devices), last: s.last_upload }])), [state.contributor_stats]);
 
   const unassigned = useMemo(
     () => episodes.filter((e) => !e.deleted_at && e.wearer_id == null).length,
@@ -78,7 +50,7 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
         {[
           ["People", fmt(wearers.filter((w) => w.is_active).length)],
           ["Retired", fmt(wearers.filter((w) => !w.is_active).length)],
-          ["Carrying a camera", fmt([...stats.keys()].length)],
+          ["Carrying a camera", fmt([...stats.values()].filter(s => s.devices.size > 0).length)],
           ["Episodes unassigned", fmt(unassigned)],
         ].map(([label, value]) => (
           <div className="ops-tile" key={label}>
@@ -88,6 +60,8 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
         ))}
       </div>
 
+      <p className="ops-note">App registration is not connected yet. Participation, privacy and collection terms are not configured; these contributor records do not establish an app account or recorded consent.</p>
+      {!readOnly && <CameraAssignments state={state} act={act} busy={busy} />}
       <div className="ops-cols ops-cols--narrow">
         <div className="ops-panel">
           <div className="ops-filters">
@@ -104,8 +78,8 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
               <thead>
                 <tr>
                   <th>Name</th><th>Workplace / location / rate</th><th>Contact</th><th>Note</th><th>Cameras</th>
-                  <th className="num">Episodes</th><th className="num">Accepted</th>
-                  <th className="num">Unpaid</th><th>Last seen</th><th />
+                  <th className="num">Raw episodes</th><th className="num">Collected / decoded</th><th className="num">Retained</th><th className="num">Excluded</th>
+                  <th className="num">Unpaid time</th><th>Collection dates</th><th>Last upload</th><th />
                 </tr>
               </thead>
               <tbody>
@@ -147,8 +121,8 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
                           : <span className="ops-muted">—</span>}
                       </td>
                       <td className="num">{s?.episodes ?? 0}</td>
-                      <td className="num">{hhmm(s?.approvedSec)}</td>
-                      <td className="num">{s?.unpaid ?? 0}</td>
+                      <td className="num">{hhmm(s?.source_seconds)}</td><td className="num">{hhmm(s?.retained_seconds)}</td><td className="num">{hhmm(s?.rejected_seconds)}</td>
+                      <td className="num">{hhmm(s?.unpaid_seconds)}</td><td>{s?.first_collection_date || "Unconfirmed"}{s?.last_collection_date && ` – ${s.last_collection_date}`}<div className="ops-muted">{s?.dates_unconfirmed || 0} dates to confirm · {s?.pending_recordings || 0} raw episodes pending</div></td>
                       <td className="mono ops-nowrap">
                         {s?.last ? s.last.replace("T", " ").slice(0, 16)
                                  : <span className="ops-muted">never</span>}
@@ -252,8 +226,7 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
                 the pickers and keeps the history.
               </p>
               <p className="ops-hint">
-                <b>Accepted</b> is hours of approved footage, which is what
-                anything is paid on. It is not hours worked.
+                <b>Time totals</b> come from decoded Clean footage. Pending Raw episodes are shown separately because camera duration metadata can be wrong. Confirm uncertain collection dates while reviewing Clean. Payment approval lives in Payment.
               </p>
             </div>
           </div>

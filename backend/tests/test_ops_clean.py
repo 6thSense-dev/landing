@@ -67,10 +67,12 @@ async def test_camera_assignment_preserves_existing_ownership_and_payments(app,d
 @pytest.mark.asyncio
 async def test_import_is_unpaid_idempotent_and_rate_is_snapshotted(app,db_session,monkeypatch):
     from app.api.routes import ops_clean
+    from tests.test_ops_artifacts import multimodal_manifest
     sid=await _sid(db_session,'ops')
     wearer=Wearer(name='Contributor One',rate_krw_hour=11000);db_session.add(wearer);await db_session.commit()
     db_session.add(OpsCamera(device_id='ABC123',wearer_id=wearer.id));await db_session.commit()
-    doc=manifest();monkeypatch.setattr(ops_clean,'committed_results',lambda:[(doc,'qc-results/factory-test/result.json','v1','a'*64)])
+    doc=multimodal_manifest();monkeypatch.setattr(ops_clean,'committed_results',lambda:[(doc,'qc-results/factory-test/result.json','v1','a'*64)])
+    await _episode(db_session,doc['recordings'][0]['recording'],wearer_id=wearer.id)
     async with _client(app) as c:
         async def scan():return await c.post('/api/ops/clean/scan',cookies={'sid':sid},headers={'Origin':ORIGIN})
         first=await scan();assert first.status_code==200,first.text

@@ -1,4 +1,7 @@
 import logging
+import asyncio
+import os
+from contextlib import suppress
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -7,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import admin, auth, catalog, health, leads, ops, ops_clean, intake_review, workspace
+from app.api.routes import admin, auth, catalog, health, leads, ops, ops_clean, ops_payments, ops_processing, intake_review, workspace
 from app.core.auth_deps import COOKIE_NAME, _ClearCookieUnauthorized
 from app.core.config import get_settings
 from app.core.limiter import limiter
@@ -30,7 +33,17 @@ async def lifespan(_app: FastAPI):
             "Set it to your Slack incoming-webhook URL to enable them.",
             SLACK_ENV_VAR,
         )
-    yield
+    task = None
+    if os.getenv("OPS_AUTOMATION_ENABLED", "false") == "true":
+        from app.core.ops_automation import run
+        task = asyncio.create_task(run())
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
 
 def create_app() -> FastAPI:
@@ -100,6 +113,8 @@ def create_app() -> FastAPI:
     application.include_router(catalog.router)
     application.include_router(ops.router)
     application.include_router(ops_clean.router)
+    application.include_router(ops_payments.router)
+    application.include_router(ops_processing.router)
     application.include_router(intake_review.router)
     application.include_router(workspace.router)
     return application
