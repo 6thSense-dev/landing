@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from app.models import Episode, OpsCamera, ProcessingJob
 from app.core.ops_raw import raw_statuses
+from app.core.ops_sources import source_registry, business_source
 
 
 def diagnose(take, now):
@@ -55,6 +56,7 @@ def diagnose(take, now):
 
 async def reconcile(db, takes, manifests, receipts):
     now = datetime.now(timezone.utc)
+    registry = await source_registry(db)
     statuses = raw_statuses(takes, manifests, receipts)
     jobs = {j.recording: j for j in (await db.execute(select(ProcessingJob))).scalars()}
     episodes = {e.recording: e for e in (await db.execute(select(Episode))).scalars()}
@@ -70,7 +72,12 @@ async def reconcile(db, takes, manifests, receipts):
         digest = hashlib.sha256(encoded.encode()).hexdigest()
         j = jobs.get(rec)
         e = episodes.get(rec)
-        if e and not e.wearer_id and not e.paid and not e.deleted_at:
+        try:
+            party = business_source(e, registry) if e else None
+            attribution_error = False
+        except ValueError:
+            party, attribution_error = None, True
+        if e and rec not in registry and not e.wearer_id and not e.paid and not e.deleted_at:
             e.wearer_id = cameras.get(e.device_id.upper().removeprefix("EGO-"))
         same_input = bool(j and j.fingerprint == digest)
         if j and e and e.deleted_at:
@@ -118,9 +125,9 @@ async def reconcile(db, takes, manifests, receipts):
             and not j.reason.startswith("Assign the source camera")
         ):
             continue
-        elif not e or not e.wearer_id:
+        elif attribution_error or not e or (not e.wearer_id and not party):
             j.state = "blocked"
-            j.reason = "Assign the source camera to a contributor in Users."
+            j.reason = "Assign the source camera to a contributor in Users or resolve its business attribution."
         elif j.attempts >= 3:
             j.state = "blocked"
             j.reason = "Worker retry limit reached. Source preserved for investigation."

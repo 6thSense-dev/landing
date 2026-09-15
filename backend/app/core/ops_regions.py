@@ -37,7 +37,7 @@ def clean_region(doc):
             if len(parts) > 2 and parts[0] == "sessions":
                 session = parts[1].lower()
                 found |= {key for key in REGIONS if re.search(rf"(?:^|[_-]){key}(?:$|[_-])", session)}
-                if re.search(r"(?:^|[_-])(?:trial|flowtest)(?:$|[_-])", session):
+                if not found and re.search(r"(?:^|[_-])(?:trial|flowtest)(?:$|[_-])", session):
                     found.add("test")
             regions |= found
             missing |= not found

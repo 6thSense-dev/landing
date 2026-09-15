@@ -95,7 +95,7 @@ test('region navigation separates people, hours, playback and review entries', a
   await expect(page.locator('.ops-footage-review')).toContainText('first-recording');
   await expect(page.getByRole('button', { name: 'Watch all clean footage' })).toHaveCount(0);
   await expect(page.getByLabel('Korea hour totals')).toContainText('6h 08m 18s');
-  await page.getByLabel('Filter footage by contributor').selectOption('2');
+  await page.getByLabel('Filter footage by source').selectOption('wearer:2');
   await expect(page.locator('.ops-clean-card')).toHaveCount(1);
   await expect(page.getByLabel('Korea hour totals')).toContainText('6h 08m 18s');
   await page.getByRole('button', { name: 'All regions', exact: true }).click();
@@ -123,7 +123,7 @@ test('late playback from the previous region cannot reopen its player', async ({
     await pending;
     await route.fulfill({ json: { files: [{ key: 'late.mp4', url: '/test-late.mp4', role: 'joined_preview' }] } });
   });
-  await page.getByRole('button', { name: 'Watch joined footage', exact: true }).click();
+  await page.getByRole('button', { name: 'Watch footage', exact: true }).click();
   await expect.poll(() => started).toBe(true);
   await page.getByLabel('Region', { exact: true }).selectOption('china');
   const received = page.waitForResponse('**/api/ops/clean/runs/first/files');
@@ -132,4 +132,33 @@ test('late playback from the previous region cannot reopen its player', async ({
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.getByRole('heading', { name: 'China · Clean footage' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('business factory batches group in China with their own playback and no contributor payout prompt', async ({ page }) => {
+  const business = { kind: 'business', id: 'factory-example', name: 'Example factory', country: 'china', payment_model: 'b2b_contract' };
+  const factory = id => ({ ...run(id, 60, 40, null), wearer_id: null, counterparty: business,
+    region: { key: 'china', label: 'China' }, rate_krw_hour: null });
+  const ledger = [{ run_id: 'factory-first', recording: 'factory-first-recording', counterparty: business, wearer_id: null,
+    review_status: 'needs_review', artifact_status: 'complete', retained_seconds: 60, source_seconds: 100, rejected_seconds: 40,
+    review_intervals: [], rejection_reasons: {}, date_basis: 'Camera NTP', collection_date: '2026-09-01', payment_status: 'b2b_contract' }];
+  const requests = await openClean(page, { runs: [first, factory('factory-first'), factory('factory-second')], collections: [], ledger, wearers: [person], cameras: [] });
+  await page.getByLabel('Region', { exact: true }).selectOption('china');
+  const card = page.locator('.ops-clean-card');
+  await expect(card).toHaveCount(1);
+  await expect(card.getByRole('heading', { name: 'Example factory', exact: true })).toBeVisible();
+  await expect(card).toContainText('B2B factory contract');
+  await expect(card).toContainText('Settlement is managed separately from individual contributor payouts.');
+  await expect(card).not.toContainText(person.name);
+  await expect(card).not.toContainText('Unassigned contributor');
+  await expect(card).not.toContainText('approve the payout in Payment');
+  await card.locator('.ops-footage-review > summary').click();
+  await expect(card.getByLabel('Collection date (China)')).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Hold for review', exact: true })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Withhold from payment', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('China hour totals')).toContainText('0h 02m 00s');
+  await card.locator('summary').filter({ hasText: 'Batch details' }).click();
+  await card.getByRole('button', { name: 'Watch batch 2', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(requests.some(r => r.path === '/api/ops/clean/runs/factory-second/files')).toBe(true);
+  expect(requests.every(r => r.method === 'GET')).toBe(true);
 });

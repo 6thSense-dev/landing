@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.8.0] - 2026-09-15
+
+### Fixed
+
+- Attribute contracted factory footage to its business and country in Raw and Clean, keeping it separate from individual contributors and payouts.
+- Preserve confirmed business ownership during camera assignment and processing; refuse Clean imports with mismatched business, source session, or region.
+- Use the source country's collection date for business footage reviews and keep its hours in regional totals without an individual payment estimate.
+
 ## [0.0.7.1] - 2026-09-15
 
 ### Fixed

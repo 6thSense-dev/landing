@@ -9,7 +9,7 @@ const time = (s) => {
   return `${Math.floor(seconds / 3600)}h ${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}m ${String(seconds % 60).padStart(2, '0')}s`;
 };
 const countLabel = (count, label) => `${count} ${label}${count === 1 ? '' : 's'}`;
-const regionCounts = region => [countLabel(region.recordings, 'recording'), countLabel(region.contributors, 'contributor'), countLabel(region.cameras, 'camera')].join(' · ');
+const regionCounts = region => [countLabel(region.recordings, 'recording'), countLabel(region.contributors, 'contributor'), ...(region.businesses ? [countLabel(region.businesses, 'business source')] : []), countLabel(region.cameras, 'camera')].join(' · ');
 
 export default function OpsClean({ onChanged }) {
   const dialog = useRef(null);
@@ -68,8 +68,8 @@ export default function OpsClean({ onChanged }) {
   const regions = useMemo(() => cleanRegions(data?.runs || [], data?.collections || []), [data]);
   const region = regions.find(item => item.key === regionKey);
   const total = region?.totals || cleanTotals(data?.runs || []);
-  const groups = (region?.groups || []).filter(group => !person || String(group.wearer_id) === person);
-  const regionPeople = people.filter(p => region?.runs.some(run => run.wearer_id === p.id));
+  const groups = (region?.groups || []).filter(group => !person || group.key === person);
+  const regionSources = (region?.groups || []).map(g => ({ key: g.key, name: g.counterparty ? `${g.counterparty.name} · B2B` : byId.get(g.wearer_id)?.name || 'Unassigned contributor' }));
   const selectRegion = key => {
     setRegionKey(key); setPerson(''); closePreview();
     requestAnimationFrame(() => heading.current?.focus());
@@ -112,7 +112,7 @@ export default function OpsClean({ onChanged }) {
   };
   return <section className="ops-clean" aria-label="Clean footage">
     <div className="ops-clean-intro">
-      <div><h2 ref={heading} tabIndex={-1}>{region ? `${region.label} · Clean footage` : 'Clean footage by region'}</h2><p>{region ? 'Browse this region’s footage and record reviews before payment approval.' : 'Select a region to explore its accepted footage, collection hours, and contributors.'}</p></div>
+      <div><h2 ref={heading} tabIndex={-1}>{region ? `${region.label} · Clean footage` : 'Clean footage by region'}</h2><p>{region ? 'Browse this region’s footage and record quality reviews.' : 'Select a region to explore its accepted footage, collection hours, contributors, and business sources.'}</p></div>
       <button onClick={() => mutate('scan')} disabled={busy}>{busy ? 'Working…' : 'Refresh clean footage'}</button>
     </div>
     {error && <p className="ops-error" role="alert">{error}</p>}
@@ -141,26 +141,27 @@ export default function OpsClean({ onChanged }) {
         {region && <>
           <p className="ops-hint">{regionCounts(region)}. Combined videos do not add to these totals.</p>
           {region.key === 'unassigned' && <p className="ops-note">These batches have missing or conflicting region information in their source records. Their hours are counted here until the region can be confirmed.</p>}
-          {regionPeople.length > 1 && <div className="ops-clean-filters"><label htmlFor="clean-person">Filter footage by contributor</label><select id="clean-person" value={person} onChange={e => setPerson(e.target.value)}>
-            <option value="">All contributors in {region.label}</option>{regionPeople.map(p => <option key={p.id} value={p.id}>{p.name}{p.workplace ? ` · ${p.workplace}` : ''}</option>)}
+          {regionSources.length > 1 && <div className="ops-clean-filters"><label htmlFor="clean-person">Filter footage by source</label><select id="clean-person" value={person} onChange={e => setPerson(e.target.value)}>
+            <option value="">All sources in {region.label}</option>{regionSources.map(p => <option key={p.key} value={p.key}>{p.name}</option>)}
           </select><span className="ops-muted">Region totals include everyone.</span></div>}
           {!groups.length && <div className="ops-panel ops-empty"><h3>No clean footage in {region.label} yet</h3><p>Processed footage will appear here when its source region is identified.</p></div>}
         </>}
         </>}
         {groups.map(group => {
           const p = byId.get(group.wearer_id);
+          const business = group.counterparty;
           const status = 'Footage ledger';
           const devices = [...new Set(group.runs.map(run => `EGO-${run.device_id}`))];
           const reviews = group.runs.flatMap(run => (run.review_intervals || []).map(item => ({ run, item })));
           return <article className="ops-panel ops-clean-card" key={group.key}>
-            <div className="ops-clean-card-head"><div><span className="ops-clean-eyebrow">{p?.workplace || 'Workplace not set'}</span><h3>{p?.name || 'Unassigned contributor'}</h3><p>{[p?.location || 'Location not set', ...devices].join(' · ')}</p></div><span className="ops-clean-status">{status}</span></div>
+            <div className="ops-clean-card-head"><div><span className="ops-clean-eyebrow">{business ? 'B2B factory contract' : p?.workplace || 'Workplace not set'}</span><h3>{business?.name || p?.name || 'Unassigned contributor'}</h3><p>{[business ? region.label : p?.location || 'Location not set', ...devices].join(' · ')}</p></div><span className="ops-clean-status">{status}</span></div>
             <div className="ops-clean-metrics"><div><b>{time(group.totals.kept)}</b><span>retained</span></div><div><b>{time(group.totals.excluded)}</b><span>excluded</span></div><div><b>{time(group.totals.source)}</b><span>collected / decoded</span></div></div>
             {group.collections.map(collection => {
               const includedRuns = new Set(collection.source_runs.map(run => run.run_id));
               const coversAll = group.runs.every(run => includedRuns.has(run.run_id));
               return <div className="ops-clean-actions" key={collection.collection_id}><button onClick={() => play(collection)}>{group.collections.length > 1 ? collection.label : coversAll ? 'Watch all clean footage' : 'Watch combined footage'}</button><span className="ops-muted">{time(collection.retained_seconds)} · {collection.recordings.length} recordings</span></div>;
             })}
-            {!group.collections.length && group.runs.length === 1 && <div className="ops-clean-actions"><button onClick={() => play(group.runs[0])}>Watch joined footage</button></div>}
+            {!group.collections.length && group.runs.length === 1 && <div className="ops-clean-actions"><button onClick={() => play(group.runs[0])}>Watch footage</button></div>}
             <p className="ops-hint">{time(group.totals.source)} decoded · {group.runs.length} processing {group.runs.length === 1 ? 'batch' : 'batches'}. Time is counted once across batches.</p>
             {!!reviews.length && <details><summary>Flagged footage to review ({reviews.length})</summary><ul>{reviews.map(({ run, item }, i) => <li key={`${run.run_id}:${i}`}>{item.recording} · {time(item.start_s)}–{time(item.end_s)} · {item.reason} <button onClick={() => play(run, item)}>Review interval</button></li>)}</ul></details>}
             {!!group.runs.length && <details><summary>Batch details & source recordings ({group.runs.length})</summary>{group.runs.map((run, index) => <section className="ops-clean-batch" key={run.run_id} aria-label={`Batch ${index + 1}`}>
@@ -171,7 +172,7 @@ export default function OpsClean({ onChanged }) {
               {!!run.warnings?.length && <details><summary>QC notes ({run.warnings.length})</summary><ul>{run.warnings.map((w, i) => <li key={i}>{typeof w === 'string' ? w : JSON.stringify(w)}</li>)}</ul></details>}
               <div className="ops-tablewrap"><table className="ops-table"><thead><tr><th>Recording</th><th>Decoded</th><th>Retained</th><th>QC</th></tr></thead><tbody>{run.recordings.map(r => <tr key={r.recording}><td className="mono">{r.recording}</td><td>{time(r.source_seconds)}</td><td>{time(r.retained_seconds)}</td><td>{r.status}</td></tr>)}</tbody></table></div>
             </section>)}</details>}
-            {group.runs.flatMap(run => ledgerByRun.get(run.run_id) || []).map(entry => <FootageReview key={`${entry.run_id}:${entry.recording}`} entry={entry} onChanged={load} onPlay={() => play(group.runs.find(r => r.run_id === entry.run_id), { recording: entry.recording })} />)}<p className="ops-hint">After reviewing the footage, approve the payout in Payment.</p>
+            {group.runs.flatMap(run => ledgerByRun.get(run.run_id) || []).map(entry => <FootageReview key={`${entry.run_id}:${entry.recording}`} entry={entry} onChanged={load} onPlay={() => play(group.runs.find(r => r.run_id === entry.run_id), { recording: entry.recording })} />)}<p className="ops-hint">{business ? 'Business contract footage. Settlement is managed separately from individual contributor payouts.' : 'After reviewing the footage, approve the payout in Payment.'}</p>
           </article>;
         })}
       </div>

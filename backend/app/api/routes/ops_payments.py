@@ -68,6 +68,7 @@ def eligible(entries, due, basis):
         e
         for e in entries
         if not e["legacy_paid"]
+        and not e.get("counterparty")
         and not e["payout_id"]
         and e["retained_seconds"] > 0
         and e["review_status"] == "reviewed"
@@ -182,14 +183,17 @@ async def review(body: ReviewIn, user=Depends(require_ops), db=Depends(get_sessi
         )
     if body.decision == "withheld" and not body.note.strip():
         raise HTTPException(
-            422, "A reason is required when withholding footage from payment."
+            422, "A reason is required when placing footage on hold."
         )
-    if body.collection_date and body.collection_date > datetime.now(KOREA).date():
-        raise HTTPException(422, "Collection date cannot be in the future.")
     await db.execute(text("SELECT pg_advisory_xact_lock(61306131)"))
     run = await db.get(CleanRun, body.run_id)
     if not run or run.manifest_sha256 != body.manifest_sha256:
         raise HTTPException(409, "Footage changed. Reload before reviewing.")
+    from app.core.ops_sources import counterparty, source_timezone
+    doc = json.loads(run.manifest_json)
+    party = counterparty(doc['counterparty']) if 'counterparty' in doc else None
+    if body.collection_date and body.collection_date > datetime.now(source_timezone(party)).date():
+        raise HTTPException(422, "Collection date cannot be in the future.")
     if body.recording not in {
         r["recording"] for r in json.loads(run.manifest_json)["recordings"]
     }:

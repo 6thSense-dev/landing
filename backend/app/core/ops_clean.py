@@ -35,6 +35,11 @@ def validate_manifest(doc):
             raise ValueError(f'Invalid {name}')
     if abs(doc['retained_seconds'] + doc['rejected_seconds'] - doc['source_seconds']) > .05:
         raise ValueError('QC time does not balance')
+    if "counterparty" in doc:
+        from app.core.ops_sources import counterparty
+        party = counterparty(doc["counterparty"])
+        if doc.get("country") != party["country"]:
+            raise ValueError("Business source country is inconsistent")
     recordings = doc.get('recordings')
     if not isinstance(recordings, list) or not recordings:
         raise ValueError('Source recordings are required')

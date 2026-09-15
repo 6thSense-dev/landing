@@ -13,6 +13,17 @@ from app.core.db import get_session
 from app.models import ProcessingJob, CleanRun, Episode
 from app.core.ops_artifacts import REQUIREMENT, validate_artifacts
 from app.core.ops_clean import validate_manifest
+from app.core.ops_sources import source_registry, business_source
+
+
+async def source_party(db, episode):
+    try:
+        party = business_source(episode, await source_registry(db)) if episode else None
+    except ValueError as exc:
+        raise HTTPException(409, "Source business attribution must be reconciled.") from exc
+    if not episode or episode.deleted_at or (not episode.wearer_id and not party):
+        raise HTTPException(409, "Source is removed or contributor/business attribution is unresolved.")
+    return party
 
 router = APIRouter(prefix="/api/ops/processing", tags=["ops"])
 
@@ -41,9 +52,11 @@ async def claim(_=Depends(worker_auth), db=Depends(get_session)):
         episode = (
             await db.execute(select(Episode).where(Episode.recording == j.recording))
         ).scalar_one_or_none()
-        if not episode or episode.deleted_at or not episode.wearer_id:
+        try:
+            party = await source_party(db, episode)
+        except HTTPException as exc:
             j.state = "blocked"
-            j.reason = "Source is removed or contributor attribution is unresolved."
+            j.reason = exc.detail
             continue
         if j.lease_until and j.lease_until > now:
             continue
@@ -63,6 +76,7 @@ async def claim(_=Depends(worker_auth), db=Depends(get_session)):
                 "lease_token": j.lease_token,
                 "input": json.loads(j.input_json),
                 "output_requirement": REQUIREMENT,
+                "counterparty": party,
                 "lease_until": j.lease_until.isoformat(),
             }
         }
@@ -94,10 +108,7 @@ async def result(body: ResultIn, _=Depends(worker_auth), db=Depends(get_session)
     episode = (
         await db.execute(select(Episode).where(Episode.recording == body.recording))
     ).scalar_one_or_none()
-    if not episode or episode.deleted_at or not episode.wearer_id:
-        raise HTTPException(
-            409, "Source is removed or contributor attribution is unresolved."
-        )
+    party = await source_party(db, episode)
     if body.outcome == "heartbeat":
         j.lease_until = now + timedelta(minutes=30)
     elif body.outcome == "completed":
@@ -113,6 +124,8 @@ async def result(body: ResultIn, _=Depends(worker_auth), db=Depends(get_session)
             doc = json.loads(run.manifest_json)
             validate_manifest(doc)
             validate_artifacts(doc)
+            if doc.get("counterparty") != party or (party and (run.wearer_id is not None or run.rate_krw_hour is not None)):
+                raise ValueError("Clean result does not match source commercial attribution")
         except (ValueError, TypeError, KeyError) as exc:
             raise HTTPException(409, "Worker completion requires verified stereo videos, IMU, full frame sequences and a shared timeline.") from exc
         # A clean run with the same episode name alone is insufficient. Scan reconciliation
