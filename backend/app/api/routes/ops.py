@@ -148,7 +148,7 @@ async def _state(db: AsyncSession) -> dict:
     return {
         "contributor_stats": await contributor_summary(db),
         "cameras": [{"device_id": c.device_id, "wearer_id": c.wearer_id} for c in (await db.execute(select(OpsCamera))).scalars()],
-        "onboarding": {"account_service_connected": False, "terms_status": "terms_not_configured", "required_agreements": ["participation", "privacy", "collection"]},
+        "onboarding": {"account_service_connected": bool(os.getenv("CONTRIBUTOR_COGNITO_POOL") and os.getenv("CONTRIBUTOR_COGNITO_CLIENT")), "terms_status": "configured" if await _setting(db, "contributor_terms_kr-2026-v1") else "terms_not_configured", "required_agreements": ["participation", "privacy", "collection"]},
         "processing": {"automatic_scan": os.getenv("OPS_AUTOMATION_ENABLED") == "true", "worker_access_configured": bool(os.getenv("OPS_PROCESSOR_TOKEN"))},
         "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),

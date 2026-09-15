@@ -13,7 +13,7 @@ from app.api.routes.ops import require_ops, _put_setting
 from app.api.routes.contributor import AGREEMENTS, RECORDS_BUCKET, has_consent
 from app.core.contributor_auth import REGIONS
 from app.core.db import get_session
-from app.models import ContributorAccount, ContributorCameraClaim, ContributorConsent, ContributorRecipientAttempt, OpsCamera, OpsSetting, User
+from app.models import ContributorAccount, ContributorCameraClaim, ContributorConsent, ContributorRecipientAttempt, OpsCamera, OpsSetting, User, Wearer
 
 router = APIRouter(prefix="/api/ops/contributors", tags=["ops"])
 
@@ -121,6 +121,9 @@ async def approve_camera(claim_id: str, body: ApproveIn, operator: User = Depend
     if not claim or claim.ended_at or claim.status not in ("pending", "approved"):
         raise HTTPException(409, "This request is not active.")
     account = await db.get(ContributorAccount, claim.subject)
+    wearer = await db.get(Wearer, account.wearer_id)
+    if not wearer or not wearer.is_active:
+        raise HTTPException(409, "The contributor account is inactive.")
     region = next(r for r in REGIONS if r["routing_version"] == account.routing_version)
     if not await has_consent(account, region, db):
         raise HTTPException(409, "Current agreements must be accepted first.")
