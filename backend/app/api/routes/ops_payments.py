@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from app.api.routes.ops import require_ops
 from app.core.db import get_session
+from app.core.ops_external_payments import external_payment_history
 from app.core.ops_ledger import (
     footage_ledger,
     friday,
@@ -151,7 +152,7 @@ async def state(db):
                 "error": p.error,
             }
             for p in payouts
-        ],
+        ] + await external_payment_history(db),
     }
 
 
