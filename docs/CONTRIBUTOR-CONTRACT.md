@@ -11,10 +11,14 @@ Coordinated 2026-09-14; implementation status updated 2026-09-15. This is an int
 
 ## Registration and terms
 
-Use the app's three agreement identifiers: `participation`, `privacy`, `collection` (recording/payment guidelines). The current `KR-PREVIEW-1` / `US-CA-PREVIEW-1` texts are placeholders and must never be accepted as production consent.
+Use four separate agreement identifiers: `participation`, `privacy`, `collection` (recording/payment guidelines), and `international_transfer`. Every acceptance starts unselected. International-transfer consent is required throughout this private pilot and does not authorize third-party customer disclosure; commercial customer licensing remains a separate legal/release gate pending the actual recipients, purposes and authorization basis. The current `KR-PREVIEW-1` / `US-CA-PREVIEW-1` texts are placeholders and must never be accepted as production consent.
 
 Production terms configuration must resolve the collection/region to the required documents, each with an immutable version, locale, content SHA-256, and approved document URL. Until approved text is published, the production status is `terms_not_configured`; a preview checkbox cannot bypass it.
-The mobile terms endpoint returns `not_published` with an empty document list until all three agreements exist for the requested language. Current consent is required by camera requests, staff camera approval and both bank endpoints. The implementation stores receipts in the database and supports an explicit, idempotent staff export to private S3; export is not scheduled automatically.
+Only explicitly allowlisted company founders may approve/publish terms through the authenticated publication endpoint. `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` is server-configured and defaults empty/deny; staff roles alone cannot publish. Generic settings writes and imports cannot bypass that namespace. Every publication retains an immutable founder identity/time/routing/version/hash audit; retries preserve the original approval and cannot roll back a newer bundle.
+
+The mobile terms endpoint returns `not_published` with an empty document list until all four agreements exist for the requested language. Current consent is required by camera requests, staff camera approval and both bank endpoints. The implementation stores receipts in the database and supports an explicit, idempotent staff export to private S3; export is not scheduled automatically.
+
+Consent submission supplies both `documents` (agreement → SHA-256) and `versions` (agreement → version) for the exact displayed `locale`. All four must match the current publication; old three-document clients and stale versions fail closed even when document bytes are unchanged. Acceptance in another language creates a separate receipt.
 
 An authenticated acceptance receipt must contain the stable account subject, contributor ID, collection enrollment ID, each agreement ID/version/hash/locale, and a server timestamp. Record acceptance only after the contributor views and accepts the configured documents. New required versions or reenrollment in another collection require new acceptance. Do not manufacture receipts for existing contributors or use an Ops administrator's session as contributor consent.
 
@@ -49,7 +53,7 @@ Confirmed Korean pilot roster:
 ## Required integration before production app onboarding
 
 1. Validate the implemented region enrollment, mobile account service and account-to-contributor linking with a real user-created account.
-2. Publish approved regional agreements and verify a real consent receipt and its export. Storage and API support exist; the legal text is still absent.
+2. Have an explicitly authorized founder publish all four approved regional agreements and verify a real consent receipt and its export. Storage and API support exist; the legal text is still absent.
 3. Exercise supervised camera claims, assignment history and delayed SD-card upload on real hardware. Capture-assignment receipts for broker/firmware uploads remain pending.
 4. Idempotent complete-upload intake, a running QC/recovery worker, source-pinned results and reconciliation.
 5. Verify the implemented contributor dashboard against real uploaded and reviewed footage. Detailed exclusion reasons and collection-date confidence remain available in Ops; the mobile dashboard currently exposes source and approved totals, recording status and payouts.

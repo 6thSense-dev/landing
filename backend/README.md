@@ -60,6 +60,7 @@ Fully processed recordings and recordings without nonempty raw media are hidden 
 | `PORT` | no | Auto-injected by Railway in production. |
 | `CONTRIBUTOR_COGNITO_POOL` / `CONTRIBUTOR_COGNITO_CLIENT` | for mobile accounts | Separate contributor pool and public app-client identifiers; both are required for token acceptance. |
 | `CONTRIBUTOR_COGNITO_REGION` | no | Contributor Cognito region; defaults to `us-west-2`. |
+| `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` | for terms publication | Comma-separated exact authenticated staff emails authorized by company founders; whitespace/case normalized. Empty or absent denies publication, including staff with the `founder` role. Do not infer identities or configure without founder direction. |
 | `CONTRIBUTOR_SIGNUP_MODE` | no | Public configuration label; defaults to `closed`. The Cognito signup gate remains the authority for who can register. |
 
 The [contributor pilot guide](../docs/CONTRIBUTOR-MOBILE-PILOT.md) documents `/api/contributor/*`, staff supervision in `/api/ops/contributors/*`, migration `0016`, versioned agreement storage and recipient recovery. Terms use the configured `OPS_AWS_ACCESS_KEY_ID` / `OPS_AWS_SECRET_ACCESS_KEY` pair and `OPS_S3_REGION`; credentials need the relevant terms read and consent-export write permissions. Wise configuration remains server-only and follows the [Ops payment workflow](../docs/OPS-WORKFLOW.md#payment-policy-and-operation).

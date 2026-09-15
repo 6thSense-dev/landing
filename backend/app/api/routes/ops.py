@@ -67,6 +67,10 @@ async def _setting(db: AsyncSession, key: str) -> str:
 
 
 async def _put_setting(db: AsyncSession, key: str, value: str) -> None:
+    # Terms and their approval history belong exclusively to the founder-gated
+    # publisher. Generic scans/imports must never gain publication authority.
+    if key.strip().lower().startswith("contributor_terms_"):
+        raise PermissionError("Contributor terms require the founder publication workflow.")
     row = (await db.execute(
         select(OpsSetting).where(OpsSetting.key == key))).scalar_one_or_none()
     if row is None:
@@ -133,6 +137,7 @@ async def _raw_context(db: AsyncSession):
 
 async def _state(db: AsyncSession) -> dict:
     from app.core.ops_sources import business_source, source_registry
+    from app.api.routes.contributor import terms_for
     registry = await source_registry(db)
     eps = (await db.execute(
         select(Episode).order_by(Episode.started_at.desc().nullslast(),
@@ -148,7 +153,7 @@ async def _state(db: AsyncSession) -> dict:
     return {
         "contributor_stats": await contributor_summary(db),
         "cameras": [{"device_id": c.device_id, "wearer_id": c.wearer_id} for c in (await db.execute(select(OpsCamera))).scalars()],
-        "onboarding": {"account_service_connected": bool(os.getenv("CONTRIBUTOR_COGNITO_POOL") and os.getenv("CONTRIBUTOR_COGNITO_CLIENT")), "terms_status": "configured" if await _setting(db, "contributor_terms_kr-2026-v1") else "terms_not_configured", "required_agreements": ["participation", "privacy", "collection"]},
+        "onboarding": {"account_service_connected": bool(os.getenv("CONTRIBUTOR_COGNITO_POOL") and os.getenv("CONTRIBUTOR_COGNITO_CLIENT")), "terms_status": "configured" if await terms_for({"routing_version": "kr-2026-v1"}, db) else "terms_not_configured", "required_agreements": ["participation", "privacy", "collection", "international_transfer"]},
         "processing": {"automatic_scan": os.getenv("OPS_AUTOMATION_ENABLED") == "true", "worker_access_configured": bool(os.getenv("OPS_PROCESSOR_TOKEN"))},
         "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),

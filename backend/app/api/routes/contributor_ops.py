@@ -5,17 +5,27 @@ import json
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Literal
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.routes.ops import require_ops, _put_setting
+from app.api.routes.ops import require_ops
 from app.api.routes.contributor import AGREEMENTS, RECORDS_BUCKET, has_consent
 from app.core.contributor_auth import REGIONS
 from app.core.db import get_session
 from app.models import ContributorAccount, ContributorCameraClaim, ContributorConsent, ContributorRecipientAttempt, OpsCamera, OpsSetting, User, Wearer
 
 router = APIRouter(prefix="/api/ops/contributors", tags=["ops"])
+
+
+async def require_terms_founder(user: User = Depends(require_ops)) -> User:
+    """Staff roles alone never grant legal-document publication authority."""
+    founders = {email.strip().casefold() for email in
+                os.getenv("CONTRIBUTOR_TERMS_FOUNDER_EMAILS", "").split(",") if email.strip()}
+    if user.email.strip().casefold() not in founders:
+        raise HTTPException(403, "Only an explicitly authorized company founder may publish contributor terms.")
+    return user
 
 
 class RecipientResolutionIn(BaseModel):
@@ -141,7 +151,7 @@ async def approve_camera(claim_id: str, body: ApproveIn, operator: User = Depend
     return {"id": claim.id, "status": claim.status, "effective_at": claim.effective_at}
 
 class TermsDocument(BaseModel):
-    agreement: str = Field(pattern="^(participation|privacy|collection)$")
+    agreement: str = Field(pattern="^(participation|privacy|collection|international_transfer)$")
     locale: str = Field(pattern="^(en|ko)$")
     version: str = Field(pattern="^[a-zA-Z0-9._-]{1,80}$")
     key: str = Field(max_length=500)
@@ -150,16 +160,36 @@ class TermsDocument(BaseModel):
 
 class TermsIn(BaseModel):
     approved_for_publication: bool
-    documents: list[TermsDocument] = Field(min_length=3, max_length=6)
+    documents: list[TermsDocument] = Field(min_length=4, max_length=8)
 
 @router.post("/terms/{routing_version}")
-async def publish_terms(routing_version: str, body: TermsIn, operator: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
+async def publish_terms(routing_version: str, body: TermsIn, operator: User = Depends(require_terms_founder), db: AsyncSession = Depends(get_session)):
     regions = [r for r in REGIONS if r["routing_version"] == routing_version]
     if not regions or not body.approved_for_publication:
         raise HTTPException(422, "Approved regional documents required.")
-    docs = [d.model_dump() for d in body.documents]
+    docs = sorted((d.model_dump() for d in body.documents), key=lambda d: (d["agreement"], d["locale"]))
     if len({(d["agreement"], d["locale"]) for d in docs}) != len(docs) or any({d["agreement"] for d in docs if d["locale"] == locale} != AGREEMENTS for locale in {d["locale"] for d in docs}):
-        raise HTTPException(422, "Each published language needs all three agreements.")
+        raise HTTPException(422, "Each published language needs all four agreements.")
+    fingerprint = hashlib.sha256(json.dumps({"routing_version": routing_version, "documents": docs},
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
+    current = await db.get(OpsSetting, "contributor_terms_" + routing_version)
+    history = (await db.execute(select(OpsSetting).where(
+        OpsSetting.key.startswith("contributor_terms_audit_")))).scalars().all()
+    for row in history:
+        published = json.loads(row.value)
+        if published["routing_version"] != routing_version:
+            continue
+        if published["payload_sha256"] == fingerprint:
+            # A lost-response retry preserves the original approver and time.
+            # Replaying an older bundle cannot roll back a newer publication.
+            return {"published": True, "publication_id": published["id"],
+                    "current": bool(current and json.loads(current.value) == published["documents"])}
+        for prior in published["documents"]:
+            for doc in docs:
+                if all(prior[key] == doc[key] for key in ("agreement", "locale", "version")) and any(
+                        prior[key] != doc[key] for key in TermsDocument.model_fields):
+                    raise HTTPException(409, "A published document version is immutable; use a new version for changed contents or object references.")
     def verify():
         from app.core import ops_s3
         s3 = ops_s3._client(ops_s3.get_settings())
@@ -175,12 +205,24 @@ async def publish_terms(routing_version: str, body: TermsIn, operator: User = De
         await asyncio.to_thread(verify)
     except Exception:
         raise HTTPException(422, "Versioned document contents could not be verified.") from None
+    publication_id = str(uuid4())
+    approved_at = datetime.now(timezone.utc).isoformat()
     for doc in docs:
-        doc.update(approved_by=operator.email, published_at=datetime.now(timezone.utc).isoformat())
-    await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
-    await _put_setting(db, "contributor_terms_" + routing_version, json.dumps(docs))
+        doc.update(approved_by=operator.email, approved_by_user_id=operator.id,
+                   published_at=approved_at, publication_id=publication_id)
+    # The current pointer may advance, but the original founder approval and
+    # version/hash/object evidence are insert-only and remain independently auditable.
+    db.add(OpsSetting(key="contributor_terms_audit_" + publication_id, value=json.dumps({
+        "id": publication_id, "routing_version": routing_version, "payload_sha256": fingerprint,
+        "approved_by": operator.email, "approved_by_user_id": operator.id,
+        "approved_at": approved_at, "documents": docs,
+    })))
+    if current:
+        current.value = json.dumps(docs)
+    else:
+        db.add(OpsSetting(key="contributor_terms_" + routing_version, value=json.dumps(docs)))
     await db.commit()
-    return {"published": True}
+    return {"published": True, "publication_id": publication_id, "current": True}
 
 @router.post("/consents/export")
 async def export_consents(_: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):

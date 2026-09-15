@@ -17,7 +17,7 @@ REGION=REGIONS[0]
 def identity(app, subject=SUBJECT):
     app.dependency_overrides[contributor_identity]=lambda:{'subject':subject,'region':REGION}
 def documents():
-    return [{'agreement':k,'version':'v1','sha256':str(i)*64,'locale':'en','key':'terms/korea/'+k+'/v1/en.pdf','object_version':'v1'} for i,k in enumerate(['participation','privacy','collection'],1)]
+    return [{'agreement':k,'version':'v1','sha256':str(i)*64,'locale':'en','key':'terms/korea/'+k+'/v1/en.pdf','object_version':'v1'} for i,k in enumerate(['participation','privacy','collection','international_transfer'],1)]
 async def setup(db,subject=SUBJECT):
     w=Wearer(name='Test person',rate_krw_hour=11000);db.add(w);await db.flush()
     a=ContributorAccount(subject=subject,wearer_id=w.id,routing_version=REGION['routing_version']);db.add(a);await db.commit();return a
@@ -50,9 +50,9 @@ async def test_consent_missing_stale_and_retries(app,db_session):
         assert (await c.get('/api/contributor/terms')).json()=={'status':'not_published','documents':[]}
         assert (await c.post('/api/contributor/cameras',json={'device_id':'ABC123'})).status_code==409
         assert (await c.post('/api/contributor/bank/requirements',json={'values':{}})).status_code==409
-        assert (await c.post('/api/contributor/consent',json={'locale':'en','documents':{}})).status_code==409
+        assert (await c.post('/api/contributor/consent',json={'locale':'en','documents':{},'versions':{}})).status_code==409
         db_session.add(OpsSetting(key='contributor_terms_kr-2026-v1',value=json.dumps(documents())));await db_session.commit()
-        body={'locale':'en','documents':{d['agreement']:d['sha256'] for d in documents()}}
+        body={'locale':'en','documents':{d['agreement']:d['sha256'] for d in documents()},'versions':{d['agreement']:d['version'] for d in documents()}}
         for _ in range(2):assert (await c.post('/api/contributor/consent',json=body)).status_code==200
         assert len((await db_session.execute(select(ContributorConsent))).scalars().all())==1
         r=await c.post('/api/contributor/cameras',json={'device_id':'ego-abc123'});assert r.json()['status']=='pending'

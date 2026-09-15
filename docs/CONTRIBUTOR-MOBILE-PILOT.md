@@ -6,7 +6,7 @@ The mobile API connects verified Cognito subjects to new Ops wearer records. It 
 
 1. The private Synapse build signs up with the public regional selector `Korea666`, the user's verified test mobile number and a password. Cognito sends the confirmation code. Signup is restricted to the already verified AWS SMS sandbox destination; it does not open general registration. No account or recording is precreated.
 2. The user names their account. `/api/contributor/enrollment` creates its wearer once. The immutable routing version comes from verified Cognito attributes, never from an app-supplied bucket.
-3. An operator publishes the approved participation, privacy and collection documents, each in a versioned S3 object with a SHA-256 digest. The user reads and accepts all three in their chosen language. Until actual documents are published, camera and bank registration remain unavailable.
+3. An explicitly authorized company founder publishes the approved participation, privacy, collection and international-transfer documents, each in a versioned S3 object with a SHA-256 digest. The user reads and separately accepts all four in their chosen language; every checkbox starts unselected. Until actual documents are published, camera and bank registration remain unavailable.
 4. Hotspot detection identifies the camera. The user reconnects to the internet and sends a registration request. Ops → Users → Mobile contributor requests requires an operator's physical ownership confirmation, an active contributor and current consent. Assignments begin at approval time; earlier footage is never claimed automatically.
 5. Use the existing camera controls to record. The first pilot retains manual SD-card offload into the existing `6thsense-raw/sessions/` layout. Upload every original and sidecar. No contractor destination changes are required by this integration. Only completed recordings with trusted NTP capture time fully inside a confirmed assignment are automatically attributed. Unknown time, pre-assignment recordings, or handovers need explicit Ops source attribution.
 6. The existing raw scan and QC pipeline ingest and review footage. Ronak controls QC; the phone cannot approve duration. The dashboard reads the signed-in contributor's actual source/QC/payment records. Unknown approval stays pending.
@@ -17,14 +17,14 @@ The mobile API connects verified Cognito subjects to new Ops wearer records. It 
 
 All `/api/contributor/*` account routes require a Cognito access token. The server restricts issuer/client/token kind, then calls Cognito GetUser to verify the token and current phone/routing attributes. Staff cookie auth does not grant mobile access. `/configuration` is public and contains only mobile client configuration and pilot mode.
 
-The `/api/ops/contributors` routes use the existing staff role gate and CSRF origin check. Operators can list requests, approve physical camera assignments, publish verified terms, export immutable consent receipts, and reconcile recipient attempts. The user-facing account cannot call these routes.
+The `/api/ops/contributors` routes use the existing staff role gate and CSRF origin check. Operators can list requests, approve physical camera assignments, export immutable consent receipts, and reconcile recipient attempts. Terms publication additionally requires the authenticated staff email to appear in the server-only `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` allowlist. A staff role, including `founder`, does not itself grant this authority; an empty or absent allowlist denies everyone. The user-facing account cannot call these routes.
 
 | Route | Purpose |
 | --- | --- |
 | `GET /api/contributor/configuration` | Public identity-client and pilot-mode configuration; the Cognito signup gate enforces registration eligibility. |
 | `POST /api/contributor/enrollment` | Create the authenticated subject's wearer once, using a nonempty `name`. |
 | `GET /api/contributor/terms?locale=en` | Published document versions and signed URLs; `en` and `ko` are supported. |
-| `POST /api/contributor/consent` | Accept the current three agreement hashes for the supplied `locale`. |
+| `POST /api/contributor/consent` | Accept all four displayed agreements using `documents` (agreement → SHA-256), `versions` (agreement → version), and the exact `locale`. Missing or stale hashes/versions fail closed. |
 | `POST /api/contributor/cameras` | Request supervised registration using `device_id`; discovery alone creates no assignment. |
 | `GET /api/contributor/dashboard` | The account's source/approved totals, recording status, claims, masked bank state and payouts. |
 | `POST /api/contributor/bank/requirements` / `POST /api/contributor/bank` | Live recipient requirements and durable submission; both require current consent. Submission also requires a unique `operation_id` and ownership/sharing confirmations. |
@@ -33,7 +33,7 @@ The `/api/ops/contributors` routes use the existing staff role gate and CSRF ori
 | `POST /api/ops/contributors/recipients/{attempt_id}/resolve` | Record `found` or `not_created` evidence without approving a payout. |
 | `POST /api/ops/payments/recipient` | Existing separate Wise verification/link operation; requires `wearer_id`, `recipient_id` and `confirm_recipient: true`. |
 
-`POST /api/ops/contributors/terms/{routing_version}` accepts:
+Only an allowlisted founder with an active staff session and valid CSRF origin may call `POST /api/ops/contributors/terms/{routing_version}`. It accepts:
 
 ```json
 {
@@ -41,12 +41,19 @@ The `/api/ops/contributors` routes use the existing staff role gate and CSRF ori
   "documents": [
     {"agreement":"participation","locale":"en","version":"APPROVED_VERSION","key":"terms/korea/participation/APPROVED_VERSION/en.pdf","object_version":"S3_VERSION_ID","sha256":"ACTUAL_SHA256"},
     {"agreement":"privacy","locale":"en","version":"APPROVED_VERSION","key":"terms/korea/privacy/APPROVED_VERSION/en.pdf","object_version":"S3_VERSION_ID","sha256":"ACTUAL_SHA256"},
-    {"agreement":"collection","locale":"en","version":"APPROVED_VERSION","key":"terms/korea/collection/APPROVED_VERSION/en.pdf","object_version":"S3_VERSION_ID","sha256":"ACTUAL_SHA256"}
+    {"agreement":"collection","locale":"en","version":"APPROVED_VERSION","key":"terms/korea/collection/APPROVED_VERSION/en.pdf","object_version":"S3_VERSION_ID","sha256":"ACTUAL_SHA256"},
+    {"agreement":"international_transfer","locale":"en","version":"APPROVED_VERSION","key":"terms/korea/international_transfer/APPROVED_VERSION/en.pdf","object_version":"S3_VERSION_ID","sha256":"ACTUAL_SHA256"}
   ]
 }
 ```
 
-Include all three agreement IDs for each published language. Both English and Korean should be provided for the trial. The endpoint verifies the actual versioned bytes before publication; this example is not a terms document or legal approval. Documents are read through short-lived signed URLs. Consent receipts are durable database records; `POST /api/ops/contributors/consents/export` exports original receipts idempotently to private S3. Automatic export is not yet scheduled.
+Include all four agreement IDs for each published language. Old three-document bundles and receipts do not unlock the pilot. Both English and Korean should be provided for the trial. The endpoint verifies the actual versioned bytes before publication; this example is not a terms document or legal approval. Documents are read through short-lived signed URLs. Consent receipts are durable database records; `POST /api/ops/contributors/consents/export` exports original receipts idempotently to private S3. Automatic export is not yet scheduled.
+
+Publication retains an insert-only `contributor_terms_audit_<publication-id>` record with founder email/user ID, approval time, routing version, payload hash and each document’s immutable version/hash/S3 reference. Retrying the same bundle preserves the original approval; replaying an older bundle cannot replace a newer current bundle. Rebinding a published document version to changed bytes or object references is rejected. Generic settings helpers reserve the entire `contributor_terms_*` namespace, and laptop imports cannot write settings. Runtime configuration, direct database access and staff-provisioning CLI access remain privileged infrastructure boundaries.
+
+`CONTRIBUTOR_TERMS_FOUNDER_EMAILS` is a comma-separated list of exact authenticated staff emails, normalized for whitespace and case. Configure it only after the founders identify the authorized accounts; no live allowlist is configured by this change. Publication approval is never inferred from document upload, an Ops role, a code deployment or this example.
+
+International-transfer consent is required separately throughout the private pilot because its infrastructure is in the US. It does not authorize third-party customer disclosure. Commercial customer licensing remains a separate legal and release gate until the actual recipients, purposes and applicable authorization basis are specified. No marketing consent or blanket waiver is bundled into these four agreements.
 
 A recipient submission is committed before its provider request. Unknown outcomes remain held, including after a process crash. Never release a hold merely because the app timed out. In Ops, resolve it only after confirming a specific recipient or confirming that no recipient was created. Resolution records operator, timestamp, provider profile/environment and a note without bank details. A confirmed no-create outcome permits a new submission with a new operation ID. Payout linking/approval remain separate.
 
@@ -64,6 +71,6 @@ From the repository root, run backend tests with a disposable PostgreSQL databas
 PYTHONPATH=.:backend TEST_DATABASE_URL=postgresql+asyncpg://USER@localhost:PORT/contributor_test python -m pytest -c backend/pytest.ini backend/tests
 ```
 
-Validation on 2026-09-15 included a 572-test backend run, later focused payment/metadata checks, the frontend production build and 15 Playwright checks across 375, 768 and 1280-pixel widths. Browser checks cover separate camera/bank confirmations, recipient recovery, failed loading, and the existing Raw → Clean → Payment workflow. These are local tests with provider calls mocked where appropriate.
+Validation on 2026-09-15 included a 572-test backend run, later focused payment/metadata checks, the frontend production build and 15 Playwright checks across 375, 768 and 1280-pixel widths. Browser checks cover separate camera/bank confirmations, recipient recovery, failed loading, and the existing Raw → Clean → Payment workflow. These are local tests with provider calls mocked where appropriate. The subsequent founder-publication/four-agreement update passed 150 targeted contributor, Ops, Clean, automation and source-attribution tests, including unauthorized publication, settings/import bypass attempts, concurrent approval retries, immutable audits and stale/missing agreement versions.
 
 External acceptance still requires real approved regional documents, a user-created verified account, a physical camera, actual SD-card offload, Ronak's QC and eligible operator-approved payout. Terms are absent, SMS remains restricted to one verified Korean sandbox destination, and the full account/hardware/payment trial is not complete. Tests do not manufacture any of these or send production money. See the [shared contract](CONTRIBUTOR-CONTRACT.md), [registration policy](CONTRIBUTOR-REGISTRATION.md), [storage contract](CONTRIBUTOR-STORAGE.md) and [Ops workflow](OPS-WORKFLOW.md) for the adjoining responsibilities.

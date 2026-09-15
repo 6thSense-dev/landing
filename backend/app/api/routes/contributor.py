@@ -17,7 +17,7 @@ from app.models import ContributorAccount, ContributorConsent, ContributorCamera
 
 router = APIRouter(prefix="/api/contributor", tags=["contributor"])
 RECORDS_BUCKET = "6thsense-contributor-records"
-AGREEMENTS = {"participation", "privacy", "collection"}
+AGREEMENTS = {"participation", "privacy", "collection", "international_transfer"}
 
 def now():
     return datetime.now(timezone.utc)
@@ -33,10 +33,27 @@ async def account_for(identity, db):
 
 async def terms_for(region, db):
     row = await db.get(OpsSetting, "contributor_terms_" + region["routing_version"])
-    return json.loads(row.value) if row else []
+    try:
+        docs = json.loads(row.value) if row else []
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(docs, list) or any(not isinstance(d, dict) for d in docs):
+        return []
+    complete = []
+    for locale in ("en", "ko"):
+        localized = [d for d in docs if d.get("locale") == locale]
+        if (len(localized) == len(AGREEMENTS)
+                and all(isinstance(d.get("agreement"), str) for d in localized)
+                and {d.get("agreement") for d in localized} == AGREEMENTS
+                and all(all(isinstance(d.get(k), str) and d[k] for k in
+                            ("version", "sha256", "key", "object_version")) for d in localized)):
+            complete.extend(localized)
+    return complete
 
-async def has_consent(account, region, db):
+async def has_consent(account, region, db, locale=None):
     terms = await terms_for(region, db)
+    if locale is not None:
+        terms = [d for d in terms if d["locale"] == locale]
     required = {(d["agreement"], d["version"], d["sha256"], d["locale"]) for d in terms}
     if not required:
         return False
@@ -76,21 +93,25 @@ async def terms(locale: str = "en", identity=Depends(contributor_identity), db: 
         return {"status": "not_published", "documents": []}
     def urls():
         s3 = s3_client(s3_settings())
-        return [{**d, "url": s3.generate_presigned_url("get_object", Params={"Bucket": RECORDS_BUCKET, "Key": d["key"], "VersionId": d["object_version"]}, ExpiresIn=900)} for d in docs]
+        # Founder identity belongs to the private approval audit, not the phone.
+        return [{**{k: d[k] for k in ("agreement", "version", "sha256", "locale")}, "url": s3.generate_presigned_url("get_object", Params={"Bucket": RECORDS_BUCKET, "Key": d["key"], "VersionId": d["object_version"]}, ExpiresIn=900)} for d in docs]
     return {"status": "published", "documents": await asyncio.to_thread(urls)}
 
 class ConsentIn(BaseModel):
     locale: str = Field(pattern="^(en|ko)$")
     documents: dict[str, str]
+    versions: dict[str, str]
 
 @router.post("/consent")
 async def consent(body: ConsentIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
     account = await account_for(identity, db)
     await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
     docs = [d for d in await terms_for(identity["region"], db) if d["locale"] == body.locale]
-    if set(body.documents) != AGREEMENTS or {d["agreement"]: d["sha256"] for d in docs} != body.documents:
+    if (set(body.documents) != AGREEMENTS or set(body.versions) != AGREEMENTS
+            or {d["agreement"]: d["sha256"] for d in docs} != body.documents
+            or {d["agreement"]: d["version"] for d in docs} != body.versions):
         raise HTTPException(409, "terms_changed_or_unavailable")
-    if not await has_consent(account, identity["region"], db):
+    if not await has_consent(account, identity["region"], db, locale=body.locale):
         receipt_id = str(uuid4())
         snapshot = {"id": receipt_id, "subject": account.subject, "wearer_id": account.wearer_id, "routing_version": account.routing_version, "accepted_at": now().isoformat(), "locale": body.locale, "documents": docs}
         db.add(ContributorConsent(id=receipt_id, subject=account.subject, snapshot=json.dumps(snapshot)))
