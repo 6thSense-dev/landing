@@ -7,3 +7,5 @@ __all__ = ["Base", "Episode", "Lead", "OpsSetting", "Session", "Task", "User", "
 
 from app.models.ops_clean import CleanRun, OpsCamera
 from app.models.ops_workflow import FootageReview, Payout, PayoutItem, PayoutRecipient, ProcessingJob
+
+from app.models.ops_activity_review import ActivityReview
