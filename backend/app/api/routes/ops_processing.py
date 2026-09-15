@@ -11,6 +11,8 @@ from sqlalchemy import select, text
 from app.api.routes.ops import require_ops, _state
 from app.core.db import get_session
 from app.models import ProcessingJob, CleanRun, Episode
+from app.core.ops_artifacts import REQUIREMENT, validate_artifacts
+from app.core.ops_clean import validate_manifest
 
 router = APIRouter(prefix="/api/ops/processing", tags=["ops"])
 
@@ -60,6 +62,7 @@ async def claim(_=Depends(worker_auth), db=Depends(get_session)):
                 "fingerprint": j.fingerprint,
                 "lease_token": j.lease_token,
                 "input": json.loads(j.input_json),
+                "output_requirement": REQUIREMENT,
                 "lease_until": j.lease_until.isoformat(),
             }
         }
@@ -106,6 +109,12 @@ async def result(body: ResultIn, _=Depends(worker_auth), db=Depends(get_session)
                 409,
                 "Import and verify committed clean output before completing the job.",
             )
+        try:
+            doc = json.loads(run.manifest_json)
+            validate_manifest(doc)
+            validate_artifacts(doc)
+        except (ValueError, TypeError, KeyError) as exc:
+            raise HTTPException(409, "Worker completion requires verified stereo videos, IMU, full frame sequences and a shared timeline.") from exc
         # A clean run with the same episode name alone is insufficient. Scan reconciliation
         # verifies receipts for the current input fingerprint before removing Raw backlog.
         j.state = "awaiting_verification"

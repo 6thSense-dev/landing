@@ -6,6 +6,7 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
   const recording = 'ego_20260907_180803_16A4A5';
   const entry = { run_id: 'run', recording, wearer_id: 1, manifest_sha256: 'a'.repeat(64), source_seconds: 20000, retained_seconds: 18000, rejected_seconds: 2000, rejection_reasons: { 'Computer use': 2000 }, review_status: 'needs_review', review_intervals: [], date_basis: 'Operator-confirmed', collection_date: '2026-09-07', payment_status: 'unapproved' };
   const requests = [];
+  entry.artifact_status = 'complete';
   let reviewed = false, approved = false;
   const payment = () => ({
     configuration: { threshold_basis: 'accumulated', wise_configured: true, wise_environment: 'sandbox', source_currency: 'USD', automatic_funding_enabled: false },
@@ -23,6 +24,7 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
       { recording, device_id: '16A4A5', wearer_id: 1, raw: { status: 'processed' }, processing: { state: 'clean' } },
     ] };
     else if (path === '/api/ops/clean/state') data = { wearers: [person], cameras: [], collections: [], ledger: [{ ...entry, review_status: reviewed ? 'reviewed' : 'needs_review' }], runs: [{ run_id: 'run', device_id: '16A4A5', wearer_id: 1, source_seconds: 20000, retained_seconds: 18000, rejected_seconds: 2000, recordings: [], recording_count: 1 }] };
+    else if (path === '/api/ops/clean/runs/run/files') data = { files: [{ key: 'left.mp4', url: '/test-left.mp4', role: 'left_video', recording }, { key: 'right.mp4', url: '/test-right.mp4', role: 'right_video', recording }] };
     else if (path === '/api/ops/payments/review') { reviewed = true; data = { ok: true }; }
     else if (path === '/api/ops/payments/state') data = payment();
     else if (path === '/api/ops/payments/approve') { approved = true; data = payment(); }
@@ -41,6 +43,11 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
   await expect(page.getByRole('button', { name: 'Save camera assignment' })).toBeVisible();
   await page.getByRole('button', { name: 'Clean', exact: true }).click();
   await page.locator('.ops-footage-review > summary').click();
+  await expect(page.getByText('Both eye videos, full frame sequences and IMU are verified.')).toBeVisible();
+  await page.getByRole('button', { name: 'Watch this recording' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('.ops-clean-modal video')).toHaveAttribute('src', '/test-left.mp4');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mark reviewed' })).toBeDisabled();
   await page.getByLabel('I reviewed all retained footage and flagged intervals.').check();
   await page.getByRole('button', { name: 'Mark reviewed' }).click();

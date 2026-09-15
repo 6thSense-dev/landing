@@ -6,6 +6,7 @@ from datetime import timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
+from app.core.ops_artifacts import artifact_status
 from app.models import (
     CleanRun,
     Episode,
@@ -100,6 +101,7 @@ async def footage_ledger(db):
                     "run_id": run.run_id,
                     "recording": rec["recording"],
                     "manifest_sha256": run.manifest_sha256,
+                    "artifact_status": artifact_status(doc),
                     "wearer_id": run.wearer_id,
                     "device_id": run.device_id,
                     "source_seconds": rec.get("source_seconds", 0),

@@ -68,7 +68,8 @@ export default function OpsClean({ onChanged }) {
       const response = await portalFetch(path);
       if (!response.ok) throw new Error(response.data?.detail || 'Could not load playback.');
       const files = response.data.files || [];
-      const index = review ? files.findIndex(f => f.role === 'recording_preview' && f.recording === review.recording) : files.findIndex(f => f.role === 'joined_preview');
+      let index = review ? files.findIndex(f => f.role === 'recording_preview' && f.recording === review.recording) : files.findIndex(f => f.role === 'joined_preview');
+      if (review && index < 0) index = files.findIndex(f => f.role === 'left_video' && f.recording === review.recording);
       if (review && index < 0) throw Error('A preview for this recording is not available. Review the batch before attesting to this recording.');
       setPreview({ run, path, files, index: Math.max(0, index), start: review?.clean_start_s || 0 });
     } catch (e) { setError(e.message); }

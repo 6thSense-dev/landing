@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.routes.ops import require_ops, _wearer_json, _setting, _put_setting
 from app.core.db import get_session
 from app.core.ops_clean import committed_results, estimate_krw, playback
+from app.core.ops_artifacts import validate_artifacts
 from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
 from app.models import CleanRun, OpsCamera, Episode, Wearer, User
 
@@ -37,6 +38,7 @@ async def viewing_collections(db, runs):
 
 
 async def state(db):
+    from app.core.ops_artifacts import artifact_status
     runs = (await db.execute(select(CleanRun).order_by(CleanRun.created_at.desc()))).scalars().all()
     wearers = (await db.execute(select(Wearer).order_by(Wearer.name))).scalars().all()
     cameras = (await db.execute(select(OpsCamera).order_by(OpsCamera.device_id))).scalars().all()
@@ -44,6 +46,7 @@ async def state(db):
     for run in runs:
         doc = json.loads(run.manifest_json)
         rows.append({'run_id': run.run_id, 'device_id': run.device_id, 'wearer_id': run.wearer_id,
+                     'artifact_status': artifact_status(doc),
                      'retained_seconds': run.retained_seconds, 'rejected_seconds': run.rejected_seconds,
                      'source_seconds': doc['source_seconds'], 'recording_count': len(doc['recordings']),
                      'rate_krw_hour': run.rate_krw_hour, 'estimated_krw': estimate_krw(run.retained_seconds, run.rate_krw_hour),
@@ -132,6 +135,10 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
             wearer = await db.get(Wearer, owner) if owner else None
             if wearer is None or not wearer.is_active:
                 raise HTTPException(409, f"Assign EGO-{doc['device_id']} to a contributor before importing clean footage.")
+            try:
+                validate_artifacts(doc)
+            except (ValueError, KeyError, TypeError) as exc:
+                raise HTTPException(409, 'New Clean imports require both eye videos, full frame sequences, IMU and a shared timeline. Existing historical ledger entries are preserved.') from exc
             imported_run = CleanRun(run_id=doc['run_id'], device_id=doc['device_id'], wearer_id=wearer.id,
                             manifest_key=key, manifest_version=version, manifest_sha256=digest,
                             manifest_json=json.dumps(doc), retained_seconds=doc['retained_seconds'],

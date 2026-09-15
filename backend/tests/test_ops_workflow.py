@@ -299,12 +299,13 @@ async def test_automatic_import_skips_unassigned_result_and_preserves_original_c
 ):
     from app.api.routes import ops_clean
     from app.models import Episode, OpsCamera
+    from tests.test_ops_artifacts import multimodal_manifest
 
     original = Wearer(name="Original contributor", rate_krw_hour=11000)
     current = Wearer(name="Current camera holder", rate_krw_hour=22000)
     db_session.add_all([original, current])
     await db_session.flush()
-    doc = manifest()
+    doc = multimodal_manifest()
     rec = doc["recordings"][0]["recording"]
     db_session.add_all(
         [

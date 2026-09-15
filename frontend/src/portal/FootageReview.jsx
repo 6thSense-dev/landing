@@ -37,7 +37,16 @@ export default function FootageReview({ entry, onChanged, onPlay }) {
         {entry.recording} · {entry.review_status.replaceAll("_", " ")}
       </summary>
       <div className="ops-pbody">
-        <button onClick={onPlay}>Watch this recording</button>
+        <p className="ops-hint">
+          {entry.retained_seconds === 0
+            ? "No retained footage. See the rejection reasons below."
+            : entry.artifact_status === "complete"
+            ? "Both eye videos, full frame sequences and IMU are verified."
+            : entry.artifact_status === "incomplete"
+              ? "Required video, frame or sensor artifacts need attention."
+              : "Historical video export · separate eyes, full frames and IMU have not been verified."}
+        </p>
+        <button onClick={onPlay} disabled={entry.retained_seconds === 0}>Watch this recording</button>
         <p>
           Collected {(entry.source_seconds / 3600).toFixed(2)}h · retained{" "}
           {(entry.retained_seconds / 3600).toFixed(2)}h · excluded{" "}
