@@ -98,7 +98,11 @@ async def test_worker_cannot_complete_with_video_only_evidence(legacy):
     class DB:
         committed = False
         async def get(self, model, key, **kwargs): return job if model.__name__ == "ProcessingJob" else run
-        async def execute(self, stmt): return SimpleNamespace(scalar_one_or_none=lambda:SimpleNamespace(deleted_at=None,wearer_id="person"))
+        async def execute(self, stmt):
+            if stmt.column_descriptions[0]['entity'].__name__ == 'OpsSetting':
+                return SimpleNamespace(scalar_one_or_none=lambda:None)
+            return SimpleNamespace(scalar_one_or_none=lambda:SimpleNamespace(
+                recording=doc['recordings'][0]['recording'], deleted_at=None, wearer_id="person"))
         async def commit(self): self.committed = True
     db = DB()
     body = ResultIn(recording=doc["recordings"][0]["recording"],fingerprint="fp",lease_token="lease",outcome="completed",run_id=doc["run_id"])

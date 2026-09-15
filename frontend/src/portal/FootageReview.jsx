@@ -63,7 +63,7 @@ export default function FootageReview({ entry, onChanged, onPlay }) {
           {entry.review_intervals.length} flagged intervals · {entry.date_basis}
         </p>
         <label>
-          Collection date (Korea)
+          Collection date ({({ china: 'China', korea: 'Korea', vietnam: 'Vietnam', india: 'India' })[entry.counterparty?.country] || 'Korea'})
           <input
             disabled={!!locked || busy}
             type="date"
@@ -101,7 +101,7 @@ export default function FootageReview({ entry, onChanged, onPlay }) {
                 disabled={busy || !note.trim()}
                 onClick={() => save("withheld")}
               >
-                Withhold from payment
+                {entry.counterparty ? 'Hold for review' : 'Withhold from payment'}
               </button>
               {entry.review_status !== "needs_review" && (
                 <button disabled={busy} onClick={() => save("needs_review")}>

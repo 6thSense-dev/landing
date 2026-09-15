@@ -47,3 +47,9 @@ export function uploadLagHours(startedAt, durationS, uploadedAt) {
   if (Number.isNaN(t0) || Number.isNaN(t1)) return null;
   return (t1 - (t0 + (durationS || 0) * 1000)) / 3.6e6;
 }
+
+export function regionOfEpisode(episode) {
+  const countries = { china: 'China', korea: 'Korea', vietnam: 'Vietnam', india: 'India' };
+  return countries[episode.counterparty?.country] || regionOf(episode.session);
+}
+export const sourceKey = source => source.counterparty ? `business:${source.counterparty.id}` : `wearer:${source.wearer_id}`;

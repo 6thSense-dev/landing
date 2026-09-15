@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from app.core.ops_artifacts import artifact_status
 from app.core.ops_clean import estimate_krw
+from app.core.ops_sources import counterparty, source_timezone
 from app.models import (
     CleanRun,
     Episode,
@@ -93,6 +94,9 @@ async def footage_ledger(db):
     rows = []
     for run in runs:
         doc = json.loads(run.manifest_json)
+        party = counterparty(doc["counterparty"]) if "counterparty" in doc else None
+        if party and (run.wearer_id is not None or run.rate_krw_hour is not None):
+            raise ValueError("Business footage cannot enter an individual payment ledger")
         amounts = allocate_recording_amounts(doc["recordings"], run.retained_seconds, run.rate_krw_hour)
         for rec in doc["recordings"]:
             key = (run.run_id, rec["recording"])
@@ -115,7 +119,7 @@ async def footage_ledger(db):
                 review.collection_date
                 if valid and review.collection_date
                 else (
-                    e.started_at.astimezone(KOREA).date().isoformat()
+                    e.started_at.astimezone(source_timezone(party)).date().isoformat()
                     if e and e.started_at and e.clock_source == "ntp"
                     else None
                 )
@@ -127,7 +131,7 @@ async def footage_ledger(db):
                     "recording": rec["recording"],
                     "manifest_sha256": run.manifest_sha256,
                     "artifact_status": artifact_status(doc),
-                    "wearer_id": run.wearer_id,
+                    "wearer_id": run.wearer_id, "counterparty": party,
                     "device_id": run.device_id,
                     "source_seconds": rec.get("source_seconds", 0),
                     "retained_seconds": keep,
@@ -150,7 +154,7 @@ async def footage_ledger(db):
                     "allocated_krw": amounts[rec["recording"]],
                     "legacy_paid": run.paid,
                     "payout_id": item.payout_id if item else None,
-                    "payment_status": payout.status
+                    "payment_status": "b2b_contract" if party else payout.status
                     if payout
                     else "paid"
                     if run.paid

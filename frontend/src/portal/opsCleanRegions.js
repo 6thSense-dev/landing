@@ -21,6 +21,7 @@ export function cleanRegions(runs, collections) {
     totals: cleanTotals(region.runs),
     recordings: region.runs.reduce((count, run) => count + run.recording_count, 0),
     contributors: new Set(region.runs.map(run => run.wearer_id).filter(id => id != null)).size,
+    businesses: new Set(region.runs.map(run => run.counterparty?.id).filter(Boolean)).size,
     cameras: new Set(region.runs.map(run => run.device_id)).size,
     groups: groupCleanFootage(region.runs, region.collections),
   }));
