@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.7.0] - 2026-09-15
+
+### Changed
+
+- Start Clean with region selection and collected, accepted, excluded hours, acceptance rate, and recording/contributor/camera counts.
+- Browse contributors, combined footage and review ledgers within the selected region, keeping each region's totals visible while filtering people.
+- Derive collection geography from preserved source records and hold missing or conflicting batches under Needs region review. Joined videos do not duplicate hours.
+
 ## [0.0.6.0] - 2026-09-15
 
 ### Fixed
