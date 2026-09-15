@@ -24,37 +24,59 @@ def estimate_krw(seconds, rate):
 def validate_manifest(doc):
     if not isinstance(doc, dict):
         raise ValueError('QC document must be an object')
-    if doc.get('schema') not in (SCHEMA, MULTIMODAL_SCHEMA) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,120}', doc.get('run_id', '')):
+    def finite_number(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False
+        try:
+            return math.isfinite(value)
+        except OverflowError:
+            return False
+
+    def matches(pattern, value):
+        return isinstance(value, str) and re.fullmatch(pattern, value) is not None
+
+    def items(value, name):
+        if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+            raise ValueError(f'{name} must be an array of objects')
+        return value
+
+    def pinned_version(value):
+        return isinstance(value, str) and bool(value.strip()) and value != 'null'
+
+    if doc.get('schema') not in (SCHEMA, MULTIMODAL_SCHEMA) or not matches(r'[a-zA-Z0-9_-]{1,120}', doc.get('run_id', '')):
         raise ValueError('Unknown QC schema or invalid run ID')
-    if not re.fullmatch(r'[A-F0-9]{6}', doc.get('device_id', '')):
+    if not matches(r'[A-F0-9]{6}', doc.get('device_id', '')):
         raise ValueError('Invalid source camera')
     for name in ('retained_seconds', 'rejected_seconds', 'source_seconds'):
         value = doc.get(name)
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        if not finite_number(value) or value < 0:
             raise ValueError(f'Invalid {name}')
     if abs(doc['retained_seconds'] + doc['rejected_seconds'] - doc['source_seconds']) > .05:
         raise ValueError('QC time does not balance')
-    recordings = doc.get('recordings')
-    if not isinstance(recordings, list) or not recordings:
+    recordings = items(doc.get('recordings'), 'Recordings')
+    if not recordings:
         raise ValueError('Source recordings are required')
     seen = set()
     source_ids = set()
     source_hashes = set()
     kept = rejected = 0
     for rec in recordings:
-        if not isinstance(rec, dict) or not isinstance(rec.get('source_seconds'), (int, float)) or not math.isfinite(rec['source_seconds']) or rec['source_seconds'] < 0:
+        if not finite_number(rec.get('source_seconds')) or rec['source_seconds'] < 0:
             raise ValueError('Invalid recording duration')
         if not isinstance(rec.get('recording'), str) or rec['recording'] in seen:
             raise ValueError('Duplicate or missing recording identity')
         if not re.fullmatch(r'ego_[0-9]{8}_[0-9]{6}_[A-Fa-f0-9]{6}', rec['recording']) or rec['recording'].rsplit('_', 1)[-1].upper() != doc['device_id']:
             raise ValueError('Recording identity must identify its source camera')
         seen.add(rec['recording'])
-        intervals = rec.get('intervals', [])
+        intervals = items(rec.get('intervals', []), 'Intervals')
         cursor = 0
         for interval in intervals:
             start, end = interval.get('start_s'), interval.get('end_s')
-            if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in (start, end)):
+            if not all(finite_number(v) for v in (start, end)):
                 raise ValueError('Invalid interval time')
+            # Partition rounding tolerances never permit time outside the source.
+            if start < 0 or end < 0 or start > rec['source_seconds'] or end > rec['source_seconds']:
+                raise ValueError('Interval lies outside the decoded recording')
             if abs(start - cursor) > .02 or end <= start or interval.get('disposition') not in ('keep', 'reject'):
                 raise ValueError('Intervals must partition the decoded timeline without overlaps or gaps')
             if interval['disposition'] == 'keep':
@@ -64,37 +86,39 @@ def validate_manifest(doc):
             cursor = end
         if abs(cursor - rec.get('source_seconds', 0)) > .05:
             raise ValueError('Incomplete recording timeline')
-        for source in rec.get('sources', []):
-            if source.get('bucket') != '6thsense-raw' or not source.get('key', '').startswith('sessions/'):
+        for source in items(rec.get('sources', []), 'Sources'):
+            if not isinstance(source.get('key'), str) or source.get('bucket') != '6thsense-raw' or not source.get('key', '').startswith('sessions/'):
                 raise ValueError('Invalid source location')
             if source['key'].split('/')[-2] != rec['recording']:
                 raise ValueError('Source key does not belong to this recording')
+            if not pinned_version(source.get('version_id')) or not matches(r'[a-f0-9]{64}', source.get('sha256')):
+                raise ValueError('Unpinned source evidence')
             identity = (source['bucket'], source['key'], source.get('version_id'))
             if identity in source_ids or source.get('sha256') in source_hashes:
                 raise ValueError('Duplicate source footage')
             source_ids.add(identity)
             source_hashes.add(source.get('sha256'))
-            if source.get('version_id') in (None, '', 'null') or not re.fullmatch(r'[a-f0-9]{64}', source.get('sha256', '')):
-                raise ValueError('Unpinned source evidence')
         if cursor and not rec.get('sources'):
             raise ValueError('Decoded footage requires source evidence')
     if abs(kept - doc['retained_seconds']) > .05 or abs(rejected - doc['rejected_seconds']) > .05:
         raise ValueError('Interval totals do not match summary')
-    outputs = doc.get('outputs', [])
+    outputs = items(doc.get('outputs', []), 'Outputs')
     if kept and not outputs:
         raise ValueError('Retained footage has no clean outputs')
     output_keys = set()
     for output in outputs:
         key = output.get('key', '')
+        if not isinstance(key, str):
+            raise ValueError('Output outside this clean run')
         if key in output_keys:
             raise ValueError('Duplicate output reference')
         output_keys.add(key)
         if not key.startswith(f"clean/{doc['run_id']}/") or any(p in ('', '.', '..') for p in key.split('/')):
             raise ValueError('Output outside this clean run')
         extensions = ('.mp4', '.m3u8') if doc['schema'] == SCHEMA else ('.mp4', '.tar', '.csv', '.json')
-        if not key.endswith(extensions) or output.get('version_id') in (None, '', 'null') or type(output.get('bytes')) is not int or output['bytes'] <= 0:
+        if not key.endswith(extensions) or not pinned_version(output.get('version_id')) or type(output.get('bytes')) is not int or output['bytes'] <= 0:
             raise ValueError('Invalid output reference')
-        if not re.fullmatch(r'[a-f0-9]{64}', output.get('sha256', '')):
+        if not matches(r'[a-f0-9]{64}', output.get('sha256')):
             raise ValueError('Output digest is required')
     if doc['schema'] == MULTIMODAL_SCHEMA:
         validate_artifacts(doc)
