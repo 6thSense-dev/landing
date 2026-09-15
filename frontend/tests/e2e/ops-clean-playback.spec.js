@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
 for (const scenario of ['missing', 'ambiguous', 'no-position', 'matched']) {
@@ -174,4 +175,38 @@ test('late batch response cannot replace selected collection playback', async ({
   release(); await response;
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.locator('video')).toHaveAttribute('src', '/fixture-combined.mp4');
+});
+
+
+test('synthetic contextual media decodes, seeks and plays in the production bundle', async ({ page }, testInfo) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    let data = {};
+    if (path === '/api/auth/me') data = { id: 1, role: 'ops', email: 'fixture@example.test' };
+    else if (path === '/api/ops/clean/state') data = { runs: [{
+      run_id: 'fixture', device_id: 'ABC123', source_seconds: 2, retained_seconds: 2, rejected_seconds: 0,
+      recordings: [], review_intervals: [{ recording: 'recording-a', start_s: 0.25, end_s: 1, clean_start_s: 0.25, reason: 'Synthetic interval' }],
+    }] };
+    else if (path.endsWith('/files')) data = { files: [{ key: 'preview.mp4', role: 'recording_preview', recording: 'recording-a', url: '/fixture-decoded.webm', version_id: 'synthetic-v1' }] };
+    await route.fulfill({ json: data });
+  });
+  await page.route('**/fixture-decoded.webm', route => route.fulfill({
+    contentType: 'video/webm', path: fileURLToPath(new URL('../../../backend/app/intake_fixture/preview.webm', import.meta.url)),
+  }));
+  await page.goto('/portal/ops');
+  await page.getByRole('button', { name: 'Clean', exact: true }).click();
+  await page.getByText('Flagged footage to review (1)', { exact: true }).click();
+  await page.getByRole('button', { name: 'Review interval', exact: true }).click();
+  const video = page.locator('.ops-clean-modal video');
+  await expect.poll(() => video.evaluate(v => v.readyState)).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => video.evaluate(v => v.currentTime)).toBeCloseTo(0.25, 2);
+  await video.evaluate(v => v.play());
+  await expect.poll(() => video.evaluate(v => v.currentTime)).toBeGreaterThan(0.5);
+  await video.evaluate(v => v.pause());
+  await page.screenshot({ path: testInfo.outputPath('intake-contextual-playback.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
