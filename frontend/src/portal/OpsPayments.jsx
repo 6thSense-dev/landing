@@ -296,10 +296,14 @@ export default function OpsPayments({ onReview }) {
                           )?.name
                         }
                       </td>
-                      <td>{money(p.amount_krw)}</td>
+                      <td>
+                        {money(p.amount_krw)}
+                        {p.external && <div className="ops-hint">{money(p.earnings_krw)} footage + {money(p.incentive_krw)} incentive</div>}
+                      </td>
                       <td>{new Date(p.scheduled_for).toLocaleString('en-GB', { timeZone: 'Asia/Seoul' })}</td>
                       <td>
                         {p.status}
+                        {p.external && p.provider_status === "unverified" && <div className="ops-hint">Recipient delivery unverified</div>}
                         {p.error && <div role="alert">{p.error}</div>}
                       </td>
                       <td>{p.approved_by}</td>

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.6.0] - 2026-09-15
+
+### Fixed
+
+- Record externally paid Clean footage against exact existing earnings, preserving rates and accepted time while keeping incentives separate.
+- Show external payment reports and incentive breakdowns in Payment, with recipient delivery explicitly unverified until provider evidence is available.
+- Keep versioned private receipts and prevent duplicate transfer imports or payment of already reserved footage.
+
 ## [0.0.5.0] - 2026-09-15
 
 ### Fixed
