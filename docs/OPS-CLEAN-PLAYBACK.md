@@ -1,9 +1,9 @@
-# Contextual interval playback
+# Contextual playback in current Operations
 
-Previously, requesting an idle interval without a matching recording preview silently opened the first available video and applied the interval offset. That could display unrelated footage.
+Interval review requires a recording identity and an explicit finite nonnegative clean-video offset. Recording-level payment review starts the requested recording at zero and does not invent an interval offset.
 
-Interval playback now requires an explicit finite nonnegative `clean_start_s` and exactly one output labelled `recording_preview` for the requested recording. Missing or ambiguous mapping shows an error and opens no replacement. The separate joined-footage action remains available. A later playback request supersedes an earlier response, and failed requests clear previous previews.
+A historical `recording_preview` is preferred; current multimodal output can use a unique `left_video`. Missing or ambiguous roles fail closed. Contextual playlists contain only that recording's preview/eye videos and do not automatically advance. Whole-batch and combined-collection playback remain separate, available paths.
 
-This validates selection consistency with the producer's supplied output labels. It does not independently validate media alignment, source-to-clean transformations or activity quality, and does not save human judgments or modify payment records. A richer source/output mapping contract remains necessary before source-time annotation editing.
+Every play, renewal, close, file switch, contributor change and unmount invalidates older asynchronous requests as appropriate. Renewal requires the same key, role, recording, version and digest. A late request cannot reopen a closed player, replace a newer collection, or overwrite a manual eye-video selection.
 
-Mocked Playwright tests exercise absent, ambiguous and missing-position mappings plus successful explicit matching on three viewport sizes. They do not verify production videos.
+Browser tests cover missing/ambiguous preview, missing offset, matching preview, stereo access, duplicate eye output, changed version refusal, deferred renewal/collection races, and actual decoding/seeking/playback of the existing synthetic WebM fixture. This does not verify production source-to-output alignment or physical clocks. Task declarations remain bound to decoded-source time, never inferred from edited-player time.

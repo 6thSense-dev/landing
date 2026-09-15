@@ -1,17 +1,14 @@
 # Clean tab evidence labels
 
-This change preserves Alex's cleaner backend, rate calculations, imports, camera assignments and playback. It changes how existing evidence is described.
+The contributor-grouped Clean view and Payment workflow are preserved. Batch details now display the imported run's actual QC policy, saved rate and retained-time estimate.
 
-- QC-retained time is a processing result, not task-specific usable time or accepted training data.
-- The run's actual `policy` is rendered as escaped JSON. Missing, null or empty policy is explicitly unknown. No threshold is inferred from the software version or substituted from another run.
-- Estimates still use the existing backend output and existing unpaid-filter aggregation. They do not establish collector credit under an agreement or verified payment settlement.
-- A paid flag is displayed as a flag, without claiming transfer evidence.
-- Run rates are saved snapshots; sidebar contributor rates and details are current records. Neither proves historical agreement terms.
+- QC-retained time is separate from task-specific usable time, annotation quality and dataset acceptance.
+- Actual `policy` is rendered as escaped JSON. Missing, null or empty policy remains unknown; no threshold is substituted.
+- The displayed estimate comes from the existing run snapshot. Current Payment eligibility and split-payout allocations continue to use the existing contributor ledger.
+- The historical run paid flag is labeled as a flag, without claiming a transfer. Current payout status is in Payment.
+- Current contributor details and saved run rates do not prove historical agreement terms.
+- Batch totals remain the current arithmetic sum. Unique physical-clock time across recordings or camera views is unknown.
 
-Synthetic Playwright tests cover policy variation and escaping, absent policy, missing rate, differing current/snapshot rates, unchanged displayed durations and amounts, no mutations during loading, and unchanged explicit refresh action. Three configured viewports are 375, 768 and 1280 pixels. No production recordings, payments or cloud writes are exercised.
+Task activity review is available inside each batch's details. It saves a separate task declaration; it does not mark the payment attestation reviewed, approve a payout, change recipient approval fencing, or reprice an agreement.
 
-Outstanding: no task-validation, agreement reconciliation, settlement evidence, or unique-source deduplication is implemented here. Retained aggregates continue to use existing run arithmetic. Production QC policy correctness remains unverified.
-
-## Validation
-
-`E2E_PORT=4280 npx playwright test tests/e2e/ops-clean-evidence.spec.js --workers=2`: 12 passed, covering all three configured viewports. Playwright built the production Vite bundle successfully before serving it. Existing large-chunk and FORCE_COLOR warnings remain. Mocked API responses are explicitly synthetic; no real video playback or production API response is validated.
+Synthetic browser tests cover policy variation/escaping, unknown policy and rate, displayed durations/estimates, and explicit refresh. Current payment and grouped-footage tests run alongside these tests. See [integration receipt](OPS-INTAKE-INTEGRATION-20260915.md) for revision-specific results and limitations.
