@@ -1,5 +1,7 @@
 # Raw → Clean media artifacts
 
+September 15 update: new Clean imports and worker completions additionally require a versioned `calibration` JSON artifact, matching the source camera, native eye geometry, declared coordinate mapping and SHA-256. The API reads and validates the actual calibration bytes. Historical v1/v2 entries remain readable; existing earnings are not rewritten. Catalog stores historical calibration additions as separate manifests pinned to the original QC result, rather than new payable runs.
+
 September 14, 2026. **Local implementation, not a deployment or historical backfill record.**
 
 The live `6thsense-processed/clean/` inventory inspected today contained 165 MP4
@@ -20,6 +22,7 @@ profile `stereo-imu-frames/1`. For each retained recording:
 | `frame_index` | `frame-index.csv` | Output index → source index/frame number, receive time if known, original PTS if present, sensor exposure, segment, clean PTS, frame archive/member/hash |
 | `imu` | `imu.csv` | Actual measured accelerometer and gyro samples, sensor timestamp, segment and clean-time mapping |
 | `timeline` | `timeline.json` | Eye geometry/orientation, sensor clock, segment mappings, counts, timing provenance and units |
+| `calibration` | `calibration.json` | Preserved native camera calibration; versioned artifact and source receipts, matching hash and explicit native-to-output coordinates |
 
 An optional `joined_preview` remains a viewing convenience. It cannot substitute
 for required artifacts. A fully rejected recording needs its source evidence,
