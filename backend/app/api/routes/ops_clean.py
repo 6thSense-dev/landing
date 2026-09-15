@@ -11,6 +11,7 @@ from app.core.db import get_session
 from app.core.ops_clean import committed_results, estimate_krw, playback
 from app.core.ops_artifacts import validate_artifacts
 from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
+from app.core.ops_regions import clean_region
 from app.models import CleanRun, OpsCamera, Episode, Wearer, User
 
 router = APIRouter(prefix='/api/ops/clean', tags=['ops'])
@@ -46,6 +47,7 @@ async def state(db):
     for run in runs:
         doc = json.loads(run.manifest_json)
         rows.append({'run_id': run.run_id, 'device_id': run.device_id, 'wearer_id': run.wearer_id,
+                     'region': clean_region(doc),
                      'artifact_status': artifact_status(doc),
                      'retained_seconds': run.retained_seconds, 'rejected_seconds': run.rejected_seconds,
                      'source_seconds': doc['source_seconds'], 'recording_count': len(doc['recordings']),
