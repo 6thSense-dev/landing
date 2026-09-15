@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.7.1] - 2026-09-15
+
+### Fixed
+
+- Import existing segmented EGO footage into Clean with its original episode identity and camera-matched calibration. Source-location checks and duplicate-earnings protection remain in effect.
+
 ## [0.0.7.0] - 2026-09-15
 
 ### Changed

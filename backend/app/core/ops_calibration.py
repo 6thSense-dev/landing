@@ -3,6 +3,17 @@ import math
 import re
 
 
+# Legacy whole-record cuts retain their parent take and camera in the name.
+RECORDING = re.compile(r"ego_[0-9]{8}_[0-9]{6}_([A-Fa-f0-9]{6})(?:_s([0-9]{2,4}))?")
+
+
+def recording_camera(recording):
+    match = RECORDING.fullmatch(recording) if isinstance(recording, str) else None
+    if match is None or (match[2] is not None and int(match[2]) == 0):
+        raise ValueError("Invalid recording identity")
+    return match[1].upper()
+
+
 def validate_calibration(data, recording, layout=None):
     """Return the explicit native-to-output mapping; never borrow another rig's solve.
 
@@ -10,8 +21,8 @@ def validate_calibration(data, recording, layout=None):
     must apply output_rotation_degrees when interpreting rotated output pixels.
     Structural checks do not certify reprojection accuracy or physical sync.
     """
-    camera = recording.rsplit("_", 1)[-1].upper()
-    if not re.fullmatch(r"ego_\d{8}_\d{6}_[A-Fa-f0-9]{6}", recording) or not isinstance(data, dict):
+    camera = recording_camera(recording)
+    if not isinstance(data, dict):
         raise ValueError("Invalid calibration/source camera")
     if data.get("schema") != "opencv-stereo" or data.get("device_id", "").upper() != camera:
         raise ValueError("Calibration must identify the recording's actual camera")
