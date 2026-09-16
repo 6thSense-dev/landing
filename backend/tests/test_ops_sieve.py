@@ -83,8 +83,10 @@ def fixture():
     return storage, row
 
 
-def test_copy_is_clean_only_idempotent_and_committed_after_all_files():
+@pytest.mark.parametrize('country', ['Korea', 'India'])
+def test_copy_is_clean_only_idempotent_and_committed_after_all_files(country):
     s3, row = fixture()
+    row['country'] = country
     result = sieve.copy_recording(s3, row)
     assert result['status'] == 'inherited'
     assert len(s3.copies) == 5
@@ -98,30 +100,32 @@ def test_copy_is_clean_only_idempotent_and_committed_after_all_files():
     assert report['acceptance']['status'] == 'not_recorded'
 
 
-def test_china_copy_is_rejected_before_storage_access():
+@pytest.mark.parametrize('country', ['China', 'Vietnam', 'Unclassified', ''])
+def test_ineligible_country_copy_is_rejected_before_storage_access(country):
     s3, row = fixture()
-    row['country'] = 'China'
-    with pytest.raises(ValueError, match='China recordings are excluded'):
+    row['country'] = country
+    with pytest.raises(ValueError, match='requires India or Korea'):
         sieve.copy_recording(s3, row)
     assert s3.reads == [] and s3.copies == []
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('business', [False, True])
-async def test_china_is_excluded_without_removing_clean_run(db_session, business):
+@pytest.mark.parametrize('country,eligible', [('china', False), ('vietnam', False), ('unknown', False), ('india', True), ('korea', True)])
+async def test_country_eligibility_preserves_clean_run(db_session, business, country, eligible):
     _, row = fixture()
     doc = row['doc']
     if business:
-        doc['counterparty'] = {'id': 'hejia', 'name': 'Hejia', 'country': 'china'}
+        doc['counterparty'] = {'id': 'test-business', 'name': 'Test business', 'country': country}
     else:
         for source in doc['recordings'][0]['sources']:
-            source['key'] = 'sessions/china-collection/original.mp4'
+            source['key'] = f'sessions/{country}-collection/original.mp4'
     run = CleanRun(run_id=doc['run_id'], device_id='ABC123', manifest_key='key',
                    manifest_version='v', manifest_sha256='a'*64, manifest_json=json.dumps(doc),
                    retained_seconds=60, rejected_seconds=40, rate_krw_hour=11000)
     db_session.add(run)
     await db_session.commit()
-    assert await sieve.inventory(db_session) == []
+    assert len(await sieve.inventory(db_session)) == int(eligible)
     assert await db_session.get(CleanRun, run.run_id) is run
 
 
@@ -183,6 +187,7 @@ async def test_roles_and_expired_api(app, db_session, monkeypatch):
 @pytest.mark.asyncio
 async def test_inventory_excludes_deleted_and_deduplicates_sources(db_session):
     _, row = fixture()
+    row['doc']['country'] = 'korea'
     person = Wearer(name='Contributor'); db_session.add(person); await db_session.flush()
     for index in range(3):
         doc = copy.deepcopy(row['doc'])

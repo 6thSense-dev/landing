@@ -21,6 +21,7 @@ BUCKET = '6thsense-sieve'
 PREFIX = 'inherited/v1/'
 STATE_KEY = 'sieve_clean_sync_v1'
 SCHEMA = '6thsense-sieve-clean-inheritance/1'
+ELIGIBLE_COUNTRIES = frozenset({'India', 'Korea'})
 MISSING = {'NoSuchKey', 'NoSuchVersion', '404', 'NotFound'}
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ async def inventory(db):
             region = clean_region({**doc, 'recordings': [rec]})
             country = REGIONS.get(party['country'], 'Unclassified') if party else region['label'] if region['key'] in REGIONS else 'Unclassified'
             # Customer eligibility is narrower than the company's Clean inventory.
-            if country == 'China':
+            if country not in ELIGIBLE_COUNTRIES:
                 continue
             if party:
                 entity = {'id': f"business:{party['id']}", 'name': party['name'], 'kind': 'Business'}
@@ -253,8 +254,8 @@ def immutable_json(s3, key, value):
 
 
 def copy_recording(s3, row):
-    if row['country'] == 'China':
-        raise ValueError('China recordings are excluded from Sieve')
+    if row['country'] not in ELIGIBLE_COUNTRIES:
+        raise ValueError('Sieve requires India or Korea country attribution')
     from boto3.s3.transfer import TransferConfig
     manifest, files = source_files(s3, row)
     fingerprint = digest({'revision': row['revision'], 'files': files})
