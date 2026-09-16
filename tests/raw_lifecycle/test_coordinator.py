@@ -1,6 +1,7 @@
 import os
 import sys
 import copy
+import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -114,6 +115,48 @@ def test_pending_archive_cannot_invoke_retirement(monkeypatch):
 
     assert state["phase"] == "imported"
     assert "archive_receipt" not in state
+
+
+def test_conversion_plan_excludes_empty_media_but_keeps_snapshot(monkeypatch):
+    nonempty = raw_ref("video-v1")
+    placeholder = {
+        **raw_ref("empty-v1"),
+        "key": raw_ref("empty-v1")["key"].replace("video.mp4", "terminal.mp4"),
+        "bytes": 0,
+    }
+    calibration = {
+        **raw_ref("cal-v1"),
+        "key": raw_ref("cal-v1")["key"].replace("video.mp4", "calibration.json"),
+    }
+    snapshot = [nonempty, placeholder, calibration]
+    state = {"recording": "ego_20260916_010203_A1B2C3", "snapshot": snapshot}
+    cal = {"image_size": [1920, 1200], "eye_crop_x": {"a": [0, 1920], "b": [2080, 4000]}}
+    cal_ref = {"sha256": "a" * 64}
+
+    monkeypatch.setattr(c, "metadata", lambda _snapshot: ({"complete": True, "frame_count": 900}, []))
+    monkeypatch.setattr(c, "read_json", lambda *_args: (cal, cal_ref))
+    monkeypatch.setitem(
+        sys.modules,
+        "ops_calibration",
+        types.SimpleNamespace(
+            validate_calibration=lambda *_args: {"eye_mapping": {"left": "a", "right": "b"}}
+        ),
+    )
+
+    plan = c.conversion_plan({}, state, {})
+
+    assert plan["sources"] == [nonempty]
+    assert state["snapshot"] == snapshot
+    assert placeholder in state["snapshot"]
+
+
+def test_conversion_plan_rejects_all_empty_media(monkeypatch):
+    placeholder = {**raw_ref("empty-v1"), "bytes": 0}
+    state = {"recording": "ego_20260916_010203_A1B2C3", "snapshot": [placeholder]}
+    monkeypatch.setattr(c, "metadata", lambda _snapshot: ({"complete": True}, []))
+
+    with pytest.raises(ValueError, match="Source media missing"):
+        c.conversion_plan({}, state, {})
 
 
 def retirement_state():
