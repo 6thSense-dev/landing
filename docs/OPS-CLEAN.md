@@ -44,6 +44,8 @@ Raw's **Partly processed** label means a recording has a clean result but still 
 
 Playback uses short-lived presigned URLs for the exact output versions. Browser previews and original-resolution stereo files may both be included. Use Reload video link to renew an expired URL while preserving the playback position. Raw source objects remain in place. The API needs only ListBucket for `sessions/` in raw and `qc-results/`, `clean/` in processed, plus GetObject/GetObjectVersion for those prefixes. Configure its dedicated read-only credentials through `OPS_AWS_ACCESS_KEY_ID` and `OPS_AWS_SECRET_ACCESS_KEY`; `OPS_CLEAN_S3_BUCKET` defaults to `6thsense-processed`.
 
+For v2 batches with a verified H.264 stereo preview, batch playback and recording review select that preview automatically; playback advances through the remaining recording previews. Native eye videos remain available in the Video selector. A `6thsense-browser-preview/1` supplement binds each preview to the existing QC manifest and both native eye versions, with full-frame decode and timestamp verification. The API checks that binding and the output's version, size and hash metadata before signing it. Missing or invalid supplements leave the original videos available. These viewing copies add no accepted time, earnings or content approval. See the [Raw lifecycle runbook](../infra/raw_lifecycle/README.md) for publication and backfill.
+
 Migration `0013` adds contributor details, camera assignments, and the clean collection ledger. The deployment starts with `alembic upgrade head`.
 
 ## Region-view validation checkpoint
