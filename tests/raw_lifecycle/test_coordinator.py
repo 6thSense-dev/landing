@@ -58,6 +58,238 @@ def test_historical_job_adoption_requires_current_source_versions(monkeypatch):
     assert state["jobs"] == {}
 
 
+def adopted_import_fixture():
+    recording = "ego_20260916_010203_A1B2C3"
+    run = "raw-clean-20260915-episode-001"
+    source = raw_ref("video-v1")
+    source_metadata = {
+        **raw_ref("metadata-v1"),
+        "key": raw_ref("metadata-v1")["key"].replace("video.mp4", "metadata.json"),
+        "bytes": 52,
+        "sha256": "a" * 64,
+    }
+    manifest_source = {
+        **c.source_identity(source),
+        "size_bytes": source["bytes"],
+        "sha256": "b" * 64,
+    }
+    receipt_ref = {
+        "bucket": c.PROCESSED,
+        "key": f"clean/raw-lifecycle-v1/staging/{recording}/conversion.json",
+        "version_id": "receipt-v1",
+        "sha256": "c" * 64,
+        "bytes": 456,
+    }
+    plan_ref = {
+        "bucket": c.ARTIFACTS,
+        "key": f"clean-plans/raw-lifecycle-v1/{recording}/fingerprint/clean.json",
+        "version_id": "plan-v1",
+        "sha256": "d" * 64,
+        "bytes": 789,
+    }
+    plan = {
+        "schema": "6thsense-clean-finalize/1",
+        "recording": recording,
+        "run_id": run,
+        "conversion_plan": {
+            "schema": "6thsense-raw-conversion/1",
+            "task": "raw-lifecycle-v1",
+            "recording": recording,
+            "sources": [source],
+        },
+        "conversion_receipt": receipt_ref,
+    }
+    report = {
+        "schema": "6thsense-raw-conversion-result/1",
+        "task": "raw-lifecycle-v1",
+        "recording": recording,
+        "sources": [{**c.source_identity(source), "bytes": source["bytes"], "sha256": "b" * 64}],
+    }
+    manifest = {
+        "run_id": run,
+        "recordings": [{
+            "recording": recording,
+            "sources": [manifest_source],
+            "source_provenance": {"conversion_receipt": receipt_ref},
+        }],
+    }
+    manifest_ref = {
+        "bucket": c.PROCESSED,
+        "key": f"qc-results/{run}/result.json",
+        "version_id": "manifest-v1",
+        "sha256": "e" * 64,
+        "bytes": 1024,
+    }
+    clean_metadata = {
+        "bucket": c.PROCESSED,
+        "key": f"clean/{run}/{recording}/metadata.json",
+        "version_id": "clean-metadata-v1",
+        "sha256": source_metadata["sha256"],
+        "bytes": source_metadata["bytes"],
+    }
+    provenance = {
+        "schema": "6thsense-clean-source-metadata/1",
+        "copy_mode": "byte_exact_from_versioned_source",
+        "run_id": run,
+        "recording": recording,
+        "metadata": clean_metadata,
+        "source_metadata": [source_metadata],
+        "source_media": [c.source_identity(source)],
+    }
+    provenance_ref = {
+        "bucket": c.PROCESSED,
+        "key": f"clean/{run}/{recording}/metadata-provenance.json",
+        "version_id": "provenance-v1",
+        "sha256": "f" * 64,
+        "bytes": 2048,
+    }
+    imported = {
+        "run_id": run,
+        "manifest_key": manifest_ref["key"],
+        "manifest_version": manifest_ref["version_id"],
+        "manifest_sha256": manifest_ref["sha256"],
+        "sources": [manifest_source],
+    }
+    state = {
+        "recording": recording,
+        "fingerprint": "f" * 64,
+        "snapshot": [source, {k: source_metadata[k] for k in ("bucket", "key", "version_id", "bytes", "etag")}],
+        "phase": "observed",
+        "archive_plan": {"objects": [source]},
+        "archive_receipt": {"bucket": "archive", "key": "receipt", "version_id": "archive-v1"},
+        "run_id": run,
+        "clean_plan_ref": plan_ref,
+        "jobs": {"clean": {"adopted": True, "status": "SUCCEEDED"}},
+    }
+    evidence = {
+        "provenance": provenance,
+        "provenance_ref": provenance_ref,
+        "clean_metadata": clean_metadata,
+    }
+    return state, imported, plan, report, manifest, manifest_ref, evidence
+
+
+def install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence):
+    def read_pinned(ref):
+        if ref["key"] == plan["conversion_receipt"]["key"]:
+            return report
+        if ref["key"] == evidence["provenance_ref"]["key"]:
+            return evidence["provenance"]
+        if ref["key"] == evidence["clean_metadata"]["key"]:
+            return {"complete": True}
+        return plan
+
+    def read_json(bucket, key, version=None):
+        assert (bucket, key, version) == (
+            c.PROCESSED,
+            manifest_ref["key"],
+            manifest_ref["version_id"],
+        )
+        return manifest, manifest_ref
+
+    monkeypatch.setattr(c, "read_pinned", read_pinned)
+    monkeypatch.setattr(c, "read_json", read_json)
+
+
+def test_adopted_generic_import_supplements_metadata_from_exact_plan(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    supplemented = []
+    monkeypatch.setattr(c, "supplement_metadata", lambda value, doc: supplemented.append((value, doc)) or evidence["provenance_ref"])
+
+    assert c.supplement_adopted_import(state, [imported]) is True
+    assert supplemented == [(state, manifest)]
+    assert state["metadata_proof"]["provenance"] == evidence["provenance_ref"]
+
+
+def test_adopted_generic_import_rejects_manifest_source_outside_plan(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    manifest["recordings"][0]["sources"][0]["version_id"] = "other-version"
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: pytest.fail("metadata was supplemented"))
+
+    with pytest.raises(ValueError, match="sources differ from the pinned plan"):
+        c.supplement_adopted_import(state, [imported])
+
+
+def test_adopted_import_plan_must_match_raw_state_bytes(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    state["snapshot"][0] = {**state["snapshot"][0], "bytes": state["snapshot"][0]["bytes"] + 1}
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: pytest.fail("metadata was supplemented"))
+
+    with pytest.raises(ValueError, match="differs from the Raw state snapshot"):
+        c.supplement_adopted_import(state, [imported])
+
+
+def test_lifecycle_import_crash_after_api_import_recovers_metadata(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    state["jobs"]["clean"] = {
+        "status": "SUCCEEDED",
+        "plan_ref": state.pop("clean_plan_ref"),
+    }
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    supplemented = []
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: supplemented.append(True) or evidence["provenance_ref"])
+
+    assert c.supplement_adopted_import(state, [imported]) is True
+    assert supplemented == [True]
+    assert state["metadata_proof"]["manifest_sha256"] == imported["manifest_sha256"]
+
+
+def test_lifecycle_import_ignores_archived_zero_byte_placeholder(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    state["snapshot"].append({
+        **raw_ref("placeholder-v1"),
+        "key": raw_ref("placeholder-v1")["key"].replace("video.mp4", "terminal.mp4"),
+        "bytes": 0,
+    })
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: evidence["provenance_ref"])
+
+    assert c.supplement_adopted_import(state, [imported]) is True
+
+
+def test_partial_retirement_uses_durable_clean_metadata_proof(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: evidence["provenance_ref"])
+    assert c.supplement_adopted_import(state, [imported]) is True
+    state["retirement_started"] = "2026-09-16T05:00:00+00:00"
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: pytest.fail("Raw metadata was read again"))
+
+    assert c.supplement_adopted_import(state, [imported]) is True
+
+
+def test_adopted_import_metadata_error_blocks_retirement(monkeypatch):
+    state, imported, plan, report, manifest, manifest_ref, evidence = adopted_import_fixture()
+    install_adopted_import_reads(monkeypatch, plan, report, manifest, manifest_ref, evidence)
+    monkeypatch.setattr(c, "supplement_metadata", lambda *_: (_ for _ in ()).throw(ValueError("metadata missing")))
+    monkeypatch.setattr(c, "optional_json", lambda *_: None)
+    monkeypatch.setattr(c, "save", lambda *_: None)
+    monkeypatch.setattr(c, "status", lambda _cfg, value, phase, reason: value.update(phase=phase, reason=reason))
+    monkeypatch.setattr(c.boto3, "client", lambda service: (_ for _ in ()).throw(AssertionError(f"unexpected {service} client")))
+    cfg = {
+        "archive_bucket": "archive",
+        "retirement_enabled": True,
+        "retirement_function": "retire-fn",
+    }
+
+    with pytest.raises(ValueError, match="metadata missing"):
+        c.advance(cfg, state, {"imports": [imported]}, {}, {})
+
+    assert "retirement_started" not in state
+    assert state["imports"] == [imported]
+
+
+def test_already_retired_state_does_not_require_metadata_repair(monkeypatch):
+    state, imported, *_ = adopted_import_fixture()
+    state["retired"] = True
+    monkeypatch.setattr(c, "supplement_adopted_import", lambda *_: pytest.fail("retired state was repaired"))
+
+    c.advance({}, state, {"imports": [imported]}, {}, {})
+
+
 def test_uncertain_submission_is_never_blindly_retried(monkeypatch):
     class Paginator:
         def paginate(self, **_kwargs):

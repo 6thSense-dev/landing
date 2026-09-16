@@ -256,6 +256,8 @@ def supplement_metadata(state, manifest):
         if existing.get('metadata',{}).get('sha256') != dest['sha256'] or {digest(source_identity(r)) for r in existing['source_media']} != {digest(source_identity(r)) for r in rec['sources']}:
             raise ValueError('Conflicting metadata provenance')
     else: put_json(PROCESSED,pkey,provenance,True)
+    _, provenance_ref = read_json(PROCESSED,pkey)
+    return provenance_ref
 
 
 def adopt(state, old_conversion, old_clean):
@@ -278,6 +280,137 @@ def adopt(state, old_conversion, old_clean):
     outcome = old_clean.get('outcomes',{}).get(name,{})
     reason = outcome.get('reason') if outcome.get('status') == 'hold' else old_clean.get('holds',{}).get(name)
     if reason: state['technical_hold'] = reason
+
+
+def _source_map(sources, label):
+    if not isinstance(sources, list) or not sources:
+        raise ValueError(label+' sources are missing')
+    mapped = {}
+    try:
+        for source in sources:
+            identity = digest(source_identity(source))
+            if identity in mapped: raise ValueError(label+' repeats a source')
+            mapped[identity] = source
+    except (KeyError, TypeError) as exc:
+        raise ValueError(label+' source identity is incomplete') from exc
+    return mapped
+
+
+def _metadata_proof(imported, provenance_ref):
+    return {'schema':'6thsense-lifecycle-metadata-proof/1','run_id':imported['run_id'],
+            'manifest_key':imported['manifest_key'],'manifest_version':imported['manifest_version'],
+            'manifest_sha256':imported['manifest_sha256'],'provenance':provenance_ref}
+
+
+def verify_metadata_proof(state, manifest, imported):
+    proof = state.get('metadata_proof')
+    if not isinstance(proof, dict) or proof != _metadata_proof(imported, proof.get('provenance')):
+        return False
+    provenance = read_pinned(proof['provenance'])
+    rec = manifest['recordings'][0]
+    if (provenance.get('schema') != '6thsense-clean-source-metadata/1'
+            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
+            or provenance.get('run_id') != manifest['run_id']
+            or provenance.get('recording') != state['recording']):
+        raise ValueError('Preserved metadata provenance identity mismatch')
+    clean_metadata = provenance.get('metadata')
+    expected_key = f"clean/{manifest['run_id']}/{state['recording']}/metadata.json"
+    if (not isinstance(clean_metadata, dict) or clean_metadata.get('bucket') != PROCESSED
+            or clean_metadata.get('key') != expected_key):
+        raise ValueError('Preserved metadata reference is outside the Clean recording')
+    read_pinned(clean_metadata)
+    media = _source_map(provenance.get('source_media'), 'Preserved metadata provenance')
+    manifested = _source_map(rec.get('sources'), 'Adopted Clean manifest')
+    if set(media) != set(manifested):
+        raise ValueError('Preserved metadata belongs to different source media')
+    originals = _source_map(provenance.get('source_metadata'), 'Preserved source metadata')
+    snapshot = _source_map([r for r in state['snapshot'] if r['key'].endswith('/metadata.json')], 'Raw metadata snapshot')
+    if set(originals) != set(snapshot):
+        raise ValueError('Preserved metadata belongs to different Raw metadata versions')
+    for identity, original in originals.items():
+        if (original.get('bytes') != snapshot[identity].get('bytes')
+                or original.get('bytes') != clean_metadata.get('bytes')
+                or original.get('sha256') != clean_metadata.get('sha256')
+                or not re.fullmatch(r'[0-9a-f]{64}', original.get('sha256', ''))):
+            raise ValueError('Preserved metadata size or digest differs from durable proof')
+    return True
+
+
+def supplement_adopted_import(state, imports):
+    """Repair metadata only after binding a generic import to its adopted job."""
+    clean = state.get('jobs', {}).get('clean')
+    run = state.get('run_id') or state.get('metadata_proof', {}).get('run_id')
+    matches = [row for row in imports if row.get('run_id') == run]
+    if len(matches) != 1:
+        if not clean or not (state.get('clean_plan_ref') or clean.get('plan_ref')):
+            return True  # Preserve imports outside this lifecycle coordinator.
+        raise ValueError('Adopted Clean import does not uniquely match its run')
+    imported = matches[0]
+    if (imported.get('manifest_key') in (None, '')
+            or imported.get('manifest_version') in (None, '', 'null')
+            or not re.fullmatch(r'[0-9a-f]{64}', imported.get('manifest_sha256', ''))):
+        raise ValueError('Adopted Clean import lacks a pinned manifest')
+    manifest, actual = read_json(PROCESSED, imported['manifest_key'], imported['manifest_version'])
+    if (actual['version_id'] != imported['manifest_version']
+            or actual['sha256'] != imported['manifest_sha256']):
+        raise ValueError('Adopted Clean import manifest changed')
+    recordings = manifest.get('recordings')
+    if (manifest.get('run_id') != run or not isinstance(recordings, list)
+            or len(recordings) != 1 or recordings[0].get('recording') != state['recording']):
+        raise ValueError('Adopted Clean manifest identity mismatch')
+    rec = recordings[0]
+    manifested = _source_map(rec.get('sources'), 'Adopted Clean manifest')
+    recorded = _source_map(imported.get('sources'), 'Portal import')
+    if set(recorded) != set(manifested):
+        raise ValueError('Adopted Clean sources differ from the portal import')
+    if any(recorded[k].get('size_bytes') != source.get('size_bytes')
+            or recorded[k].get('sha256') != source.get('sha256')
+            for k,source in manifested.items()):
+        raise ValueError('Portal import source size or hash differs from the manifest')
+    if state.get('metadata_proof'):
+        return verify_metadata_proof(state, manifest, imported)
+    plan_ref = state.get('clean_plan_ref') or (clean or {}).get('plan_ref')
+    if not clean or not plan_ref:
+        return True  # Preserve imports outside this lifecycle coordinator.
+    if job_status(clean) != 'SUCCEEDED':
+        raise ValueError('Lifecycle Clean job is not successful')
+    plan = read_pinned(plan_ref)
+    conversion = plan.get('conversion_plan')
+    if (plan.get('schema') != '6thsense-clean-finalize/1' or plan.get('run_id') != run
+            or not isinstance(conversion, dict)
+            or conversion.get('recording') != state['recording']):
+        raise ValueError('Adopted Clean plan identity mismatch')
+    planned = _source_map(conversion.get('sources'), 'Adopted Clean plan')
+    snapshot = _source_map([r for r in state['snapshot'] if r['bytes'] > 0 and r['key'].lower().endswith(('.mp4','.h265','.hevc','.egoc'))], 'Raw media snapshot')
+    if (set(planned) != set(snapshot)
+            or any(planned[k].get('bytes') != snapshot[k].get('bytes') for k in planned)):
+        raise ValueError('Adopted Clean plan differs from the Raw state snapshot')
+    if set(manifested) != set(planned):
+        raise ValueError('Adopted Clean sources differ from the pinned plan')
+
+    receipt_ref = plan.get('conversion_receipt')
+    if rec.get('source_provenance', {}).get('conversion_receipt') != receipt_ref:
+        raise ValueError('Adopted Clean manifest has different conversion provenance')
+    report = read_pinned(receipt_ref)
+    if (report.get('schema') != '6thsense-raw-conversion-result/1'
+            or report.get('recording') != state['recording']
+            or report.get('task') != conversion.get('task')):
+        raise ValueError('Adopted Clean conversion receipt identity mismatch')
+    converted = _source_map(report.get('sources'), 'Conversion receipt')
+    if set(converted) != set(planned):
+        raise ValueError('Conversion receipt sources differ from the pinned plan')
+    for identity, expected in planned.items():
+        result, source, portal = converted[identity], manifested[identity], recorded[identity]
+        if (result.get('bytes') != expected.get('bytes')
+                or source.get('size_bytes') != expected.get('bytes')
+                or portal.get('size_bytes') != source.get('size_bytes')
+                or result.get('sha256') != source.get('sha256')
+                or portal.get('sha256') != source.get('sha256')
+                or not re.fullmatch(r'[0-9a-f]{64}', source.get('sha256', ''))):
+            raise ValueError('Adopted Clean source size or hash differs from trusted evidence')
+    provenance_ref = supplement_metadata(state, manifest)
+    state['metadata_proof'] = _metadata_proof(imported, provenance_ref)
+    return verify_metadata_proof(state, manifest, imported)
 
 
 def validate_retirement_result(state, result):
@@ -318,7 +451,11 @@ def advance(cfg,state,episode,old_conversion,old_clean):
     adopt(state,old_conversion,old_clean)
     if episode.get('imports'):
         state['imports'] = episode['imports']
-        status(cfg,state,'imported','Verified company Clean exists; archive/retirement reconciliation running.')
+        metadata_ready = supplement_adopted_import(state,episode['imports'])
+        if not metadata_ready:
+            status(cfg,state,'hold','Existing Clean import lacks lifecycle metadata evidence; Raw preserved.')
+        else:
+            status(cfg,state,'imported','Verified company Clean exists; archive/retirement reconciliation running.')
     elif state.get('technical_hold') or episode.get('attribution_hold'):
         status(cfg,state,'hold',state.get('technical_hold') or episode['attribution_hold'])
     else:
@@ -373,10 +510,15 @@ def advance(cfg,state,episode,old_conversion,old_clean):
                     mref = marker['manifest']
                     manifest,actual = read_json(PROCESSED,mref['key'],mref['version_id'])
                     if actual['sha256'] != mref['sha256']: raise ValueError('Manifest hash mismatch')
-                    supplement_metadata(state,manifest)
+                    provenance_ref = supplement_metadata(state,manifest)
                     result = api(cfg,'import',{'run_id':run})
+                    if result['manifest_sha256'] != mref['sha256']:
+                        raise ValueError('Portal import manifest differs from committed Clean result')
                     state['imports'] = [{'run_id':run,'manifest_sha256':result['manifest_sha256'],
                         'manifest_key':mref['key'],'manifest_version':mref['version_id'],'sources':manifest['recordings'][0]['sources']}]
+                    state['metadata_proof'] = _metadata_proof(state['imports'][0],provenance_ref)
+                    if not verify_metadata_proof(state,manifest,state['imports'][0]):
+                        raise ValueError('Clean metadata proof was not durably established')
                     status(cfg,state,'imported','Verified Clean import complete; originals archived before Raw cleanup.')
                 elif clean['status'] == 'FAILED':
                     state['technical_hold'] = 'Clean extraction failed: '+clean.get('reason','')
