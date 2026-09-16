@@ -72,7 +72,7 @@ async def has_consent(account, region, db, locale=None):
 @router.get("/configuration")
 async def configuration():
     import os
-    return {"identity": {"region": os.getenv("CONTRIBUTOR_COGNITO_REGION", "us-west-2"), "clientId": os.getenv("CONTRIBUTOR_COGNITO_CLIENT", "")}, "signup": os.getenv("CONTRIBUTOR_SIGNUP_MODE", "closed"), "upload": "operator_sd_card", "payment": "operator_approved", "threshold_seconds": 14400, "threshold_comparison": "strictly_greater_than"}
+    return {"identity": {"region": os.getenv("CONTRIBUTOR_COGNITO_REGION", "us-west-2"), "clientId": os.getenv("CONTRIBUTOR_COGNITO_CLIENT", "")}, "signup": os.getenv("CONTRIBUTOR_SIGNUP_MODE", "closed"), "upload": "operator_sd_card", "payment": "operator_approved", "threshold_seconds": 14400, "threshold_comparison": "at_least", "calculation_schedule": "Sunday 23:59", "calculation_timezone": "Asia/Seoul"}
 
 class EnrollmentIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)

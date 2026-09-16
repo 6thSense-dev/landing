@@ -3,7 +3,7 @@
 import json
 from collections import defaultdict
 from datetime import timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from app.core.ops_artifacts import artifact_status
@@ -20,6 +20,42 @@ from app.models import (
 )
 
 KOREA = ZoneInfo("Asia/Seoul")
+PAYMENT_THRESHOLD_SECONDS = 4 * 60 * 60
+
+
+def retained_duration(entry):
+    """Eligibility uses exact manifest interval arithmetic, never display floats."""
+    return Decimal(entry.get("retained_seconds_exact", str(entry["retained_seconds"])))
+
+
+def total_retained_duration(entries):
+    # Cover the full exponent range of finite JSON doubles, including tiny
+    # offsets subtracted from a large endpoint at the eligibility boundary.
+    with localcontext() as context:
+        context.prec = 1024
+        return sum((retained_duration(e) for e in entries), Decimal(0))
+
+
+def sunday(now):
+    """Next calculation cutoff: Sunday 23:59 in Korea (including that instant)."""
+    local = now.astimezone(KOREA)
+    due = local.replace(hour=23, minute=59, second=0, microsecond=0) + timedelta(
+        days=(6 - local.weekday()) % 7
+    )
+    if due < local:
+        due += timedelta(days=7)
+    return due.astimezone(timezone.utc)
+
+
+def calculation_week(due):
+    local = due.astimezone(KOREA).date()
+    start = local - timedelta(days=local.weekday())
+    return start.isoformat(), (start + timedelta(days=7)).isoformat()
+
+
+def last_sunday(now):
+    due = sunday(now)
+    return due if due <= now else due - timedelta(days=7)
 
 
 def friday(now):
@@ -104,11 +140,14 @@ async def footage_ledger(db):
             review = reviews.get(key)
             item = items.get(key)
             valid = review and review.manifest_sha256 == run.manifest_sha256
-            keep = sum(
-                i["end_s"] - i["start_s"]
-                for i in rec.get("intervals", [])
-                if i["disposition"] == "keep"
-            )
+            with localcontext() as context:
+                context.prec = 1024
+                exact_keep = sum((
+                    Decimal(str(i["end_s"])) - Decimal(str(i["start_s"]))
+                    for i in rec.get("intervals", [])
+                    if i["disposition"] == "keep"
+                ), Decimal(0))
+            keep = float(exact_keep)
             reasons = defaultdict(float)
             for i in rec.get("intervals", []):
                 if i["disposition"] == "reject":
@@ -135,6 +174,7 @@ async def footage_ledger(db):
                     "device_id": run.device_id,
                     "source_seconds": rec.get("source_seconds", 0),
                     "retained_seconds": keep,
+                    "retained_seconds_exact": str(exact_keep),
                     "rejected_seconds": rec.get("source_seconds", 0) - keep,
                     "rejection_reasons": dict(reasons),
                     "collection_date": collected,

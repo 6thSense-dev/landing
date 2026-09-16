@@ -13,8 +13,11 @@ from app.core.db import get_session
 from app.core.ops_external_payments import external_payment_history
 from app.core.ops_ledger import (
     footage_ledger,
-    friday,
-    previous_week,
+    sunday,
+    last_sunday,
+    calculation_week,
+    PAYMENT_THRESHOLD_SECONDS,
+    total_retained_duration,
     price,
     KOREA,
 )
@@ -34,9 +37,11 @@ router = APIRouter(prefix="/api/ops/payments", tags=["ops"])
 def configuration():
     return {
         "timezone": "Asia/Seoul",
-        "payday": "Friday 18:00",
-        "threshold_seconds": 14400,
-        "threshold_rule": "strictly_more_than",
+        "payday": "Sunday 23:59 calculation; operator-approved payment",
+        "calculation_schedule": "Sunday 23:59",
+        "calculation_enabled": os.getenv("OPS_PAYMENT_CALCULATION_ENABLED") == "true",
+        "threshold_seconds": PAYMENT_THRESHOLD_SECONDS,
+        "threshold_rule": "at_least",
         "threshold_basis": "accumulated",
         "wise_environment": os.getenv("WISE_ENVIRONMENT", "sandbox"),
         "source_currency": os.getenv("WISE_SOURCE_CURRENCY", "USD"),
@@ -64,7 +69,7 @@ def recipient_revision(recipient):
 
 
 def eligible(entries, due, basis):
-    start, end = previous_week(due)
+    start, end = calculation_week(due)
     ready = [
         e
         for e in entries
@@ -79,17 +84,18 @@ def eligible(entries, due, basis):
         and e["allocated_krw"] is not None
         and not e.get("allocation_needs_reconciliation", False)
     ]
-    qualifying = sum(
-        e["retained_seconds"]
+    qualifying = total_retained_duration(
+        e
         for e in ready
         if basis == "accumulated" or start <= e["collection_date"] < end
     )
-    return ready if qualifying > 14400 else [], qualifying
+    return ready if qualifying >= PAYMENT_THRESHOLD_SECONDS else [], float(qualifying)
 
 
 async def state(db):
     entries = await footage_ledger(db)
-    due = friday(datetime.now(timezone.utc))
+    current_time = datetime.now(timezone.utc)
+    due = last_sunday(current_time)
     cfg = configuration()
     recipients = {
         r.wearer_id: r for r in (await db.execute(select(PayoutRecipient))).scalars()
@@ -134,11 +140,15 @@ async def state(db):
                 else None,
             }
         )
+    from app.api.routes.ops import _setting
+    latest_calculation = json.loads(await _setting(db, "payment_calculation_latest") or "null")
     return {
         "contributors": groups,
         "configuration": cfg,
         "scheduled_for": due.isoformat(),
-        "collection_week": previous_week(due),
+        "collection_week": calculation_week(due),
+        "next_calculation_at": sunday(current_time).isoformat(),
+        "latest_calculation": latest_calculation,
         "payouts": [
             {
                 "id": p.id,
@@ -268,7 +278,7 @@ async def approve(body: ApproveIn, user=Depends(require_ops), db=Depends(get_ses
         raise HTTPException(
             409, "Configure the Wise funding currency before approving payment."
         )
-    due = friday(datetime.now(timezone.utc))
+    due = last_sunday(datetime.now(timezone.utc))
     rows = [e for e in await footage_ledger(db) if e["wearer_id"] == body.wearer_id]
     ready, _ = eligible(rows, due, cfg["threshold_basis"])
     requested = {(e.run_id, e.recording, e.manifest_sha256) for e in body.entries}

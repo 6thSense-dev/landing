@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.0.0] - 2026-09-16
+
+### Added
+
+- Calculate eligible contributor amounts every Sunday at 23:59 Korea time from verified clean results, with a durable weekly record and operator approval before payment.
+
+### Changed
+
+- Include exactly four accumulated unpaid approved hours in payment eligibility, including fractional recording durations. Keep late reviews pending for the next weekly snapshot and preserve existing approved payouts.
+
 ## [0.1.4.0] - 2026-09-16
 
 ### Fixed

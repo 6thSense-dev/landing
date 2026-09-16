@@ -34,6 +34,10 @@ async def lifespan(_app: FastAPI):
             SLACK_ENV_VAR,
         )
     task = None
+    calculation_task = None
+    if os.getenv("OPS_PAYMENT_CALCULATION_ENABLED", "false") == "true":
+        from app.core.ops_payment_calculation import run as run_calculation
+        calculation_task = asyncio.create_task(run_calculation())
     if os.getenv("OPS_AUTOMATION_ENABLED", "false") == "true":
         from app.core.ops_automation import run
         task = asyncio.create_task(run())
@@ -44,6 +48,10 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
+        if calculation_task:
+            calculation_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await calculation_task
         if sieve_task:
             sieve_task.cancel()
             with suppress(asyncio.CancelledError):

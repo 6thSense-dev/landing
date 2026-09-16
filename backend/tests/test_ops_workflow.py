@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
-from app.core.ops_ledger import friday, previous_week, price
+from app.core.ops_ledger import friday, previous_week, sunday, last_sunday, calculation_week, price
 from app.core.ops_processing import diagnose
 from app.api.routes.ops_payments import eligible
 from app.models import CleanRun, Wearer, PayoutRecipient, PayoutItem
@@ -32,9 +32,20 @@ def entry(**kw):
     )
 
 
-def test_accumulated_threshold_strict_and_excludes_current_week_unreviewed_reserved():
-    due = friday(datetime(2026, 9, 14, tzinfo=timezone.utc))
+def test_sunday_cutoff_includes_exact_time_and_uses_korea_week():
+    due = sunday(datetime(2026, 9, 14, tzinfo=timezone.utc))
+    assert due == datetime(2026, 9, 20, 14, 59, tzinfo=timezone.utc)
+    assert calculation_week(due) == ('2026-09-14', '2026-09-21')
+    assert sunday(due) == last_sunday(due) == due
+    assert last_sunday(due - timedelta(microseconds=1)) == due - timedelta(days=7)
+    assert sunday(due + timedelta(microseconds=1)) == due + timedelta(days=7)
+
+
+def test_accumulated_threshold_inclusive_and_excludes_future_unreviewed_reserved():
+    due = sunday(datetime(2026, 9, 14, tzinfo=timezone.utc))
     a = entry()
+    assert eligible([a], due, "accumulated")[0] == [a]
+    a = {**a, 'retained_seconds': 14399}
     assert not eligible([a], due, "accumulated")[0]
     b = {**a, "recording": "b", "retained_seconds": 1, "allocated_krw": 3}
     assert len(eligible([a, b], due, "accumulated")[0]) == 2
@@ -43,7 +54,7 @@ def test_accumulated_threshold_strict_and_excludes_current_week_unreviewed_reser
         ("review_status", "needs_review"),
         ("payout_id", "reserved"),
         ("collection_date", None),
-        ("collection_date", "2026-09-14"),
+        ("collection_date", "2026-09-21"),
     ]:
         assert not eligible([a, {**b, field: value}], due, "accumulated")[0]
     assert price([a, b]) == 44003

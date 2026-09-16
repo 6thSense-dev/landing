@@ -11,7 +11,7 @@ The mobile API connects verified Cognito subjects to new Ops wearer records. It 
 5. Use the existing camera controls to record. The first pilot retains manual SD-card offload into the existing `6thsense-raw/sessions/` layout. Upload every original and sidecar. No contractor destination changes are required by this integration. Only completed recordings with trusted NTP capture time fully inside a confirmed assignment are automatically attributed. Unknown time, pre-assignment recordings, or handovers need explicit Ops source attribution.
 6. The existing raw scan and QC pipeline ingest and review footage. Ronak controls QC; the phone cannot approve duration. The dashboard reads the signed-in contributor's actual source/QC/payment records. Unknown approval stays pending.
 7. The app retrieves current KRW/INR bank requirements from Wise and submits the user's details only after consent and explicit bank ownership/sharing acknowledgments. Raw bank details are never persisted by this integration. In Ops → Users → Mobile contributor requests, review the contributor name/ID, masked summary and known Wise recipient ID, check the ownership confirmation, then select **Verify and link recipient**. Payment linking currently accepts KRW recipients only.
-8. Existing payment approval reserves reviewed work exactly once. Korea pays ₩11,000 per accepted hour after **more than** four accumulated unpaid approved hours. India has no agreed rate and no INR payment execution in this pilot. Friday scheduling covers previous completed weeks. Funding/sending is not settlement. Automatic payment funding remains off.
+8. Existing payment approval reserves reviewed work exactly once. Korea's rate is ₩11,000 per accepted hour, with eligibility at **at least** four accumulated unpaid approved hours, including fractional recording durations. Sunday 23:59 Asia/Seoul calculation prepares a weekly snapshot from qualifying reviews completed by the cutoff; manual approval recalculates the live ledger and can include later reviews for eligible collection dates. India has no agreed rate and no INR payment execution in this pilot. Funding/sending is not settlement. `OPS_PAYOUT_AUTOMATION_ENABLED` and `OPS_WISE_AUTO_FUND` remain `false`. See the [calculation and approval workflow](OPS-WORKFLOW.md#payment-policy-and-operation).
 
 ## API and supervision
 
@@ -21,7 +21,7 @@ The `/api/ops/contributors` routes use the existing staff role gate and CSRF ori
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/contributor/configuration` | Public identity-client and pilot-mode configuration; the Cognito signup gate enforces registration eligibility. |
+| `GET /api/contributor/configuration` | Public identity-client/pilot configuration plus `threshold_seconds: 14400`, `threshold_comparison: at_least`, `calculation_schedule: Sunday 23:59` and `calculation_timezone: Asia/Seoul`; payment remains `operator_approved`. The Cognito signup gate enforces registration eligibility. |
 | `POST /api/contributor/enrollment` | Create the authenticated subject's wearer once, using a nonempty `name`. |
 | `GET /api/contributor/terms?locale=en` | Published document versions and signed URLs; `en` and `ko` are supported. |
 | `POST /api/contributor/consent` | Accept all four displayed agreements using `documents` (agreement → SHA-256), `versions` (agreement → version), and the exact `locale`. Missing or stale hashes/versions fail closed. |
