@@ -42,7 +42,11 @@ def test_bad_evidence_is_rejected(fault):
 
 
 @pytest.mark.asyncio
-async def test_generic_scan_reserves_automatic_runs_for_pipeline_bridge(db_session, monkeypatch):
+@pytest.mark.parametrize('run_id', [
+    'raw-clean-auto-20260901-120000-ABC123-deadbeef00',
+    'raw-clean-20260915-episode-001',
+])
+async def test_generic_scan_reserves_pipeline_runs_for_private_bridge(db_session, monkeypatch, run_id):
     from app.api.routes import ops_clean
     from tests.test_ops_artifacts import multimodal_manifest
 
@@ -51,7 +55,7 @@ async def test_generic_scan_reserves_automatic_runs_for_pipeline_bridge(db_sessi
     await db_session.flush()
     doc = multimodal_manifest()
     old_run = doc['run_id']
-    doc['run_id'] = 'raw-clean-auto-20260901-120000-ABC123-deadbeef00'
+    doc['run_id'] = run_id
     for output in doc['outputs']:
         output['key'] = output['key'].replace(f'clean/{old_run}/', f"clean/{doc['run_id']}/")
     recording = doc['recordings'][0]['recording']

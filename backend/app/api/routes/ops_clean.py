@@ -124,7 +124,7 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
         # These runs carry source/payment evidence that only the dedicated
         # pipeline bridge verifies. The periodic generic scan must not race it
         # and create a weaker CleanRun before that verification completes.
-        if str(doc.get('run_id', '')).startswith('raw-clean-auto-'):
+        if str(doc.get('run_id', '')).startswith(('raw-clean-auto-', 'raw-clean-20260915-')):
             continue
         try:
             if doc['run_id'] in by_id:
