@@ -99,8 +99,12 @@ async def test_worker_cannot_complete_with_video_only_evidence(legacy):
         committed = False
         async def get(self, model, key, **kwargs): return job if model.__name__ == "ProcessingJob" else run
         async def execute(self, stmt):
-            if stmt.column_descriptions[0]['entity'].__name__ == 'OpsSetting':
+            descriptions = getattr(stmt, "column_descriptions", ())
+            entity = descriptions[0].get("entity") if descriptions else None
+            if entity is not None and entity.__name__ in {"OpsSetting", "ContributorAccount"}:
                 return SimpleNamespace(scalar_one_or_none=lambda:None)
+            if entity is None:  # Ordered deletion/advisory locks are TextClause statements.
+                return SimpleNamespace()
             return SimpleNamespace(scalar_one_or_none=lambda:SimpleNamespace(
                 recording=doc['recordings'][0]['recording'], deleted_at=None, wearer_id="person"))
         async def commit(self): self.committed = True
@@ -132,10 +136,10 @@ async def test_video_only_new_import_is_blocked_but_existing_ledger_is_preserved
         def __iter__(self): return iter(self.values)
     class DB:
         committed = False
-        calls = 0
         async def execute(self, stmt):
-            self.calls += 1
-            return Rows([historical] if self.calls == 2 and existing else [])
+            descriptions = getattr(stmt, "column_descriptions", ())
+            entity = descriptions[0].get("entity") if descriptions else None
+            return Rows([historical] if entity is not None and entity.__name__ == "CleanRun" and existing else [])
         async def get(self, model, key):
             return SimpleNamespace(wearer_id="person") if model.__name__ == "OpsCamera" else SimpleNamespace(id="person",is_active=True)
         async def commit(self): self.committed = True
