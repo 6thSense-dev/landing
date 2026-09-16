@@ -61,6 +61,9 @@ Sieve inherits versioned MP4, original metadata and calibration from imported Cl
 | `SENSEPROBE_CORS_ORIGINS` | no | Comma-separated allowed origins. Default covers local Vite (5173/4173). |
 | `SENSEPROBE_RATE_LIMIT` | no | slowapi limit applied to `POST /api/leads`. Default `5/minute`. |
 | `PORT` | no | Auto-injected by Railway in production. |
+| `OPS_PAYMENT_CALCULATION_ENABLED` | no | Defaults to `false`; `true` starts independent Sunday 23:59 Asia/Seoul Clean import and calculation. It does not reserve, transfer or fund payments. |
+| `OPS_PAYMENT_CALCULATION_START_AT` | when calculation enabled | First cutoff: `2026-09-20T14:59:00Z`. Must include a timezone and resolve to Sunday 23:59:00 Asia/Seoul. |
+| `OPS_PAYOUT_AUTOMATION_ENABLED` / `OPS_WISE_AUTO_FUND` | no | Keep both `false` for calculation-only operation. Payout execution and funding remain separately gated. |
 | `OPS_SIEVE_ENABLED` | no | Defaults to `false`; `true` starts the independent five-minute Clean → Sieve inheritance loop. |
 | `OPS_SIEVE_ROLE_ARN` | for Sieve inheritance | Dedicated scoped AWS role assumed by the worker. See the [Sieve guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) and checked-in `infra/sieve/` policies. |
 | `CONTRIBUTOR_COGNITO_POOL` / `CONTRIBUTOR_COGNITO_CLIENT` | for mobile accounts | Separate contributor pool and public app-client identifiers; both are required for token acceptance. |
@@ -69,6 +72,7 @@ Sieve inherits versioned MP4, original metadata and calibration from imported Cl
 | `CONTRIBUTOR_SIGNUP_MODE` | no | Public configuration label; defaults to `closed`. The Cognito signup gate remains the authority for who can register. |
 
 The [contributor pilot guide](../docs/CONTRIBUTOR-MOBILE-PILOT.md) documents `/api/contributor/*`, staff supervision in `/api/ops/contributors/*`, migration `0016`, versioned agreement storage and recipient recovery. Terms use the configured `OPS_AWS_ACCESS_KEY_ID` / `OPS_AWS_SECRET_ACCESS_KEY` pair and `OPS_S3_REGION`; credentials need the relevant terms read and consent-export write permissions. Wise configuration remains server-only and follows the [Ops payment workflow](../docs/OPS-WORKFLOW.md#payment-policy-and-operation).
+Weekly calculation imports verified Clean manifests and saves immutable snapshots in existing Ops settings; it adds no schema migration and does not move or delete S3 objects. The [Ops payment workflow](../docs/OPS-WORKFLOW.md#payment-policy-and-operation) explains the inclusive four-hour threshold, cutoff-limited review timestamps, retry behavior and live manual approval, which can include later reviews without changing earlier snapshots or reservations.
 The [deletion release contract](../docs/CONTRIBUTOR-DELETION.md#deployment-and-rollback) adds migrations `0017` and `0018`. Cognito deletion uses the default AWS credential chain (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` on Railway) with permission limited to `cognito-idp:AdminDeleteUser` for the contributor pool. Preserve both the receipt schema and original/retry lookup code during an application rollback.
 
 ## Deploy (Railway)

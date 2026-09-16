@@ -165,8 +165,10 @@ write-attribute configuration were read back from AWS and verified.
    verify the account-scoped dashboard against the uploaded and reviewed ledger.
 5. **Payments:** agree China/Vietnam/India rates, exercise the implemented
    recipient onboarding/recovery and operator approval with real Wise tests, and
-   reconcile delivery/returns before enabling automatic funding. The threshold
-   remains strictly more than four hours of accumulated unpaid accepted time.
+   reconcile delivery/returns before enabling automatic funding. Eligibility is
+   at least four hours of accumulated unpaid accepted time. Sunday 23:59 Korea
+   calculation records amounts without approving or funding payments; see the
+   [Ops calculation and approval workflow](OPS-WORKFLOW.md#payment-policy-and-operation).
 6. **End-to-end pilot:** complete one real account → camera → upload → Clean
    review → approved payout flow before opening general registration. Keep
    `sent` separate from confirmed `paid`; allow up to five business days after
