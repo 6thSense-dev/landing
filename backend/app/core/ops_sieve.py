@@ -26,7 +26,7 @@ MISSING = {'NoSuchKey', 'NoSuchVersion', '404', 'NotFound'}
 logger = logging.getLogger(__name__)
 
 
-def storage_client():
+def storage_client(*, bounded=False):
     """Dedicated assumed role can read Clean and write only Sieve inheritance."""
     import boto3
     from botocore.config import Config
@@ -34,13 +34,16 @@ def storage_client():
     if not role:
         raise ValueError('Clean inheritance storage role is not configured')
     cfg = get_settings()
-    sts = boto3.client('sts', region_name=cfg.region,
+    request_config = (Config(connect_timeout=3, read_timeout=5, max_pool_connections=12,
+                             retries={'total_max_attempts': 2, 'mode': 'standard'})
+                      if bounded else None)
+    sts = boto3.client('sts', region_name=cfg.region, config=request_config,
                        aws_access_key_id=cfg.access_key_id or None,
                        aws_secret_access_key=cfg.secret_access_key or None)
     credentials = sts.assume_role(RoleArn=role, RoleSessionName='sieve-clean-inheritance', DurationSeconds=3600)['Credentials']
     return boto3.client('s3', region_name=cfg.region, aws_access_key_id=credentials['AccessKeyId'],
                         aws_secret_access_key=credentials['SecretAccessKey'], aws_session_token=credentials['SessionToken'],
-                        config=Config(connect_timeout=10, read_timeout=60, retries={'max_attempts': 4}))
+                        config=request_config or Config(connect_timeout=10, read_timeout=60, retries={'max_attempts': 4}))
 
 
 def encoded(value):
