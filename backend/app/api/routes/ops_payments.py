@@ -5,7 +5,6 @@ import json
 import os
 import uuid
 from datetime import date, datetime, timezone
-from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
@@ -18,7 +17,7 @@ from app.core.ops_ledger import (
     last_sunday,
     calculation_week,
     PAYMENT_THRESHOLD_SECONDS,
-    retained_duration,
+    total_retained_duration,
     price,
     KOREA,
 )
@@ -85,11 +84,11 @@ def eligible(entries, due, basis):
         and e["allocated_krw"] is not None
         and not e.get("allocation_needs_reconciliation", False)
     ]
-    qualifying = sum((
-        retained_duration(e)
+    qualifying = total_retained_duration(
+        e
         for e in ready
         if basis == "accumulated" or start <= e["collection_date"] < end
-    ), Decimal(0))
+    )
     return ready if qualifying >= PAYMENT_THRESHOLD_SECONDS else [], float(qualifying)
 
 

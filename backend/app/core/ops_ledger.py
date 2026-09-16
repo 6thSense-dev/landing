@@ -3,7 +3,7 @@
 import json
 from collections import defaultdict
 from datetime import timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from app.core.ops_artifacts import artifact_status
@@ -26,6 +26,14 @@ PAYMENT_THRESHOLD_SECONDS = 4 * 60 * 60
 def retained_duration(entry):
     """Eligibility uses exact manifest interval arithmetic, never display floats."""
     return Decimal(entry.get("retained_seconds_exact", str(entry["retained_seconds"])))
+
+
+def total_retained_duration(entries):
+    # Cover the full exponent range of finite JSON doubles, including tiny
+    # offsets subtracted from a large endpoint at the eligibility boundary.
+    with localcontext() as context:
+        context.prec = 1024
+        return sum((retained_duration(e) for e in entries), Decimal(0))
 
 
 def sunday(now):
@@ -132,11 +140,13 @@ async def footage_ledger(db):
             review = reviews.get(key)
             item = items.get(key)
             valid = review and review.manifest_sha256 == run.manifest_sha256
-            exact_keep = sum((
-                Decimal(str(i["end_s"])) - Decimal(str(i["start_s"]))
-                for i in rec.get("intervals", [])
-                if i["disposition"] == "keep"
-            ), Decimal(0))
+            with localcontext() as context:
+                context.prec = 1024
+                exact_keep = sum((
+                    Decimal(str(i["end_s"])) - Decimal(str(i["start_s"]))
+                    for i in rec.get("intervals", [])
+                    if i["disposition"] == "keep"
+                ), Decimal(0))
             keep = float(exact_keep)
             reasons = defaultdict(float)
             for i in rec.get("intervals", []):

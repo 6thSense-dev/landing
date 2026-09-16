@@ -42,7 +42,9 @@ def test_exact_four_hours_of_fractional_recordings_is_eligible():
 
 
 @pytest.mark.asyncio
-async def test_manifest_duration_below_threshold_is_not_rounded_into_eligibility(db_session):
+@pytest.mark.parametrize('offset', [1e-13, 1e-100])
+async def test_manifest_duration_below_threshold_is_not_rounded_into_eligibility(db_session, offset):
+    from decimal import Decimal
     from app.core.ops_ledger import footage_ledger
     from app.api.routes.ops_payments import eligible
     from app.models import CleanRun, FootageReview
@@ -52,7 +54,7 @@ async def test_manifest_duration_below_threshold_is_not_rounded_into_eligibility
     await db_session.flush()
     doc = manifest()
     rec = doc['recordings'][0]
-    rec['intervals'] = [{'start_s': 1e-13, 'end_s': 14400, 'disposition': 'keep'}]
+    rec['intervals'] = [{'start_s': offset, 'end_s': 14400, 'disposition': 'keep'}]
     run = CleanRun(run_id='exact', device_id='ABC123', wearer_id=person.id,
                    manifest_key='x', manifest_version='v1', manifest_sha256='a'*64,
                    manifest_json=json.dumps(doc), retained_seconds=14400,
@@ -63,7 +65,7 @@ async def test_manifest_duration_below_threshold_is_not_rounded_into_eligibility
     await db_session.commit()
     rows = await footage_ledger(db_session)
     assert rows[0]['retained_seconds'] == 14400  # presentation cannot represent the difference
-    assert rows[0]['retained_seconds_exact'] == '14399.9999999999999'
+    assert Decimal(rows[0]['retained_seconds_exact']) < 14400
     assert eligible(rows, DUE, 'accumulated')[0] == []
 
 
