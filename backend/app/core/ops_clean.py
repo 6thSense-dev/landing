@@ -1,6 +1,7 @@
 """Read committed QC evidence and sign only its verified clean outputs."""
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -111,12 +112,12 @@ def validate_manifest(doc):
     return doc
 
 
-def _json(s3, key, version=None):
+def _json(s3, key, version=None, limit=16 * 1024 * 1024):
     args = {'Bucket': clean_bucket(), 'Key': key}
     if version:
         args['VersionId'] = version
     response = s3.get_object(**args)
-    if response['ContentLength'] > 16 * 1024 * 1024:
+    if response['ContentLength'] > limit:
         response['Body'].close()
         raise ValueError('QC document exceeds size limit')
     body = response['Body'].read()
@@ -174,9 +175,60 @@ def committed_results():
     return results
 
 
-def playback(doc):
+def browser_previews(s3, doc, manifest_ref):
+    """Viewing supplements bind to the existing ledger; they cannot replace QC."""
+    from botocore.exceptions import ClientError
+    if doc['schema'] != MULTIMODAL_SCHEMA or not manifest_ref:
+        return []
+    previews = []
+    for recording in doc['recordings']:
+        media = recording.get('media', {})
+        if not media.get('retained_frame_count'):
+            continue
+        name = recording['recording']
+        prefix = f"clean/{doc['run_id']}/{name}/"
+        try:
+            supplement, _, _ = _json(s3, prefix + 'browser-preview.json', limit=64 * 1024)
+            if (supplement.get('schema') != '6thsense-browser-preview/1'
+                    or supplement.get('run_id') != doc['run_id'] or supplement.get('recording') != name
+                    or supplement.get('manifest') != manifest_ref):
+                raise ValueError('Preview belongs to different QC evidence')
+            sources = [{k: o[k] for k in ('key', 'version_id', 'sha256', 'bytes')}
+                       for eye in ('left_video', 'right_video') for o in doc['outputs']
+                       if o.get('role') == eye and o.get('recording') == name]
+            if len(sources) != 2 or supplement.get('sources') != sources:
+                raise ValueError('Preview eye sources differ')
+            verification = supplement['verification']
+            expected = dict(codec='h264', width=1920, height=600, frame_count=media['retained_frame_count'],
+                            duration_us=round(media['retained_seconds'] * 1_000_000),
+                            all_frames_decoded=True, all_timestamps_checked=True)
+            if verification != expected:
+                raise ValueError('Preview did not verify the entire retained timeline')
+            output = supplement['output']
+            digest = output.get('sha256', '')
+            if (output.get('bucket') != clean_bucket() or not re.fullmatch(r'[a-f0-9]{64}', digest)
+                    or output.get('key') != prefix + f'browser-preview-{digest}.mp4'
+                    or output.get('version_id') in (None, '', 'null')
+                    or type(output.get('bytes')) is not int or output['bytes'] <= 0):
+                raise ValueError('Invalid preview reference')
+            head = s3.head_object(Bucket=clean_bucket(), Key=output['key'], VersionId=output['version_id'])
+            if head['ContentLength'] != output['bytes'] or head.get('Metadata', {}).get('sha256') != digest:
+                raise ValueError('Preview output differs from verified inventory')
+            previews.append({**output, 'role': 'recording_preview', 'recording': name,
+                             'label': f'{name} · Browser preview (stereo)'})
+        except ClientError as exc:
+            if exc.response['Error']['Code'] not in ('404', 'NoSuchKey', 'NotFound'):
+                raise
+        except (ValueError, KeyError, TypeError, AttributeError):
+            # An invalid optional copy cannot hide the native evidence or be signed.
+            logging.getLogger(__name__).warning('Rejected browser preview for %s', name)
+    return previews
+
+
+def playback(doc, manifest_ref=None):
     validate_manifest(doc)
     s3 = _client(get_settings())
+    outputs = browser_previews(s3, doc, manifest_ref) + doc.get('outputs', [])
     return [{**item, 'url': s3.generate_presigned_url('get_object', Params={
         'Bucket': clean_bucket(), 'Key': item['key'], 'VersionId': item['version_id']},
-        ExpiresIn=get_settings().presign_ttl)} for item in doc.get('outputs', []) if item['key'].endswith('.mp4')]
+        ExpiresIn=get_settings().presign_ttl)} for item in outputs if item['key'].endswith('.mp4')]

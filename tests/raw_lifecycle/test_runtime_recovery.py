@@ -5,6 +5,7 @@ from fractions import Fraction
 import hashlib
 import io
 import json
+import sys
 from pathlib import Path
 import tarfile
 from types import SimpleNamespace
@@ -30,13 +31,16 @@ def sensor_is_continuous(previous_sensor,exp_start):
 WORKER = """import stage_worker as sw
 def check(report,spec,rec):
  assert report['recording']==spec['recording']==rec and spec['kind']=='stereo_video' and spec['source_complete_flag'] is True
+def publish(canary):
+ if not canary:
+  marker=json.dumps({'complete':True})
 """
 
 
 def definitions():
     tree = ast.parse(DEPLOY.read_text())
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                 and node.name in ('adapt_stage_runtime', 'runtime', 'update_processing')]
+                 and node.name in ('adapt_stage_runtime', 'adapt_clean_runtime', 'runtime', 'update_processing')]
     namespace = dict(hashlib=hashlib, io=io, tarfile=tarfile, copy=copy, json=json)
     exec(compile(ast.Module(body=functions, type_ignores=[]), str(DEPLOY), 'exec'), namespace)
     return namespace
@@ -106,6 +110,7 @@ def test_runtime_assembly_patches_shared_stage_for_conversion_and_final_clean(tm
             return {'Body': io.BytesIO(source)}
 
     (tmp_path / 'archive_worker.py').write_text('# archive worker fixture\n')
+    (tmp_path / 'browser_preview.py').write_text('# browser preview fixture\n')
     published = []
     namespace.update(SOURCE_RUNTIME=pin, s3=S3(), ROOT=tmp_path,
                      upload=lambda key, body: published.append((key, body)))
@@ -117,10 +122,37 @@ def test_runtime_assembly_patches_shared_stage_for_conversion_and_final_clean(tm
         clean = archive.extractfile('worker.py').read().decode()
     assert 'import stage_worker as sw' in clean
     assert "Conversion receipt source versions differ from plan" in clean
+    assert clean.index('publish_preview(s3,doc,ref,out)') < clean.index('marker=json.dumps(')
     assert 'assert rate and 1<=rate<=120' in stage
     assert 'assert 0<duration<=1000000' in stage
     assert '0<exp_start-previous_sensor<1000000' in stage
     assert "TASK=os.environ.get('PIPELINE_TASK','raw-h265-all-20260915')" in stage
+
+
+@pytest.mark.parametrize('changed', [WORKER.replace(' if not canary:', ' if canary:'), WORKER + WORKER])
+def test_clean_publication_drift_cannot_silently_skip_browser_preview(changed):
+    with pytest.raises(RuntimeError, match='publication anchor changed'):
+        definitions()['adapt_clean_runtime'](changed)
+
+
+def test_preview_failure_prevents_clean_completion_marker(monkeypatch):
+    namespace = definitions()
+    source = namespace['adapt_clean_runtime'](WORKER)
+    events = []
+    def fail(*args):
+        events.append('preview')
+        raise ValueError('Preview failed verification')
+    monkeypatch.setitem(sys.modules, 'stage_worker', SimpleNamespace())
+    monkeypatch.setitem(sys.modules, 'browser_preview', SimpleNamespace(publish_preview=fail))
+    environment = dict(s3=None, doc=None, ref=None, out=None,
+                       json=SimpleNamespace(dumps=lambda value: events.append('marker')))
+    exec(compile(source, 'patched_clean', 'exec'), environment)
+    with pytest.raises(ValueError, match='Preview failed'):
+        environment['publish'](False)
+    assert events == ['preview']
+    events.clear()
+    environment['publish'](True)
+    assert events == []  # A limited-frame canary never publishes complete footage.
 
 
 def processing_fakes():

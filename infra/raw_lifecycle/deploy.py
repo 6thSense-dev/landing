@@ -60,6 +60,13 @@ def adapt_stage_runtime(stage):
  return stage
 
 
+def adapt_clean_runtime(worker):
+ # Commit a browser-compatible viewing copy before admitting a new Clean run.
+ anchor=" if not canary:\n  marker=json.dumps("
+ if worker.count(anchor)!=1:raise RuntimeError('Pinned Clean publication anchor changed')
+ return worker.replace(anchor," if not canary:\n  from browser_preview import publish_preview\n  publish_preview(s3,doc,ref,out)\n  marker=json.dumps(")
+
+
 def runtime():
  ref=SOURCE_RUNTIME
  source=s3.get_object(Bucket=ref['bucket'],Key=ref['key'],VersionId=ref['version_id'])['Body'].read()
@@ -76,8 +83,9 @@ def runtime():
  anchor=" assert report['recording']==spec['recording']==rec and spec['kind']=='stereo_video' and spec['source_complete_flag'] is True"
  assert anchor in worker,'Pinned Clean runtime changed'
  binding="\n identity=lambda a:(a['bucket'],a['key'],a['version_id'],a['bytes'])\n assert len(report['sources'])==len(spec['sources']) and {identity(a) for a in report['sources']}=={identity(a) for a in spec['sources']},'Conversion receipt source versions differ from plan'"
- files['worker.py']=worker.replace(anchor,anchor+binding).encode()
+ files['worker.py']=adapt_clean_runtime(worker.replace(anchor,anchor+binding)).encode()
  files['archive_worker.py']=(ROOT/'archive_worker.py').read_bytes()
+ files['browser_preview.py']=(ROOT/'browser_preview.py').read_bytes()
  stream=io.BytesIO()
  with tarfile.open(fileobj=stream,mode='w:gz') as t:
   for name,body in sorted(files.items()):
