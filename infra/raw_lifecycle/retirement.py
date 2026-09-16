@@ -37,14 +37,13 @@ def validate_imports(state, receipt, episode):
     if episode.get('deleted'): raise ValueError('Operator-deleted recording cannot be retired by this flow')
     imports = episode.get('imports',[])
     if not imports: raise ValueError('Portal has not imported verified Clean')
-    hashes = {(s['sha256'], s.get('size_bytes',s.get('bytes'))) for r in imports for s in r['sources']}
+    imported_sets = [{(s['sha256'], s.get('size_bytes',s.get('bytes'))) for s in r['sources']} for r in imports]
     archived = {c.digest(c.source_identity(x['source'])):x['source'] for x in receipt['objects']}
     media = [r for r in state['snapshot'] if r['key'].lower().endswith(('.mp4','.mov','.m4v','.webm','.h265','.hevc','.egoc'))]
     if not media: raise ValueError('No source media to reconcile')
-    for ref in media:
-        src = archived[c.digest(c.source_identity(ref))]
-        if (src['sha256'],src['bytes']) not in hashes:
-            raise ValueError('Some Raw media is not represented by imported Clean; originals retained')
+    current = {(archived[c.digest(c.source_identity(ref))]['sha256'], ref['bytes']) for ref in media}
+    if not any(current <= hashes for hashes in imported_sets):
+        raise ValueError('Some Raw media is not represented by one imported Clean run; originals retained')
 
 
 def handler(event, context):

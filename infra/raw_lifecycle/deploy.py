@@ -124,6 +124,11 @@ def function(name,handler,arn,code,timeout=840):
  return lam.get_function(FunctionName=name)['Configuration']['FunctionArn']
 
 def prepare():
+ try:
+  previous=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
+  if previous.get('enabled'):raise RuntimeError('Pause the live coordinator before changing definitions or spending window')
+ except ClientError as exc:
+  if exc.response['Error']['Code'] not in ('404','NoSuchKey','NotFound'):raise
  archive_bucket(); ref=runtime()
  logs=allow(['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],f'arn:aws:logs:{REGION}:{ACCOUNT}:*')
  rawread=[allow(['s3:ListBucket','s3:ListBucketVersions','s3:ListBucketMultipartUploads'],'arn:aws:s3:::6thsense-raw'),allow(['s3:GetObject','s3:GetObjectVersion'],'arn:aws:s3:::6thsense-raw/sessions/*')]
