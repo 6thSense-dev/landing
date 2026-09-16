@@ -12,7 +12,7 @@ Workflow foundation: `feat/ops-workflow-ledgers`; mobile extension: `feat/contri
 
 ## Payment policy and operation
 
-Registered [business sources](OPS-BUSINESS-SOURCES.md) keep quality reviews and regional hours but have no individual owner, rate or payout eligibility. Their source-country collection dates and `b2b_contract` ledger status do not establish contract settlement. Business registration is maintenance-only; invoice handling and self-service onboarding are outside this release.
+Registered [business sources](OPS-BUSINESS-SOURCES.md) keep quality reviews and regional hours but have no individual owner, rate or payout eligibility. Their source-country collection dates and `b2b_contract` ledger status do not establish contract settlement. Operators configure dedicated upload channels through controlled maintenance; Raw scans then preserve per-recording business attribution before filling individual owners, so PSDN uploads display under PSDN. Attribution survives Raw retirement. Invoice handling and self-service onboarding are outside this release.
 
 The Korean pilot uses KRW 11,000/hour. Eligibility requires strictly more than 14,400 seconds of accumulated unpaid, reviewed retained footage with confirmed collection dates. Friday scheduling defaults to 18:00 Asia/Seoul and includes completed Monday–Sunday collection weeks plus earlier unpaid balances. The API fixes the threshold basis to accumulated unpaid time for this pilot.
 
