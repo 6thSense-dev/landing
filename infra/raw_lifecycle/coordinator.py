@@ -207,6 +207,8 @@ def conversion_plan(cfg, state, episode):
     if not media: raise ValueError('Source media missing')
     if any(r['key'].endswith('.egoc') for r in media):
         raise ValueError('EgoC source requires container extraction plan; archive preserved for recovery')
+    if any(r['key'].lower().endswith(('.h265','.hevc')) for r in media):
+        raise ValueError('Native HEVC stream requires matching portal inventory support; archive preserved')
     if any(r['key'].endswith(('/left.mp4','/right.mp4')) for r in media):
         raise ValueError('Legacy split source requires measured exposure-grid recovery')
     if len({r['key'].rsplit('/',1)[-1] for r in media}) != len(media):
