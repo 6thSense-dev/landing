@@ -107,10 +107,10 @@ class RetirementS3:
         return {"DeleteMarker": False}
 
 
-def install_handler_fakes(monkeypatch, storage, state, receipt, episode):
+def install_handler_fakes(monkeypatch, storage, state, receipt, episode, *, retirement_enabled=True):
     def read_json(bucket, key, version=None):
         if bucket == c.ARTIFACTS:
-            return {"enabled": True, "retirement_enabled": True,
+            return {"enabled": True, "retirement_enabled": retirement_enabled,
                     "run_deadline_epoch": 9_999_999_999}, {"sha256": "cfg"}
         if bucket == c.PROCESSED:
             return state, {"sha256": "state"}
@@ -172,6 +172,40 @@ def test_every_archive_version_is_verified_before_any_raw_delete(monkeypatch):
 
     assert storage.archive_heads == ["archive-v1", "archive-v2"]
     assert storage.delete_calls == []
+
+
+def test_dry_run_with_retirement_disabled_verifies_every_archive_and_never_deletes(monkeypatch):
+    state, receipt, episode, items = fixtures()
+    corrupt = RetirementS3(items, corrupt_archive="archive-v2")
+    install_handler_fakes(
+        monkeypatch, corrupt, state, receipt, episode, retirement_enabled=False
+    )
+    event = {"recording": RECORDING, "fingerprint": state["fingerprint"], "dry_run": True}
+
+    with pytest.raises(ValueError, match="Archive object is missing or changed"):
+        r.handler(event, None)
+
+    assert corrupt.archive_heads == ["archive-v1", "archive-v2"]
+    assert corrupt.delete_calls == []
+
+    verified = RetirementS3(items)
+    install_handler_fakes(
+        monkeypatch, verified, state, receipt, episode, retirement_enabled=False
+    )
+
+    result = r.handler(event, None)
+
+    assert result == {
+        "retired": False,
+        "verified": True,
+        "recording": RECORDING,
+        "fingerprint": state["fingerprint"],
+        "archive_receipt": state["archive_receipt"],
+        "versions_verified": 2,
+        "dry_run": True,
+    }
+    assert verified.archive_heads == ["archive-v1", "archive-v2"]
+    assert verified.delete_calls == []
 
 
 def test_new_current_source_version_prevents_any_raw_delete(monkeypatch):
