@@ -12,7 +12,7 @@ from app.core.ops_clean import committed_results, estimate_krw, playback
 from app.core.ops_artifacts import validate_artifacts
 from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
 from app.core.ops_regions import clean_region
-from app.core.ops_sources import business_source, source_registry, counterparty
+from app.core.ops_sources import business_source, source_registry, counterparty, business_source_key
 from app.models import CleanRun, OpsCamera, Episode, Wearer, User
 
 router = APIRouter(prefix='/api/ops/clean', tags=['ops'])
@@ -165,12 +165,7 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
                     if rec['recording'] not in names:
                         continue
                     for source in rec.get('sources', []):
-                        parts = source.get('key', '').split('/')
-                        # The optional folder is the UPLOADING camera, which can
-                        # differ after a card swap. Recording/calibration bind
-                        # the capture camera; the registry binds its session.
-                        layout_ok = len(parts) == 4 or (len(parts) == 5 and re.fullmatch(r'(?:EGO-)?[A-Fa-f0-9]{6}', parts[2]))
-                        if source.get('bucket') != '6thsense-raw' or not layout_ok or parts[:2] != ['sessions', sessions[rec['recording']]] or parts[-2] != rec['recording']:
+                        if not business_source_key(source, rec['recording'], sessions[rec['recording']], registry[rec['recording']]):
                             raise HTTPException(409, 'Business output source session does not match the confirmed attribution.')
                 owner, rate = None, None
             else:

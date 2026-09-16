@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2.0] - 2026-09-16
+
+### Fixed
+
+- Identify recordings from configured business upload destinations automatically, so PSDN uploads appear under PSDN in Ops instead of Unassigned.
+- Preserve source attribution through rescans and Raw retirement, support registered nested delivery folders in Clean, and keep business footage outside individual earnings.
+- Release resolved attribution holds while preserving processing holds for changed source files.
+
 ## [0.1.1.0] - 2026-09-16
 
 ### Fixed
