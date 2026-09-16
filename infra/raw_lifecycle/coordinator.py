@@ -443,9 +443,19 @@ def handler(event,context):
                 if any(digest(source_identity(r)) not in archived or any(r[k] != archived[digest(source_identity(r))][k] for k in ('bytes','etag')) for r in snapshot):
                     raise ValueError('New source arrived during retirement; review before cleanup')
             elif not state or state['fingerprint'] != fingerprint:
-                if state and state.get('jobs') and not state.get('retired'):
+                if state and not state.get('retired') and ep.get('imports'):
                     raise ValueError('New source versions arrived during processing; review before supersession')
-                state={'recording':rec,'fingerprint':fingerprint,'snapshot':snapshot,'phase':'observed','observed_at':now(),'jobs':{}}
+                if state and state.get('jobs') and not state.get('retired'):
+                    archive_only = not ep.get('imports') and set(state['jobs']) == {'archive'} and not state.get('retirement_started')
+                    if not archive_only:
+                        raise ValueError('New source versions arrived during processing; review before supersession')
+                    current={digest(source_identity(r)):r for r in snapshot}
+                    if any(digest(source_identity(r)) not in current or any(r[k] != current[digest(source_identity(r))][k] for k in ('bytes','etag')) for r in state['snapshot']):
+                        raise ValueError('New source versions arrived during processing; review before supersession')
+                    if job_status(state['jobs']['archive']) not in ('SUCCEEDED','FAILED'):
+                        raise ValueError('Updated upload waits for its earlier archive job to finish')
+                previous=state.get('fingerprint') if state else None
+                state={'recording':rec,'fingerprint':fingerprint,'snapshot':snapshot,'phase':'observed','observed_at':now(),'jobs':{},'supersedes_fingerprint':previous}
                 save(state)
                 continue  # Observe the same source set on two separate ticks.
             advance(cfg,state,ep,old_conversion,old_clean)
