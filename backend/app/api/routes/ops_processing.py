@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from app.api.routes.ops import require_ops, _state
 from app.core.db import get_session
+from app.core.contributor_deletion import lock as deletion_lock, ensure_wearer_active
 from app.models import ProcessingJob, CleanRun, Episode
 from app.core.ops_artifacts import REQUIREMENT, validate_artifacts
 from app.core.ops_clean import validate_manifest
@@ -23,6 +24,8 @@ async def source_party(db, episode):
         raise HTTPException(409, "Source business attribution must be reconciled.") from exc
     if not episode or episode.deleted_at or (not episode.wearer_id and not party):
         raise HTTPException(409, "Source is removed or contributor/business attribution is unresolved.")
+    if episode.wearer_id is not None:
+        await ensure_wearer_active(db, episode.wearer_id)
     return party
 
 router = APIRouter(prefix="/api/ops/processing", tags=["ops"])
@@ -36,6 +39,7 @@ def worker_auth(authorization: str = Header(default="")):
 
 @router.post("/claim")
 async def claim(_=Depends(worker_auth), db=Depends(get_session)):
+    await deletion_lock(db)
     now = datetime.now(timezone.utc)
     await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
     jobs = (
@@ -95,6 +99,7 @@ class ResultIn(BaseModel):
 
 @router.post("/result")
 async def result(body: ResultIn, _=Depends(worker_auth), db=Depends(get_session)):
+    await deletion_lock(db)
     j = await db.get(ProcessingJob, body.recording, with_for_update=True)
     now = datetime.now(timezone.utc)
     if (
@@ -148,6 +153,7 @@ async def result(body: ResultIn, _=Depends(worker_auth), db=Depends(get_session)
 
 @router.post("/{recording}/retry")
 async def retry(recording: str, _=Depends(require_ops), db=Depends(get_session)):
+    await deletion_lock(db)
     j = await db.get(ProcessingJob, recording, with_for_update=True)
     if not j:
         raise HTTPException(404, "Scan the bucket first.")
@@ -156,6 +162,8 @@ async def retry(recording: str, _=Depends(require_ops), db=Depends(get_session))
     ).scalar_one_or_none()
     if not episode or episode.deleted_at:
         raise HTTPException(409, "An operator-removed source cannot be retried.")
+    if episode.wearer_id is not None:
+        await ensure_wearer_active(db, episode.wearer_id)
     if j.state in ("running", "clean"):
         raise HTTPException(409, "This job cannot be retried in its current state.")
     j.state = "retry"

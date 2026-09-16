@@ -212,6 +212,8 @@ async def scan_bucket(_: User = Depends(require_ops),
             detail=f"The bucket could not be read: {type(exc).__name__}: {exc}"[:300],
         ) from exc
 
+    from app.core.contributor_deletion import lock as deletion_lock
+    await deletion_lock(db)
     await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
     known = {e.recording: e for e in
              (await db.execute(select(Episode))).scalars().all()}
@@ -309,6 +311,8 @@ async def update_wearer(wearer_id: int, body: WearerPatch,
     leave a settled payment with nobody's name on it. `is_active = false`
     retires them from the pickers and keeps the record intact.
     """
+    from app.core.contributor_deletion import ensure_wearer_active
+    await ensure_wearer_active(db, wearer_id)
     w = (await db.execute(
         select(Wearer).where(Wearer.id == wearer_id))).scalar_one_or_none()
     if w is None:
@@ -393,8 +397,14 @@ async def assign_episode(recording: str, body: AssignIn,
                          _: User = Depends(require_ops),
                          db: AsyncSession = Depends(get_session)) -> dict:
     from app.core.ops_sources import source_registry
+    from app.core.contributor_deletion import lock as deletion_lock, ensure_wearer_active
+    await deletion_lock(db)
+    if body.wearer_id is not None:
+        await ensure_wearer_active(db, body.wearer_id)
     await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
     e = await _episode_or_404(db, recording)
+    if e.wearer_id is not None:
+        await ensure_wearer_active(db, e.wearer_id)
     if recording in await source_registry(db):
         raise HTTPException(409, 'This source belongs to a business contract and cannot be assigned to an individual.')
     if body.wearer_id is not None:

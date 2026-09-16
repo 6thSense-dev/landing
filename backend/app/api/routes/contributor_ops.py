@@ -3,7 +3,7 @@ import asyncio
 import hashlib
 import json
 import os
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Literal
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.routes.ops import require_ops
 from app.api.routes.contributor import AGREEMENTS, RECORDS_BUCKET, has_consent
 from app.core.contributor_auth import REGIONS
+from app.core.contributor_deletion import lock as deletion_lock, ensure_active
 from app.core.db import get_session
 from app.models import ContributorAccount, ContributorCameraClaim, ContributorConsent, ContributorRecipientAttempt, OpsCamera, OpsSetting, User, Wearer
 
@@ -50,6 +51,7 @@ async def resolve_recipient(attempt_id: str, body: RecipientResolutionIn,
     elif body.recipient_id is not None or not body.confirmed_not_created:
         raise HTTPException(422, "Confirm with Wise that this attempt created no recipient.")
 
+    await deletion_lock(db)
     await db.execute(text("SELECT pg_advisory_xact_lock(61306133)"))
     attempt = await db.get(ContributorRecipientAttempt, attempt_id)
     if not attempt:
@@ -126,10 +128,12 @@ class ApproveIn(BaseModel):
 async def approve_camera(claim_id: str, body: ApproveIn, operator: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
     if not body.physically_verified:
         raise HTTPException(422, "Physical provisioning is required.")
+    await deletion_lock(db)
     await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
     claim = await db.get(ContributorCameraClaim, claim_id)
     if not claim or claim.ended_at or claim.status not in ("pending", "approved"):
         raise HTTPException(409, "This request is not active.")
+    await ensure_active(db, claim.subject)
     account = await db.get(ContributorAccount, claim.subject)
     wearer = await db.get(Wearer, account.wearer_id)
     if not wearer or not wearer.is_active:
@@ -226,7 +230,12 @@ async def publish_terms(routing_version: str, body: TermsIn, operator: User = De
 
 @router.post("/consents/export")
 async def export_consents(_: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
-    receipts = (await db.execute(select(ContributorConsent))).scalars().all()
+    from app.models import ContributorDeletion
+    await deletion_lock(db)
+    receipts = (await db.execute(select(ContributorConsent).where(
+        ContributorConsent.subject.not_in(select(ContributorDeletion.subject))))).scalars().all()
+    if not receipts:
+        return {"exported": 0}
     def export():
         from botocore.exceptions import ClientError
         from app.core import ops_s3
@@ -242,3 +251,86 @@ async def export_consents(_: User = Depends(require_ops), db: AsyncSession = Dep
     except Exception:
         raise HTTPException(503, "Export pending; original receipts remain in the database.") from None
     return {"exported": len(receipts)}
+
+
+class RetainedRecord(BaseModel):
+    scope: str = Field(min_length=10, max_length=1000)
+    reason: str = Field(min_length=10, max_length=1000)
+    review_at: date
+
+
+class DeletionFulfillmentIn(BaseModel):
+    footage_cleanup: str = Field(min_length=20, max_length=4000)
+    processor_cleanup: str = Field(min_length=20, max_length=4000)
+    retained_records: list[RetainedRecord] = Field(min_length=1, max_length=30)
+
+
+@router.get('/deletions')
+async def deletion_queue(_: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
+    from app.models import ContributorDeletion
+    rows = (await db.execute(select(ContributorDeletion).order_by(ContributorDeletion.requested_at))).scalars()
+    return {'requests':[{'id':r.id,'subject':r.subject,'status':r.status,'requested_at':r.requested_at,
+                         'provider_status':r.provider_status,'attempts':r.attempts,
+                         'evidence':json.loads(r.evidence) if r.evidence else None} for r in rows]}
+
+
+@router.post('/deletions/{request_id}/fulfill')
+async def fulfill_deletion(request_id: str, body: DeletionFulfillmentIn,
+                           operator: User = Depends(require_ops), db: AsyncSession = Depends(get_session)):
+    from app.core import contributor_deletion as deletion
+    from app.models import ContributorDeletion, PayoutRecipient
+    await deletion.lock(db)
+    row = (await db.execute(select(ContributorDeletion).where(ContributorDeletion.id == request_id))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, 'deletion_request_not_found')
+    if row.status == 'completed':
+        return {'status':'completed', 'request_id':row.id}
+    if any(len(v.strip()) < 20 for v in (body.footage_cleanup,body.processor_cleanup)) or any(
+        len(v.scope.strip()) < 10 or len(v.reason.strip()) < 10 for v in body.retained_records):
+        raise HTTPException(422, 'cleanup_and_retention_evidence_required')
+    attempts = (await db.execute(select(ContributorRecipientAttempt).where(ContributorRecipientAttempt.subject == row.subject))).scalars().all()
+    if any(a.status in ('submitting','needs_reconciliation') for a in attempts):
+        raise HTTPException(409, 'resolve_provider_submissions_before_deletion')
+    if row.evidence is None and any(v.review_at < datetime.now(timezone.utc).date() for v in body.retained_records):
+        raise HTTPException(422, 'retention_review_date_must_not_be_past')
+    evidence = body.model_dump(mode='json')
+    if row.evidence and json.loads(row.evidence)['cleanup'] != evidence:
+        raise HTTPException(409, 'deletion_evidence_already_recorded')
+    if row.evidence is None:
+        row.evidence = json.dumps({'cleanup':evidence, 'operator':operator.email,
+                                   'recorded_at':datetime.now(timezone.utc).isoformat()})
+    row.status = 'processing'
+    # Commit intent before contacting Cognito. Reacquire the same lock and reload:
+    # a second worker may finish during the commit boundary.
+    await db.commit()
+    await deletion.lock(db)
+    await db.refresh(row)
+    if row.status == 'completed':
+        return {'status':'completed', 'request_id':row.id}
+    row.attempts += 1
+    try:
+        await asyncio.to_thread(deletion.delete_cognito_user, row.subject)
+    except Exception:
+        row.provider_status = 'retry_required'
+        db.add(OpsSetting(key='contrib_delete_attempt_'+str(uuid4()), value=json.dumps({
+            'request_id':row.id, 'operator':operator.email, 'at':datetime.now(timezone.utc).isoformat(),
+            'result':'retry_required'})))
+        await db.commit()
+        raise HTTPException(503, 'identity_deletion_retry_required') from None
+    account = await db.get(ContributorAccount, row.subject)
+    if account:
+        wearer = await db.get(Wearer, account.wearer_id)
+        wearer.name, wearer.contact, wearer.workplace, wearer.location, wearer.note = 'Deleted contributor','','','',''
+        wearer.is_active = False
+        linked = await db.get(PayoutRecipient, account.wearer_id)
+        if linked:
+            await db.delete(linked)
+        for attempt in attempts:
+            attempt.summary = '{}'
+            attempt.recipient_id = None
+            attempt.status = 'deleted'
+    row.provider_status, row.status, row.completed_at = 'deleted','completed',datetime.now(timezone.utc)
+    db.add(OpsSetting(key='contrib_delete_attempt_'+str(uuid4()), value=json.dumps({
+        'request_id':row.id, 'operator':operator.email, 'at':row.completed_at.isoformat(), 'result':'completed'})))
+    await db.commit()
+    return {'status':'completed', 'request_id':row.id}

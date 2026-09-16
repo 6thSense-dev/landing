@@ -4,6 +4,12 @@ from datetime import datetime, timezone, timedelta
 import hashlib
 import json
 import re
+import os
+import secrets
+from fastapi import Header
+from typing import Literal
+from app.core import contributor_deletion
+from app.models import ContributorDeletion, ProcessingJob
 from uuid import uuid4
 from app.core.ops_s3 import _client as s3_client, get_settings as s3_settings
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +29,7 @@ def now():
     return datetime.now(timezone.utc)
 
 async def account_for(identity, db):
+    await contributor_deletion.ensure_active(db, identity["subject"])
     account = await db.get(ContributorAccount, identity["subject"])
     if not account:
         raise HTTPException(409, "enrollment_required")
@@ -70,6 +77,7 @@ class EnrollmentIn(BaseModel):
 
 @router.post("/enrollment")
 async def enrollment(body: EnrollmentIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    await contributor_deletion.ensure_active(db, identity["subject"])
     if not body.name.strip():
         raise HTTPException(422, "name_required")
     await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
@@ -223,3 +231,81 @@ async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: As
         attempt.status = "needs_reconciliation"
     await db.commit()
     return {"status": attempt.status}
+
+
+def deletion_status(row):
+    return {'status': row.status if row else 'none',
+            'request_id': row.id if row else None,
+            'requested_at': row.requested_at if row else None,
+            'expected_completion': os.getenv('CONTRIBUTOR_DELETION_EXPECTED_COMPLETION') or None}
+
+
+@router.get('/account-deletion/receipt')
+async def deletion_receipt(authorization: str | None = Header(default=None), db: AsyncSession = Depends(get_session)):
+    token = authorization[7:] if authorization and authorization.startswith('Bearer ') else ''
+    if not re.fullmatch('[a-f0-9]{64}', token):
+        raise HTTPException(404, 'receipt_not_found')
+    row = (await db.execute(select(ContributorDeletion).where(ContributorDeletion.receipt_hash == hashlib.sha256(token.encode()).hexdigest()))).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, 'receipt_not_found')
+    return deletion_status(row)
+
+
+@router.get('/account-deletion')
+async def get_deletion(identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    return deletion_status(await db.get(ContributorDeletion, identity['subject']))
+
+
+class DeletionIn(BaseModel):
+    confirmed: Literal[True]
+
+
+@router.post('/account-deletion')
+async def request_deletion(body: DeletionIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    await contributor_deletion.lock(db)
+    subject = identity['subject']
+    row = await db.get(ContributorDeletion, subject)
+    token = secrets.token_hex(32)
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    if row is None:
+        row = ContributorDeletion(subject=subject, id=str(uuid4()), receipt_hash=digest, status='requested')
+        db.add(row)
+    else:
+        row.receipt_hash = digest
+    account = await db.get(ContributorAccount, subject)
+    if account:
+        wearer = await db.get(Wearer, account.wearer_id)
+        wearer.is_active = False
+        for claim in (await db.execute(select(ContributorCameraClaim).where(ContributorCameraClaim.subject == subject, ContributorCameraClaim.ended_at.is_(None)))).scalars():
+            claim.ended_at = now()
+        for camera in (await db.execute(select(OpsCamera).where(OpsCamera.wearer_id == account.wearer_id))).scalars():
+            camera.wearer_id = None
+        recordings = select(Episode.recording).where(Episode.wearer_id == account.wearer_id)
+        for job in (await db.execute(select(ProcessingJob).where(ProcessingJob.recording.in_(recordings)))).scalars():
+            job.state, job.reason = 'blocked', 'Contributor account deletion requested.'
+            job.lease_token = job.lease_until = None
+    await db.commit()
+    return {**deletion_status(row), 'receipt_token': token}
+
+
+@router.get('/notice')
+async def public_notice(routing_version: str, locale: str = 'en', db: AsyncSession = Depends(get_session)):
+    if locale not in ('en','ko'):
+        raise HTTPException(422, 'unsupported_locale')
+    region = next((r for r in REGIONS if r['routing_version'] == routing_version), None)
+    if region is None:
+        return {'status':'not_published','documents':[]}
+    docs = [d for d in await terms_for(region, db) if d['locale'] == locale]
+    if {d['agreement'] for d in docs} != AGREEMENTS:
+        return {'status':'not_published','documents':[]}
+    # Only a founder-published immutable bundle may be exposed before signup.
+    for doc in docs:
+        publication = doc.get('publication_id')
+        audit = await db.get(OpsSetting, 'contributor_terms_audit_' + publication) if isinstance(publication,str) else None
+        try:
+            proof = json.loads(audit.value) if audit else {}
+            if proof.get('routing_version') != routing_version or doc not in proof.get('documents',[]):
+                return {'status':'not_published','documents':[]}
+        except (ValueError,TypeError):
+            return {'status':'not_published','documents':[]}
+    return await terms(locale=locale, identity={'region':region}, db=db)

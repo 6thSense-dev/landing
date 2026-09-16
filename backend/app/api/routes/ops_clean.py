@@ -82,6 +82,8 @@ async def assign_camera(body: CameraIn, _: User = Depends(require_ops), db: Asyn
     device = body.device_id.strip().upper().removeprefix('EGO-')
     if not re.fullmatch(r'[A-F0-9]{6}', device):
         raise HTTPException(422, 'Enter a six-character camera ID, for example EGO-ABC123.')
+    from app.core.contributor_deletion import ensure_wearer_active
+    await ensure_wearer_active(db, body.wearer_id)
     await db.execute(text('SELECT pg_advisory_xact_lock(61306130)'))
     wearer = await db.get(Wearer, body.wearer_id)
     if wearer is None or not wearer.is_active:
@@ -112,7 +114,9 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
         results = await asyncio.to_thread(committed_results)
     except Exception as exc:
         raise HTTPException(502, f'Clean results could not be verified ({type(exc).__name__}).') from exc
-    # Serialize import/overlap checks across operators and requests.
+    # Serialize deletion before import/overlap locks, matching other entry points.
+    from app.core.contributor_deletion import lock as deletion_lock
+    await deletion_lock(db)
     await db.execute(text('SELECT pg_advisory_xact_lock(61306130)'))
     existing = (await db.execute(select(CleanRun))).scalars().all()
     by_id = {r.run_id: r for r in existing}

@@ -55,6 +55,8 @@ def diagnose(take, now):
 
 
 async def reconcile(db, takes, manifests, receipts):
+    from app.core.contributor_deletion import pending_wearers
+    held_wearers = await pending_wearers(db)
     now = datetime.now(timezone.utc)
     registry = await source_registry(db)
     statuses = raw_statuses(takes, manifests, receipts)
@@ -79,6 +81,14 @@ async def reconcile(db, takes, manifests, receipts):
             party, attribution_error = None, True
         if e and rec not in registry and not e.wearer_id and not e.paid and not e.deleted_at:
             e.wearer_id = cameras.get(e.device_id.upper().removeprefix("EGO-"))
+        if e and e.wearer_id in held_wearers:
+            if not j:
+                j = ProcessingJob(recording=rec, attempts=0, fingerprint=digest, input_json=encoded)
+                db.add(j)
+                jobs[rec] = j
+            j.state, j.reason = 'blocked', 'Contributor account deletion requested.'
+            j.lease_token = j.lease_until = None
+            continue
         same_input = bool(j and j.fingerprint == digest)
         if j and e and e.deleted_at:
             j.state = "rejected"
