@@ -1,6 +1,7 @@
 {
   "Version": "2012-10-17",
   "Statement": [
+    {"Sid":"DiscoverInheritedKeys","Effect":"Allow","Action":"s3:ListBucket","Resource":"arn:aws:s3:::6thsense-sieve","Condition":{"StringLike":{"s3:prefix":"inherited/v1/*"}}},
     {"Sid":"ReadCleanVersions","Effect":"Allow","Action":["s3:GetObject","s3:GetObjectVersion"],"Resource":["arn:aws:s3:::6thsense-processed/clean/*","arn:aws:s3:::6thsense-processed/qc-results/*"]},
     {"Sid":"InheritCleanOnly","Effect":"Allow","Action":["s3:GetObject","s3:GetObjectVersion","s3:PutObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],"Resource":"arn:aws:s3:::6thsense-sieve/inherited/v1/*"},
     {"Sid":"NeverReadRaw","Effect":"Deny","Action":"s3:GetObject*","Resource":"arn:aws:s3:::6thsense-raw/*"}

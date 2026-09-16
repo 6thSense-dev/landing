@@ -37,8 +37,14 @@ class Storage:
         return dict(Body=io.BytesIO(body), ContentLength=len(body), VersionId=ref['version_id'])
 
     def head_object(self, **kw):
+        if kw['Bucket'] == sieve.BUCKET and (kw['Bucket'], kw['Key']) not in self.objects:
+            raise ClientError({'Error': {'Code': '403'}}, 'HeadObject')
         body, ref, meta = self.lookup(**kw)
         return dict(ContentLength=len(body), VersionId=ref['version_id'], Metadata=meta)
+
+    def list_objects_v2(self, Bucket, Prefix, MaxKeys):
+        assert Bucket == sieve.BUCKET and Prefix.startswith(sieve.PREFIX)
+        return {'Contents': [{'Key': k} for b,k in sorted(self.objects) if b == Bucket and k.startswith(Prefix)][:MaxKeys]}
 
     def copy(self, source, bucket, key, ExtraArgs, Config):
         body, ref, meta = self.lookup(**source)

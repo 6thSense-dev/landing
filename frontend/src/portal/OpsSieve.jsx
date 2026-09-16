@@ -61,9 +61,9 @@ export default function OpsSieve({ onExpired }) {
     <section className="sieve-progress" aria-label="Inheritance progress">
       <div><strong>{Math.round(progress)}% inherited from Clean</strong><span>{t.status_counts.pending || 0} pending · {t.status_counts.blocked || 0} blocked</span></div>
       <progress value={t.inherited_seconds} max={t.clean_seconds || 1} aria-label="Clean hours inherited by Sieve" />
-      <p>Each recording counts once across both eyes. Original codecs are preserved. Previous Raw-derived Sieve files are excluded.</p>
+      <p>Each recording counts once across both eyes. Original codecs are preserved. Deleted recordings and previous Raw-derived Sieve files are excluded.</p>
     </section>
-    <div className="sieve-section-heading"><h3>Collection diversity</h3><p>All Clean recordings · <i className="sieve-legend" /> inherited portion</p></div>
+    <div className="sieve-section-heading"><h3>Collection diversity</h3><p>Active Clean recordings · <i className="sieve-legend" /> inherited portion</p></div>
     <div className="sieve-grid">
       <Distribution title="Country" rows={b.country} total={t.clean_seconds} />
       <Distribution title="Contributor / business" rows={b.entity} total={t.clean_seconds} />

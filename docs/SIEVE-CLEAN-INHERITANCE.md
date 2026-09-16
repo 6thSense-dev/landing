@@ -48,7 +48,7 @@ S3 performs version-pinned server-side copies, including multipart copy for larg
 MP4s. Source and destination sizes and SHA metadata are checked; JSON bodies also
 receive SHA-256 readback. This is not a new full decode or video SHA readback.
 Receipt publication happens only after the complete recording's files verify.
-Retries reuse matching destinations; conflicting provenance is blocked. Deleted
+Exact-prefix listing distinguishes absent keys from permission errors without granting access to other Sieve prefixes. Retries reuse matching destinations; conflicting provenance is blocked. Deleted
 recordings and stale manifest/attribution revisions are excluded from the active
 DB dashboard and next completed S3 index. Older immutable receipts remain audit
 history; explicit media deletions must also purge Sieve versions and caches.
@@ -73,7 +73,7 @@ Set `OPS_SIEVE_ROLE_ARN` to
 
 The existing portal credential may assume that dedicated role; it does not gain
 Sieve write permission itself. Policies are checked into `infra/sieve/`: the role
-can read only Clean/QC source objects and read/write `inherited/v1/` destinations,
+can read only Clean/QC source objects and list/read/write `inherited/v1/` destinations,
 with an explicit deny on Raw object reads. It cannot write Raw, Clean, or legacy
 Sieve preparation prefixes. No new permanent access keys are created.
 

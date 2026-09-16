@@ -259,12 +259,12 @@ def copy_recording(s3, row):
         source, key = item['source'], target + item['name']
         verify_head(s3, source, current=True)
         identity = digest(source)
-        try:
-            head = s3.head_object(Bucket=BUCKET, Key=key)
-        except ClientError as exc:
-            if exc.response['Error']['Code'] not in MISSING:
-                raise
-            head = None
+        # HEAD of a missing key returns 403 with prefix-scoped ListBucket
+        # permission. Discover the exact key using an authorized prefix list;
+        # never misclassify a real access failure as permission to overwrite.
+        found = s3.list_objects_v2(Bucket=BUCKET, Prefix=key, MaxKeys=1)
+        exists = any(obj['Key'] == key for obj in found.get('Contents', []))
+        head = s3.head_object(Bucket=BUCKET, Key=key) if exists else None
         if head is None:
             s3.copy({'Bucket': source['bucket'], 'Key': source['key'], 'VersionId': source['version_id']}, BUCKET, key,
                     ExtraArgs={'MetadataDirective': 'REPLACE', 'Metadata': {'sha256': source['sha256'], 'clean-source': identity},
