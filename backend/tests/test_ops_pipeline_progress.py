@@ -331,3 +331,103 @@ async def test_pipeline_route_is_ops_only_and_returns_sanitized_snapshot(app, db
         response = await client.get("/api/ops/sieve/pipeline", cookies={"sid": ops})
     assert response.status_code == 200
     assert response.json() == expected
+
+
+def supplement_delivery(**changes):
+    value = {
+        "schema": "6thsense-supplement-delivery-status/1",
+        "run_id": progress.DEFAULT_SUPPLEMENT_RUN, "batch_id": progress.DEFAULT_SUPPLEMENT_RUN,
+        "manifest_sha256": progress.SUPPLEMENT_MANIFEST_SHA256, "status": "UPLOADED_FOR_CUSTOMER_QC",
+        "total_files": 604, "uploaded_files": 604,
+        "total_bytes": 25394461079, "uploaded_bytes": 25394461079,
+        "potential_unique_technical_hours": "4.696644566",
+        "external_transfer_completed": True, "customer_accepted": False,
+        "human_review": "PENDING", "updated_at": datetime.now(timezone.utc).isoformat(),
+        "destination_url": "https://private.invalid/secret", "source_key": "s3://private/secret",
+    }
+    value.update(changes)
+    return value
+
+
+def add_supplement_delivery(storage, **changes):
+    storage.add("6thsense-sieve", f"reports/{progress.DEFAULT_SUPPLEMENT_RUN}/delivery/status.json",
+                supplement_delivery(**changes))
+
+
+def test_missing_supplement_transfer_is_optional_and_does_not_change_staging(monkeypatch):
+    storage = full_storage()
+    monkeypatch.setattr(progress, "storage_client", lambda **_kwargs: storage)
+    result = progress._collect()
+    assert result["supplement_delivery"]["available"] is False
+    assert result["supplement_delivery"]["uploaded_hours"] is None
+    assert result["supplement"]["external_delivery_performed"] is False
+    assert result["errors"] == []
+
+
+@pytest.mark.parametrize("state", ["PREPARING", "UPLOADING", "FAILED"])
+def test_partial_or_failed_supplement_never_counts_uploaded_hours(state):
+    storage = Storage()
+    add_supplement_delivery(storage, status=state, uploaded_files=20, uploaded_bytes=100,
+                            external_transfer_completed=False)
+    result, warning = progress._supplement_delivery(storage, progress.DEFAULT_SUPPLEMENT_RUN)
+    assert result["state"] == state
+    assert result["uploaded_files"] == 20
+    assert result["uploaded_hours"] is None
+    assert result["complete"] is result["external_transfer_completed"] is False
+    assert warning is None
+
+
+def test_complete_supplement_is_separate_sanitized_customer_qc_transfer(monkeypatch):
+    storage = full_storage()
+    add_supplement_delivery(storage)
+    monkeypatch.setattr(progress, "storage_client", lambda **_kwargs: storage)
+    result = progress._collect()
+    transfer = result["supplement_delivery"]
+    assert transfer["complete"] is transfer["external_transfer_completed"] is True
+    assert transfer["uploaded_hours"] == 4.696644566
+    assert transfer["customer_accepted"] is False and transfer["human_review"] == "PENDING"
+    assert result["supplement"]["external_delivery_performed"] is False
+    assert result["delivery"]["uploaded_hours"] == 6.0326632672
+    assert not any(token in json.dumps(result) for token in ["secret", "s3://", "https://"])
+
+
+@pytest.mark.parametrize("changes", [
+    {"uploaded_files": 603}, {"uploaded_bytes": 1}, {"total_files": 603, "uploaded_files": 603},
+    {"total_bytes": 0, "uploaded_bytes": 0}, {"total_bytes": 123, "uploaded_bytes": 123}, {"uploaded_files": 605},
+    {"potential_unique_technical_hours": 50}, {"status": "FAILED"},
+    {"external_transfer_completed": False},
+])
+def test_contradictory_supplement_receipt_cannot_claim_completion(changes):
+    storage = Storage()
+    add_supplement_delivery(storage, **changes)
+    result, warning = progress._supplement_delivery(storage, progress.DEFAULT_SUPPLEMENT_RUN)
+    assert result["state"] == "INCONSISTENT"
+    assert result["complete"] is result["external_transfer_completed"] is False
+    assert result["uploaded_hours"] is None
+    assert warning == "supplement_delivery_totals_mismatch"
+
+
+@pytest.mark.parametrize("changes", [
+    {"run_id": "other"}, {"batch_id": "other"}, {"schema": "other"},
+    {"manifest_sha256": "secret"}, {"manifest_sha256": "a" * 64}, {"customer_accepted": True}, {"human_review": "PASS"},
+    {"uploaded_files": True}, {"uploaded_bytes": -1}, {"status": "secret/path"},
+    {"external_transfer_completed": "true"}, {"updated_at": "not-time"},
+    {"potential_unique_technical_hours": "NaN"},
+])
+def test_malformed_supplement_transfer_fails_only_its_section(monkeypatch, changes):
+    storage = full_storage()
+    add_supplement_delivery(storage, **changes)
+    monkeypatch.setattr(progress, "storage_client", lambda **_kwargs: storage)
+    result = progress._collect()
+    assert result["supplement_delivery"]["available"] is False
+    assert result["supplement_delivery"]["uploaded_files"] is None
+    assert result["delivery"]["complete"] is True
+    assert result["errors"] == ["supplement_delivery_unavailable"]
+
+
+def test_denied_supplement_status_is_not_treated_as_missing():
+    class Denied:
+        def get_object(self, **kwargs):
+            raise ClientError({"Error": {"Code": "AccessDenied"}}, "GetObject")
+    with pytest.raises(ClientError):
+        progress._supplement_delivery(Denied(), progress.DEFAULT_SUPPLEMENT_RUN)

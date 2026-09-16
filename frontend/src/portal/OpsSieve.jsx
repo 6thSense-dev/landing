@@ -19,7 +19,7 @@ const pipelineStates = {
   DELIVERED: 'Uploaded', SUCCEEDED: 'Complete', READY_FOR_REVIEW: 'Ready for review',
   DRAFT_PENDING_REVIEW: 'Review pending', PENDING: 'Pending', WAITING: 'Waiting',
   VALIDATING: 'Validating', PARTIAL: 'In progress', UNAVAILABLE: 'Unavailable', UNKNOWN: 'Not yet reported',
-  PACKAGING: 'Packaging', DELIVERED_CHECKSUMS_VERIFIED: 'Uploaded and checksummed', BLOCKED: 'Held', INCONSISTENT: 'Needs verification',
+  UPLOADED_FOR_CUSTOMER_QC: 'Sent for customer QC', PACKAGING: 'Packaging', DELIVERED_CHECKSUMS_VERIFIED: 'Uploaded and checksummed', BLOCKED: 'Held', INCONSISTENT: 'Needs verification',
 };
 
 function Metric({ title, value, children, accent = false }) {
@@ -29,8 +29,14 @@ function Metric({ title, value, children, accent = false }) {
 }
 
 function DeliveryOverview({ pipeline, collection, error, loading }) {
-  const { company, delivery, validation, supplement } = pipeline || {};
-  const uploaded = delivery?.available && knownNumber(delivery.uploaded_hours) ? delivery.uploaded_hours : null;
+  const { company, delivery, validation, supplement, supplement_delivery: originals } = pipeline || {};
+  const formattedHours = delivery?.available && delivery.complete === true && knownNumber(delivery.uploaded_hours) ? delivery.uploaded_hours : null;
+  const originalsComplete = originals?.available === true && originals.complete === true && originals.external_transfer_completed === true
+    && originals.state === 'UPLOADED_FOR_CUSTOMER_QC' && originals.total_files === 604 && originals.uploaded_files === originals.total_files
+    && knownNumber(originals.total_bytes) && originals.total_bytes > 0 && originals.uploaded_bytes === originals.total_bytes
+    && knownNumber(originals.uploaded_hours);
+  const originalsState = originals?.state === 'UPLOADED_FOR_CUSTOMER_QC' && !originalsComplete ? 'INCONSISTENT' : originals?.state;
+  const uploaded = formattedHours === null ? null : formattedHours + (originalsComplete ? originals.uploaded_hours : 0);
   const extra = supplement?.available && supplement.external_delivery_performed === false ? supplement : null;
   const validationText = !validation?.available ? 'Status unavailable' : validation.state === 'PASS' ? 'Passed' :
     ['FAIL', 'FAILED', 'ERROR'].includes(validation.state) ? 'Needs attention' :
@@ -38,25 +44,29 @@ function DeliveryOverview({ pipeline, collection, error, loading }) {
   return <section className="sieve-overview" aria-label="Delivery overview">
     {loading && !pipeline && <p className="sieve-notice" role="status">Loading delivery status…</p>}
     {error && <p className="sieve-notice" role="status">{pipeline ? 'Live update failed. Showing the last loaded delivery snapshot.' : 'Delivery status is unavailable. Collection figures are shown separately.'}</p>}
-    {!error && (pipeline?.cache?.stale || pipeline?.errors?.length > 0 || [company, delivery, validation, supplement].some(stage => stage?.stale)) &&
+    {!error && (pipeline?.cache?.stale || pipeline?.errors?.length > 0 || [company, delivery, validation, supplement, originals].some(stage => stage?.stale)) &&
       <p className="sieve-notice" role="status">Some updates are delayed or unavailable. Last known figures are shown; expand Processing details for update times.</p>}
     <div className="sieve-metrics">
       <Metric title="Uploaded to Sieve" value={pipelineHours(uploaded)} accent>
         <p>of {DELIVERY_TARGET_HOURS} h delivery target</p>
         {uploaded !== null && <progress value={Math.min(uploaded, DELIVERY_TARGET_HOURS)} max={DELIVERY_TARGET_HOURS} aria-label="Uploaded hours toward delivery target" />}
-        <small>In Sieve’s customer storage · customer acceptance not recorded</small>
+        <small>{pipelineHours(formattedHours)} formatted{originalsComplete ? ` + ${pipelineHours(originals.uploaded_hours)} original folders for customer QC` : ' in Sieve’s customer storage'} · customer acceptance not recorded</small>
+        {originalsComplete && <small>Original-folder hours are potential technical retention, not accepted hours.</small>}
       </Metric>
       <Metric title="Available in Clean" value={collection ? `${hours(collection.totals.clean_seconds)} h` : 'Not reported'}>
         <p>{collection ? `${count(collection.totals.recordings)} recordings · India & Korea` : 'Collection status unavailable'}</p>
         <small>{collection ? `${hours(collection.totals.inherited_seconds)} h copied to our Sieve bucket.` : 'Our internal collection.'} Separate from customer delivery.</small>
       </Metric>
-      <Metric title="Awaiting release" value={pipelineHours(extra?.hours)}>
-        <p>{extra ? `${count(extra.recordings)} additional recordings` : 'Release status unavailable'}</p>
-        <small>{extra ? 'Potential delivery hours. Originals staged privately; review required.' : 'No undelivered hours are assumed.'}</small>
+      <Metric title="Originals transfer" value={pipelineHours(originals?.available ? originals.potential_unique_technical_hours : extra?.hours)}>
+        <p>{originals?.available ? pipelineStates[originalsState] || 'Status unknown' : 'Transfer status unavailable'}</p>
+        {originals?.available && <p>{ratio(originals.uploaded_files, originals.total_files)} files · {bytes(originals.uploaded_bytes)} / {bytes(originals.total_bytes)}</p>}
+        {originals?.available && knownNumber(originals.uploaded_files) && originals.total_files > 0 && <progress value={Math.min(originals.uploaded_files, originals.total_files)} max={originals.total_files} aria-label="Original files uploaded to Sieve" />}
+        <small>{originalsComplete ? 'Original folders sent for customer QC. Human review and acceptance pending.' : 'Potential technical hours; excluded from uploaded hours until transfer is verified.'}</small>
+        {extra && <small>{count(extra.recordings)} recordings · original private staging snapshot retained</small>}
       </Metric>
     </div>
     <div className="sieve-next" aria-label="What happens next">
-      <div><h3>What happens next</h3><p><strong>Technical checks: {validationText.toLowerCase()}.</strong>{validation?.available && validation.state !== 'PASS' && knownNumber(validation.clip_reports) ? ` ${ratio(validation.clip_reports, validation.total_clips)} clip reports received.` : ''} {extra ? 'Review the extra footage for release, then record Sieve’s acceptance.' : 'Confirm the footage review and Sieve’s acceptance before closing delivery.'}</p></div>
+      <div><h3>What happens next</h3><p><strong>Technical checks: {validationText.toLowerCase()}.</strong> Formatted batch only.{validation?.available && validation.state !== 'PASS' && knownNumber(validation.clip_reports) ? ` ${ratio(validation.clip_reports, validation.total_clips)} clip reports received.` : ''} {originalsComplete ? 'Original folders are sent for customer QC; human review and acceptance remain pending.' : 'Track the originals transfer separately, then record Sieve’s customer QC and acceptance.'}</p></div>
       <a className="sieve-review-link" href="/portal/ops?tab=clean">Review footage <span aria-hidden="true">→</span></a>
     </div>
     <div className="sieve-company-strip" aria-label="Company processing">
@@ -81,9 +91,14 @@ function DeliveryOverview({ pipeline, collection, error, loading }) {
           <p>{validationText} · {ratio(validation?.clip_reports, validation?.total_clips)} clip reports</p>
           <p>Report counts alone do not mean the checks passed.</p>
         </Stage>
+        <Stage title="Originals customer transfer" data={originals}>
+          <p>{pipelineStates[originalsState] || 'Status unknown'} · {pipelineHours(originals?.potential_unique_technical_hours)} potential technical hours</p>
+          <p>{ratio(originals?.uploaded_files, originals?.total_files)} files · {bytes(originals?.uploaded_bytes)} / {bytes(originals?.total_bytes)}</p>
+          <p>Original folders are separate from the formatted batch’s independent validation. Human review and customer acceptance pending.</p>
+        </Stage>
         <Stage title="Private extra footage" data={supplement}>
           <p>{pipelineStates[supplement?.state] || 'Status unknown'} · {bytes(supplement?.bytes)}</p>
-          <p>{supplement?.external_delivery_performed === false ? 'Not uploaded to Sieve.' : 'Delivery status needs verification.'}</p>
+          <p>{supplement?.external_delivery_performed === false ? 'Historical private staging snapshot. Current transfer status is shown separately above.' : 'Private staging status needs verification.'}</p>
         </Stage>
         <Stage title="Originals archive" data={company}>
           <p>{count(company?.archived)} archived / {count(company?.source_groups)} upload groups · {count(company?.deleted)} deleted groups</p>

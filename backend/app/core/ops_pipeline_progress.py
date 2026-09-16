@@ -33,6 +33,8 @@ STATE_PREFIX = LIFECYCLE_PREFIX + "states/"
 DEFAULT_BATCH = "sow1-20260915-batch-1"
 DEFAULT_VALIDATION_RUN = "sow1-20260916-independent-v2"
 DEFAULT_SUPPLEMENT_RUN = "sow1-20260916-supplement-v1"
+SUPPLEMENT_TOTAL_BYTES = 25_394_461_079
+SUPPLEMENT_MANIFEST_SHA256 = "ecc33fb99ae6c426e721615ff13a9cb8b886ad98bec8ae9863ef4bd87b759e2d"
 VALIDATION_STATUS_SCHEMA = "sixthsense-sieve-independent-final-validation/1"
 
 _BATCH = re.compile(r"^sow[0-9]+-[0-9]{8}-batch-[0-9]+$")
@@ -395,12 +397,64 @@ def _supplement(s3, run: str) -> dict:
     }
 
 
+def _supplement_delivery(s3, run: str) -> tuple[dict, str | None]:
+    """A separate transfer receipt; the immutable private staging summary stays unchanged."""
+    value, metadata = _json(s3, SIEVE_BUCKET, f"reports/{run}/delivery/status.json", optional=True)
+    if value is None:
+        return _unavailable(_SUPPLEMENT_DELIVERY_FIELDS), None
+    if (not isinstance(value, dict)
+            or value.get("schema") != "6thsense-supplement-delivery-status/1"
+            or value.get("run_id") != run or value.get("batch_id") != run
+            or not isinstance(value.get("manifest_sha256"), str)
+            or value["manifest_sha256"] != SUPPLEMENT_MANIFEST_SHA256
+            or type(value.get("external_transfer_completed")) is not bool
+            or value.get("customer_accepted") is not False
+            or value.get("human_review") != "PENDING"
+            or not _iso(value.get("updated_at"))):
+        raise ValueError("Supplement transfer identity is malformed")
+    state = value.get("status")
+    if state not in {"PREPARING", "UPLOADING", "UPLOADED_FOR_CUSTOMER_QC", "FAILED"}:
+        raise ValueError("Supplement transfer state is malformed")
+    total_files = _integer(value.get("total_files"), "total_files")
+    uploaded_files = _integer(value.get("uploaded_files"), "uploaded_files")
+    total_bytes = _integer(value.get("total_bytes"), "total_bytes")
+    uploaded_bytes = _integer(value.get("uploaded_bytes"), "uploaded_bytes")
+    potential_hours = _number(value.get("potential_unique_technical_hours"), "potential_unique_technical_hours")
+    declared_complete = value["external_transfer_completed"]
+    totals_valid = (total_files == 604 and total_bytes == SUPPLEMENT_TOTAL_BYTES
+                    and uploaded_files <= total_files and uploaded_bytes <= total_bytes
+                    and math.isclose(potential_hours, 4.696644566, rel_tol=0, abs_tol=1e-9))
+    totals_match = uploaded_files == total_files and uploaded_bytes == total_bytes
+    complete = (totals_valid and totals_match and declared_complete
+                and state == "UPLOADED_FOR_CUSTOMER_QC")
+    inconsistent = (not totals_valid or (declared_complete and not complete)
+                    or (state == "UPLOADED_FOR_CUSTOMER_QC" and not complete))
+    if inconsistent:
+        state = "INCONSISTENT"
+    updated_at = _latest(value["updated_at"], metadata["updated_at"])
+    return {
+        "available": True, "run_id": run, "batch_id": run,
+        "manifest_sha256": value["manifest_sha256"], "state": state,
+        "total_files": total_files, "uploaded_files": uploaded_files,
+        "total_bytes": total_bytes, "uploaded_bytes": uploaded_bytes,
+        "potential_unique_technical_hours": potential_hours if totals_valid else None,
+        "uploaded_hours": potential_hours if complete else None,
+        "external_transfer_completed": complete, "complete": complete,
+        "customer_accepted": False, "human_review": "PENDING",
+        "updated_at": updated_at,
+        "stale": _stale(updated_at, terminal=complete or state == "FAILED"),
+    }, "supplement_delivery_totals_mismatch" if inconsistent else None
+
+
 _COMPANY_FIELDS = ("source_groups", "archived", "clean_complete", "in_progress", "held", "deleted", "updated_at")
 _DELIVERY_FIELDS = ("batch_id", "state", "recordings_processed", "recordings_expected", "prepared_hours",
                     "packaged_assets", "uploaded_assets", "uploaded_files", "total_files", "uploaded_bytes",
                     "total_bytes", "uploaded_hours", "complete", "updated_at")
 _VALIDATION_FIELDS = ("state", "clip_reports", "total_clips", "updated_at")
 _SUPPLEMENT_FIELDS = ("state", "recordings", "hours", "bytes", "external_delivery_performed", "updated_at")
+_SUPPLEMENT_DELIVERY_FIELDS = ("run_id", "batch_id", "manifest_sha256", "state", "total_files",
+    "uploaded_files", "total_bytes", "uploaded_bytes", "potential_unique_technical_hours",
+    "uploaded_hours", "external_transfer_completed", "complete", "customer_accepted", "human_review", "updated_at")
 
 
 def _empty(*, error: str | None = None) -> dict:
@@ -411,6 +465,7 @@ def _empty(*, error: str | None = None) -> dict:
         "delivery": _unavailable(_DELIVERY_FIELDS),
         "validation": _unavailable(_VALIDATION_FIELDS),
         "supplement": _unavailable(_SUPPLEMENT_FIELDS),
+        "supplement_delivery": _unavailable(_SUPPLEMENT_DELIVERY_FIELDS),
         "errors": [],
     }
     if error:
@@ -434,6 +489,7 @@ def _collect() -> dict:
         "delivery": lambda: _delivery(s3, batch),
         "validation": lambda: _validation(s3, validation_run, batch),
         "supplement": lambda: _supplement(s3, supplement_run),
+        "supplement_delivery": lambda: _supplement_delivery(s3, supplement_run),
     }
     with ThreadPoolExecutor(max_workers=len(calls)) as pool:
         futures = {pool.submit(call): name for name, call in calls.items()}
@@ -442,7 +498,7 @@ def _collect() -> dict:
             try:
                 value = future.result()
                 warning = None
-                if name in {"delivery", "validation"}:
+                if name in {"delivery", "validation", "supplement_delivery"}:
                     value, warning = value
                 result[name] = value
                 if warning:
