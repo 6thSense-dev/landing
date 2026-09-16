@@ -9,6 +9,7 @@ import json
 import os
 import re
 import time
+import traceback
 import urllib.request
 from datetime import datetime, timezone
 
@@ -23,7 +24,7 @@ PREFIX = 'raw-lifecycle/v1/'
 RECORDING = re.compile(r'^ego_[0-9]{8}_[0-9]{6}_[A-Fa-f0-9]{6}(?:_s[0-9]{2,4})?$')
 MISSING = {'404', 'NoSuchKey', 'NotFound'}
 EXCLUDED = {'ego_20260909_073656_16A4A5', 'ego_20260912_103922_4A636A', 'ego_20260915_150420_4A636A'}
-CLIENT_CFG = Config(connect_timeout=10, read_timeout=60, retries={'max_attempts': 4})
+CLIENT_CFG = Config(connect_timeout=10, read_timeout=60, max_pool_connections=16, retries={'max_attempts': 4})
 s3 = boto3.client('s3', config=CLIENT_CFG)
 batch = boto3.client('batch', config=CLIENT_CFG)
 
@@ -409,6 +410,7 @@ def handler(event,context):
             advance(cfg,state,ep,old_conversion,old_clean)
             summary['advanced']+=1
         except Exception as exc:
+            traceback.print_exc()
             reason=str(exc)[:300] if isinstance(exc,ValueError) else type(exc).__name__
             summary['holds'].append({'recording':rec,'reason':reason})
             if state: status(cfg,state,'hold',reason)

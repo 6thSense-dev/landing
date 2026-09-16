@@ -156,7 +156,8 @@ def prepare():
  coord_role=role(NAME+'-coordinator','lambda.amazonaws.com',rawread+archread+cleanread+artifactread+[logs,tokenread,batchread,
    allow(['s3:PutObject'],[f'arn:aws:s3:::{ARTIFACTS}/clean-plans/raw-lifecycle-v1/*','arn:aws:s3:::6thsense-processed/raw-lifecycle/v1/*','arn:aws:s3:::6thsense-processed/clean/*/metadata.json','arn:aws:s3:::6thsense-processed/clean/*/metadata-provenance.json',f'arn:aws:s3:::{ARCHIVE}/retirement/*']),
    allow(['s3:GetObject'],f'arn:aws:s3:::{ARTIFACTS}/raw-lifecycle/v1/config.json'),
-   allow(['batch:SubmitJob'],[cpu,gpu,*definitions.values()]),
+   allow(['batch:SubmitJob','batch:TagResource'],[cpu,gpu,*definitions.values()]),
+   {'Effect':'Allow','Action':['batch:SubmitJob','batch:TagResource'],'Resource':f'arn:aws:batch:{REGION}:{ACCOUNT}:job/*','Condition':{'StringEquals':{'aws:RequestTag/purpose':'raw-lifecycle-v1'}}},
    allow(['lambda:InvokeFunction'],f'arn:aws:lambda:{REGION}:{ACCOUNT}:function:{NAME}-retirement')])
  code=io.BytesIO()
  with zipfile.ZipFile(code,'w',zipfile.ZIP_DEFLATED) as z:
