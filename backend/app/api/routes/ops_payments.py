@@ -20,6 +20,7 @@ from app.core.ops_ledger import (
 )
 from app.models import (
     CleanRun,
+    Episode,
     FootageReview,
     Payout,
     PayoutItem,
@@ -174,6 +175,11 @@ class ReviewIn(BaseModel):
 
 @router.post("/review")
 async def review(body: ReviewIn, user=Depends(require_ops), db=Depends(get_session)):
+    from app.core.contributor_deletion import lock as deletion_lock, ensure_wearer_active
+    await deletion_lock(db)
+    episode = (await db.execute(select(Episode).where(Episode.recording == body.recording))).scalar_one_or_none()
+    if episode and episode.wearer_id is not None:
+        await ensure_wearer_active(db, episode.wearer_id)
     if body.decision not in ("reviewed", "needs_review", "withheld"):
         raise HTTPException(422, "Invalid review decision.")
     if body.decision == "reviewed" and not body.watched_all:
@@ -187,6 +193,8 @@ async def review(body: ReviewIn, user=Depends(require_ops), db=Depends(get_sessi
         )
     await db.execute(text("SELECT pg_advisory_xact_lock(61306131)"))
     run = await db.get(CleanRun, body.run_id)
+    if run and run.wearer_id is not None:
+        await ensure_wearer_active(db, run.wearer_id)
     if not run or run.manifest_sha256 != body.manifest_sha256:
         raise HTTPException(409, "Footage changed. Reload before reviewing.")
     from app.core.ops_sources import counterparty, source_timezone
@@ -234,6 +242,8 @@ class ApproveIn(BaseModel):
 
 @router.post("/approve")
 async def approve(body: ApproveIn, user=Depends(require_ops), db=Depends(get_session)):
+    from app.core.contributor_deletion import ensure_wearer_active
+    await ensure_wearer_active(db, body.wearer_id)
     if not body.approve_payment:
         raise HTTPException(422, "Explicit payment approval is required.")
     await db.execute(text("SELECT pg_advisory_xact_lock(61306131)"))
@@ -314,6 +324,8 @@ async def recipient(
 ):
     from app.core.wise import WiseClient, recipient_confirmation_required
 
+    from app.core.contributor_deletion import ensure_wearer_active
+    await ensure_wearer_active(db, body.wearer_id)
     if not body.confirm_recipient:
         raise HTTPException(422, "Confirm the recipient belongs to this contributor.")
     person = await db.get(Wearer, body.wearer_id)

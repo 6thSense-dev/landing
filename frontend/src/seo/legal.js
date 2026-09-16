@@ -19,7 +19,7 @@
 
 const CONTACT_EMAIL = "ops@6thsense.dev";
 const LAST_UPDATED = "July 18, 2026";
-const SYNAPSE_LAST_UPDATED = "August 19, 2026";
+const SYNAPSE_LAST_UPDATED = "September 15, 2026";
 
 export const legalPages = [
   {
@@ -32,7 +32,7 @@ export const legalPages = [
       "How 6thSense Synapse handles local-network camera data, app-local settings, recording playback and export, optional analytics, and software updates.",
     h1: "Synapse Privacy Policy",
     intro:
-      "Synapse is a mobile control plane for compatible egocentric capture rigs and cameras. It requires no user account. Capture devices remain the primary storage for recordings; Synapse communicates with them over the local network, sends usage analytics only after affirmative consent, and contacts software-update services as described below.",
+      "Synapse is a mobile control plane for compatible egocentric capture rigs and cameras. Camera controls work without an account. Where enabled, an optional contributor account connects to a separate cloud service for supervised data contributions and payments. Capture devices remain the primary storage for local recordings; Synapse communicates with them over the local network, sends usage analytics only after affirmative consent, and contacts software-update services as described below.",
     sections: [
       {
         h2: "Camera and recording data",
@@ -68,7 +68,7 @@ export const legalPages = [
         body: "Synapse requests only the access needed for its current features:",
         items: [
           "Local network — find and communicate with compatible cameras.",
-          "Internet and network state — reach update services and, after consent, PostHog; determine whether camera networking is available.",
+          "Internet and network state — reach update services, optional contributor authentication and cloud services, and, after consent, PostHog; determine whether camera networking is available.",
           "Location while in use on iOS — read the current Wi-Fi network name during camera setup. Apple gates Wi-Fi-name access behind this permission. Synapse does not use it to determine or transmit geographic location.",
           "Notifications — show an immediate local alert when a capture finishes saving. Synapse does not register for marketing notifications or remote push messages.",
         ],
@@ -76,10 +76,25 @@ export const legalPages = [
       {
         h2: "Accounts, advertising, and sharing",
         items: [
-          "Synapse has no user-account or login system.",
+          "Camera controls require no login. The optional contributor service uses a separate account and regional participation agreements.",
           "Synapse contains no advertising network and does not sell or rent data.",
           "Synapse does not build advertising profiles or use analytics for tracking.",
-          "6thSense receives the consented analytics described above. Camera and recording data is otherwise exchanged between the phone, the compatible camera, and destinations you explicitly choose.",
+          "6thSense receives the consented analytics described above. Outside the contributor service described below, camera and recording data is exchanged between the phone, the compatible camera, and destinations you explicitly choose.",
+        ],
+      },
+      {
+        h2: "Optional contributor accounts and cloud data",
+        body: [
+          "Where contributor enrollment is enabled, account authentication uses Amazon Cognito, including your phone number, verification status, and regional routing information. The contributor service stores your name, agreement receipts, operator-confirmed camera assignments, footage and review metadata, and payment records. Sign-in credentials and a deletion-status receipt may be kept in secure storage on this phone.",
+          "Bank details you submit are sent over HTTPS through the contributor service to Wise for recipient setup. The app shows a masked account summary. Recipient creation does not authorize a payment; an operator separately verifies assignments, footage, and payments. In the supervised pilot, an operator imports recordings from the camera storage card; creating an account does not upload footage from your phone.",
+          "Regional notices and agreements explain the collection, sharing, international transfers, and retention that apply to participation. Enrollment stays unavailable where the required final documents have not been published. This public policy does not replace those agreements.",
+        ],
+      },
+      {
+        h2: "Deleting a contributor account",
+        body: [
+          "Use Delete account in the contributor account area, including before enrollment or agreement acceptance. The service records the request and stops new contributor activity and approvals. Deletion may require operator work; a request or deactivation is not confirmation that data has been erased. The app displays request status and any configured completion estimate, and keeps a private status receipt so you can check completion after the login has been removed.",
+          "Completion requires removal of the Cognito login, scrubbing of the contributor profile and bank summary, and an operator record of footage and processor cleanup. Any legal or payment records that must be retained require a recorded scope, reason, and review date. The applicable regional documents describe retention; this policy does not promise a fixed deletion period. Deleting the cloud account does not erase independent copies on your camera or previously shared destinations.",
         ],
       },
       {
@@ -114,17 +129,17 @@ export const legalPages = [
     path: "/privacy",
     kind: "legal",
     kicker: "Legal",
-    updated: LAST_UPDATED,
+    updated: SYNAPSE_LAST_UPDATED,
     title: "Privacy Policy | 6thSense",
     description:
       "How 6thSense collects, uses, stores, and protects the data captured by the synapse / Perle app — video, tactile-glove, and IMU/motion data used to build robotics training datasets.",
     h1: "Privacy Policy",
     intro:
-      "This policy explains what the 6thSense capture app (\"synapse\", also distributed as \"Perle\") collects, why we collect it, where it is stored, and the choices you have. We keep it plain and specific to what we actually do — recording demonstration data for robot learning — instead of generic legal boilerplate.",
+      "This policy covers the 6thSense cloud contribution service and recordings submitted for robotics data collection. Synapse camera controls work without an account; optional contributor accounts and cloud submissions have additional data flows described here and in the applicable regional agreements.",
     sections: [
       {
         h2: "Who this covers",
-        body: "This policy applies to the 6thSense capture app and the data it records and uploads. 6thSense builds tactile-capture hardware and software that records human demonstrations to create training datasets for dexterous robots. If you use the capture app, this policy describes how we handle the data you create with it.",
+        body: "This policy applies to the cloud contribution service and submitted recordings. 6thSense builds tactile-capture hardware and software that records human demonstrations for robotics datasets. The separate Synapse Privacy Policy covers local camera control, optional analytics, and app updates. Participation also requires the published agreements for the applicable region.",
       },
       {
         h2: "What we collect",
@@ -134,7 +149,7 @@ export const legalPages = [
           "Tactile-glove data — contact and pressure signals from the sensing glove and skin (for example, contact onset and pressure over time across the sensor channels).",
           "IMU / motion data — accelerometer and gyroscope readings and derived motion cues from the rig and wearables.",
           "Session and device metadata — timestamps, device identifiers, hardware and firmware versions, capture settings, calibration values, and quality-check metrics used to align and validate the recording.",
-          "Account information — if you sign in, the email address and basic account details used to authenticate you and associate sessions with your account.",
+          "Contributor account information — your name, phone-based authentication and verification information, regional routing, agreement receipts, supervised camera assignments, and footage and payment records. Bank recipient setup uses Wise; the service keeps a masked bank summary and recipient identifiers.",
           "Basic technical logs — app version, error and diagnostic logs, and upload status used to keep capture and upload working.",
         ],
       },
@@ -156,13 +171,13 @@ export const legalPages = [
       {
         h2: "Where data is stored",
         body: [
-          "Captured sessions are uploaded from the app to cloud storage hosted on Amazon Web Services (AWS), primarily Amazon S3, along with the supporting databases and services we run on AWS. Data is transmitted over encrypted connections (HTTPS/TLS) and stored on AWS infrastructure.",
+          "Submitted recordings are stored in cloud storage hosted on Amazon Web Services (AWS), including Amazon S3 and supporting databases. In the supervised contributor pilot, an operator imports camera storage cards; registering or signing in on the phone does not upload footage. Contributor API requests use HTTPS, and account authentication uses Amazon Cognito.",
           "We restrict access to captured data to the people and systems that need it to build and deliver datasets, and we rely on AWS's physical and infrastructure security for the underlying storage.",
         ],
       },
       {
         h2: "How long we keep it",
-        body: "We keep captured data for as long as needed to build and support the datasets it is part of and to run our business, unless a specific agreement with a partner or customer sets a different period. When data is no longer needed, or on a valid deletion request, we delete it or remove its association with you. Note that data already incorporated into a trained model or an aggregated dataset may not be individually removable after the fact.",
+        body: "The applicable regional notices and agreements describe retention for contributed data. Account deletion is an operator-supervised process that records footage and processor cleanup separately from any legally required retention of consent or payment records. Retained records require a documented scope, reason, and review date. This page does not establish a fixed retention or deletion period.",
       },
       {
         h2: "Third parties we share with",
@@ -170,7 +185,8 @@ export const legalPages = [
           "We do not sell your data. We share it only as needed to run the service:",
         ],
         items: [
-          "Amazon Web Services (AWS) — cloud hosting and storage (Amazon S3 and related services) for uploaded sessions and our backend.",
+          "Amazon Web Services (AWS) — Cognito account authentication, cloud hosting, and storage for submitted recordings and supporting services.",
+          "Wise — bank recipient setup and operator-approved payments for participating contributors.",
           "Partners and customers — the specific partner or customer that a dataset is captured for, under agreement.",
           "Service providers — vetted vendors who help us operate the pipeline (for example, infrastructure and error monitoring), limited to what they need.",
           "Legal and safety — authorities when required by law, or to protect rights, safety, and security.",
@@ -182,7 +198,7 @@ export const legalPages = [
       },
       {
         h2: "Your rights and choices",
-        body: "Depending on where you live, you may have the right to access, correct, or delete your data, or to object to or restrict certain processing. You can also stop using the app and ask us to delete sessions associated with your account. To make a request, contact us at the address below and we will respond within a reasonable time.",
+        body: "Depending on where you live, you may have rights to access, correct, or delete your data, or restrict certain processing. Use Delete account in the contributor area to initiate account deletion, including before enrollment. The request stops new contributions and approvals; it is not itself confirmation of erasure. The app retains a private receipt for checking status after login removal. Required legal or payment retention is recorded separately, and camera-local or independently shared copies are outside the cloud account deletion process.",
         contact: true,
       },
       {

@@ -2,7 +2,7 @@
 from datetime import datetime, timezone, timedelta
 import re
 from sqlalchemy import select
-from app.models import ContributorAccount, ContributorCameraClaim
+from app.models import ContributorAccount, ContributorCameraClaim, ContributorDeletion
 
 async def end_mobile_assignment(db, device, next_wearer_id):
     active = (await db.execute(select(ContributorCameraClaim).where(ContributorCameraClaim.device_id == device, ContributorCameraClaim.status == "approved", ContributorCameraClaim.ended_at.is_(None)))).scalars().all()
@@ -25,4 +25,6 @@ async def owner_at_capture(db, facts):
     if len(matches) != 1:
         return None
     account = await db.get(ContributorAccount, matches[0].subject)
+    if await db.get(ContributorDeletion, account.subject):
+        return None
     return account.wearer_id

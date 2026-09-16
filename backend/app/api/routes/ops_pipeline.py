@@ -29,6 +29,8 @@ def authorize(authorization: str = Header(default='')):
 
 @router.get('/inventory', dependencies=[Depends(authorize)])
 async def inventory(db=Depends(get_session)):
+    from app.core.contributor_deletion import pending_wearers
+    held_wearers = await pending_wearers(db)
     registry = await source_registry(db)
     episodes = (await db.execute(select(Episode))).scalars().all()
     runs = (await db.execute(select(CleanRun))).scalars().all()
@@ -48,6 +50,8 @@ async def inventory(db=Depends(get_session)):
             reason = '' if party or ep.wearer_id else 'Contributor or business attribution required'
         except ValueError as exc:
             party, reason = None, str(exc)
+        if ep.wearer_id in held_wearers:
+            reason = 'Contributor account deletion requested.'
         rows.append({'recording': ep.recording, 'device_id': ep.device_id,
                      'session': ep.session, 'prefix': ep.prefix,
                      'deleted': bool(ep.deleted_at), 'counterparty': party,
@@ -234,10 +238,14 @@ async def import_result(body: ImportIn, db=Depends(get_session)):
     except Exception as exc:
         raise HTTPException(409, f'Clean verification failed: {type(exc).__name__}') from exc
     rec = doc['recordings'][0]
+    from app.core.contributor_deletion import lock as deletion_lock, ensure_wearer_active
+    await deletion_lock(db)
     await db.execute(text('SELECT pg_advisory_xact_lock(61306130)'))
     ep = (await db.execute(select(Episode).where(Episode.recording == rec['recording']).with_for_update())).scalar_one_or_none()
     if not ep or ep.deleted_at:
         raise HTTPException(409, 'Source is missing or operator-deleted')
+    if ep.wearer_id is not None:
+        await ensure_wearer_active(db, ep.wearer_id)
     if ep.device_id.strip().upper().removeprefix('EGO-') != doc['device_id']:
         raise HTTPException(409, 'Source camera differs from the confirmed recording')
     try:
@@ -305,9 +313,13 @@ class StatusIn(BaseModel):
 
 @router.post('/status', dependencies=[Depends(authorize)])
 async def update_status(body: StatusIn, db=Depends(get_session)):
+    from app.core.contributor_deletion import lock as deletion_lock, ensure_wearer_active
+    await deletion_lock(db)
     ep = (await db.execute(select(Episode).where(Episode.recording == body.recording))).scalar_one_or_none()
     if not ep or ep.deleted_at:
         raise HTTPException(409, 'Source missing or operator-deleted')
+    if ep.wearer_id is not None:
+        await ensure_wearer_active(db, ep.wearer_id)
     job = await db.get(ProcessingJob, body.recording, with_for_update=True)
     if job:
         if job.state == 'clean':

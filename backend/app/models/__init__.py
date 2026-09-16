@@ -9,3 +9,5 @@ from app.models.ops_clean import CleanRun, OpsCamera
 from app.models.ops_workflow import FootageReview, Payout, PayoutItem, PayoutRecipient, ProcessingJob
 
 from app.models.contributor import ContributorAccount, ContributorConsent, ContributorCameraClaim, ContributorRecipientAttempt
+
+from app.models.contributor import ContributorDeletion

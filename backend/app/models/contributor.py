@@ -1,6 +1,6 @@
 """Mobile identities are separate from staff users. No camera or bank claim grants authority."""
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, Text, func, Index, text
+from sqlalchemy import BigInteger, Integer, DateTime, ForeignKey, String, Text, func, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.lead import Base
 
@@ -38,3 +38,16 @@ class ContributorRecipientAttempt(Base):
     recipient_id: Mapped[str | None] = mapped_column(String(64))
     summary: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+class ContributorDeletion(Base):
+    """Independent of enrollment: even a never-enrolled identity can request erasure."""
+    __tablename__ = "contributor_deletions"
+    subject: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), unique=True)
+    status: Mapped[str] = mapped_column(String(24), default="requested")
+    receipt_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evidence: Mapped[str | None] = mapped_column(Text)
+    provider_status: Mapped[str] = mapped_column(String(24), default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
