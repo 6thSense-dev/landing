@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4.0] - 2026-09-16
+
+### Fixed
+
+- Limit account-deletion receipt retries to 20 per account per rolling day across server workers, with a Retry-After response. Previously issued receipts and deletion status remain available.
+
 ## [0.1.3.0] - 2026-09-16
 
 ### Fixed
