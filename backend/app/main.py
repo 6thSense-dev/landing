@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import contributor, contributor_ops, admin, auth, catalog, health, leads, ops, ops_clean, ops_payments, ops_processing, intake_review, workspace
+from app.api.routes import contributor, contributor_ops, admin, auth, catalog, health, leads, ops, ops_clean, ops_payments, ops_processing, ops_sieve, intake_review, workspace
 from app.core.auth_deps import COOKIE_NAME, _ClearCookieUnauthorized
 from app.core.config import get_settings
 from app.core.limiter import limiter
@@ -37,9 +37,17 @@ async def lifespan(_app: FastAPI):
     if os.getenv("OPS_AUTOMATION_ENABLED", "false") == "true":
         from app.core.ops_automation import run
         task = asyncio.create_task(run())
+    sieve_task = None
+    if os.getenv("OPS_SIEVE_ENABLED", "false") == "true":
+        from app.core.ops_sieve import run as run_sieve
+        sieve_task = asyncio.create_task(run_sieve())
     try:
         yield
     finally:
+        if sieve_task:
+            sieve_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await sieve_task
         if task:
             task.cancel()
             with suppress(asyncio.CancelledError):
@@ -117,6 +125,7 @@ def create_app() -> FastAPI:
     application.include_router(ops_clean.router)
     application.include_router(ops_payments.router)
     application.include_router(ops_processing.router)
+    application.include_router(ops_sieve.router)
     application.include_router(intake_review.router)
     application.include_router(workspace.router)
     return application

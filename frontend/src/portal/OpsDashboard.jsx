@@ -7,6 +7,8 @@ import OpsOperations from "./OpsOperations.jsx";
 import OpsUsers from "./OpsUsers.jsx";
 import OpsPayments from "./OpsPayments.jsx";
 import OpsClean from "./OpsClean.jsx";
+import OpsSieve from "./OpsSieve.jsx";
+import { useSearchParams } from "react-router-dom";
 import "./ops.css";
 
 /** Raw and Users share the episode ledger. Clean owns its QC collection state
@@ -15,13 +17,18 @@ import "./ops.css";
 const TABS = [
   { key: "ops", label: "Raw" },
   { key: "clean", label: "Clean" },
+  { key: "sieve", label: "Sieve" },
   { key: "payment", label: "Payment" },
   { key: "users", label: "Users" },
 ];
 
 export default function OpsDashboard({ readOnly = false }) {
   const { user, logout } = useSession();
-  const [tab, setTab] = useState("ops");
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some(t => t.key === params.get("tab")) ? params.get("tab") : "ops";
+  const setTab = useCallback(value => setParams(p => { p.set("tab", value); return p; }, { replace: true }), [setParams]);
+  const [sieveVisible, setSieveVisible] = useState(false);
+  const expireSieve = useCallback(() => { setSieveVisible(false); setTab("clean"); }, [setTab]);
   const [state, setState] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
@@ -40,6 +47,23 @@ export default function OpsDashboard({ readOnly = false }) {
     const timer = setInterval(load, 30000);
     return () => clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    let mounted = true;
+    const check = async () => {
+      try {
+        const r = await portalFetch("/api/ops/sieve/availability");
+        if (mounted && r.ok) {
+          setSieveVisible(Boolean(r.data?.visible));
+          if (r.data?.visible === false && tab === "sieve") expireSieve();
+        }
+      } catch { /* Main ledger and Sieve state retain their own retry paths. */ }
+    };
+    check();
+    const timer = setInterval(check, 30000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, [readOnly, tab, expireSieve]);
 
   // Every mutation returns the whole new state, so no screen can drift from the
   // server: there is no local patching to get wrong. Returns the new state on
@@ -80,7 +104,7 @@ export default function OpsDashboard({ readOnly = false }) {
       <header className="ops-head">
         <h1>Collector operations</h1>
         <nav className="ops-tabs">
-          {TABS.filter(t => !readOnly || !["clean", "payment"].includes(t.key)).map((t) => (
+          {TABS.filter(t => (t.key !== "sieve" || sieveVisible) && (!readOnly || !["clean", "payment", "sieve"].includes(t.key))).map((t) => (
             <button
               key={t.key}
               className={`ops-tab${tab === t.key ? " is-on" : ""}`}
@@ -114,12 +138,12 @@ export default function OpsDashboard({ readOnly = false }) {
       </header>
 
       <div className="ops-main">
-        {err && <p className="ops-error" role="alert">{err}</p>}
+        {err && tab !== "sieve" && <p className="ops-error" role="alert">{err}</p>}
         {note && !err && (
           <p className="ops-note" role="status" onClick={() => setNote("")}>{note}</p>
         )}
 
-        {!state ? (
+        {tab === "sieve" && !readOnly ? <OpsSieve onExpired={expireSieve} /> : !state ? (
           <p className="ops-muted">{err ? "" : "Loading the ledger…"}</p>
         ) : tab === "clean" && !readOnly ? (<OpsClean onChanged={load} />) : tab === "payment" && !readOnly ? (<OpsPayments onReview={() => setTab("clean")} />) : tab === "ops" ? (
           <OpsOperations readOnly={readOnly} state={state} act={act} busy={busy} rate={rate} />

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0.0] - 2026-09-15
+
+### Added
+
+- Track Sieve collected and inherited hours, diversity, intake dates, and blocked recordings in a temporary Operations tab through September 25.
+- Inherit versioned Clean MP4, original metadata and calibration into Sieve with retryable copies and a role that cannot read Raw.
+
 ## [0.0.8.0] - 2026-09-15
 
 ### Fixed
