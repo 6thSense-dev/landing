@@ -15,6 +15,15 @@
 - Verification and mutation evidence: `tasks/CATALOG-TIER-BUCKETS-2026-09-03.md`.
 - 2026-09-03 round-1 fixes: corrected v2 rollout/rollback docs, safe tier defaults, CSP hosts, package health probe, archive routing, blank env handling, and cache invalidation coverage (`tasks/REVIEW-CATALOG-TIERS-1-RESPONSE.md`).
 
+## 2026-09-16 — Cloud pipeline import boundary
+
+- Added the dedicated-token pipeline API review fixes and regression coverage.
+- New imports now require exact current Raw media coverage, matching delivery identity, current and pinned S3 versions and sizes, a pinned completed conversion receipt with full source hashes, and byte-identical versioned Raw metadata provenance.
+- Clean metadata provenance requires its schema, byte-exact copy mode, unique exact media identities, and verified Clean metadata content. Repeat imports still work after Raw archival because Raw-dependent checks apply only before the first import.
+- Contributor/business ownership and country must match authoritative source facts; paid cash facts carry into Clean, B2B unknown amounts remain `null`, and no payout rows are created.
+- The coordinator status endpoint can no longer assert `clean`; deleted recordings remain blocked.
+- Verification: `tests/test_ops_pipeline.py` (7 passed); pipeline/Sieve/source/artifact suite (107 passed).
+
 ## 2026-09-16 — Immutable originals archive worker
 
 - Added `infra/raw_lifecycle/archive_worker.py`: accepts a SHA256-bound, version-pinned `TASK_PLAN_REF`; archives every planned Raw original, including media, metadata, calibration, and sidecars; performs no Raw deletion or job/database mutation.
