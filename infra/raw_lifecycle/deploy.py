@@ -139,6 +139,28 @@ def update_code():
   lam.get_waiter('function_updated_v2').wait(FunctionName=cfg[key])
  print(json.dumps({'lambda_code_updated':True,'configuration_preserved':True}))
 
+def update_archive():
+ cfg=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
+ ref=runtime()
+ old=batch.describe_job_definitions(jobDefinitions=[cfg['archive_definition']])['jobDefinitions'][0]
+ cp=copy.deepcopy(old['containerProperties']);cp['command']=['python','-u','-c',bootstrap(ref,'archive_worker.py')]
+ definition=batch.register_job_definition(jobDefinitionName=NAME+'-archive',type='container',containerProperties=cp,
+     timeout=old['timeout'],retryStrategy=old['retryStrategy'],tags={'purpose':NAME},propagateTags=True)['jobDefinitionArn']
+ role_name=NAME+'-coordinator'
+ pol=iam.get_role_policy(RoleName=role_name,PolicyName='LifecycleScope')['PolicyDocument']
+ matched=False
+ for st in pol['Statement']:
+  if 'batch:SubmitJob' in st['Action'] and isinstance(st['Resource'],list) and cfg['archive_definition'] in st['Resource']:
+   st['Resource'].append(definition);matched=True
+ if not matched:raise RuntimeError('Existing submission policy not recognized; config remains unchanged')
+ iam.put_role_policy(RoleName=role_name,PolicyName='LifecycleScope',PolicyDocument=json.dumps(pol))
+ time.sleep(60)  # Keep using the old authorized definition during IAM propagation.
+ # Keep queued/running jobs, Clean/conversion runtime pins, flags and deadline.
+ cfg=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
+ cfg['archive_definition']=definition;cfg['archive_runtime']=ref
+ s3.put_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json',Body=json.dumps(cfg).encode(),ContentType='application/json')
+ print(json.dumps({'archive_definition':definition,'existing_jobs_preserved':True,'budget_preserved':True}))
+
 def prepare():
  try:
   previous=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
@@ -221,7 +243,8 @@ def enable(retire):
  print(json.dumps({'enabled':True,'retirement_enabled':retire,'next_tick':'within 2 minutes','budget_stop_utc':datetime.fromtimestamp(cfg['run_deadline_epoch'],timezone.utc).isoformat()}))
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('stage',choices=['prepare','enable','update-code']);p.add_argument('--retire',action='store_true');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('stage',choices=['prepare','enable','update-code','update-archive']);p.add_argument('--retire',action='store_true');a=p.parse_args()
  if a.stage=='prepare':prepare()
  elif a.stage=='update-code':update_code()
+ elif a.stage=='update-archive':update_archive()
  else:enable(a.retire)

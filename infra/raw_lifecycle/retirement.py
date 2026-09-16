@@ -71,6 +71,9 @@ def handler(event, context):
         h=c.s3.head_object(Bucket=dst['bucket'],Key=dst['key'],VersionId=dst['version_id'])
         if h['ContentLength'] != dst['bytes'] or h.get('Metadata',{}).get('source-sha256') != dst['sha256']:
             raise ValueError('Archive object is missing or changed')
+    known_keys={r['key'] for r in state['snapshot']}
+    if any(obj['Key'] not in known_keys for obj in c.discover().get(rec, [])):
+        raise ValueError('New Raw key arrived; cleanup deferred until it is archived and verified')
     # A new current upload is not in this authorized snapshot. Abort cleanup so
     # the next coordinator observation can reconcile it without losing context.
     for ref in state['snapshot']:

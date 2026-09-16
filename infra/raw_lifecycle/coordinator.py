@@ -117,7 +117,7 @@ def find_recording(key):
     if not key.startswith('sessions/'): return None
     parts = key.split('/')
     # Files may be nested, but ownership is the nearest recording folder.
-    return next((p for p in parts[2:-1] if RECORDING.fullmatch(p)), None)
+    return next((p for p in reversed(parts[2:-1]) if RECORDING.fullmatch(p)), None)
 
 
 def discover():
