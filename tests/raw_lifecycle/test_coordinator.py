@@ -130,11 +130,23 @@ def retirement_state():
     }
 
 
-def run_resume_handler(monkeypatch, state, groups, pinned, state_rows=(), completed=None):
+def run_resume_handler(
+    monkeypatch,
+    state,
+    groups,
+    pinned,
+    state_rows=(),
+    completed=None,
+    episode=None,
+):
     calls = {"advanced": [], "holds": [], "saved": []}
     cfg = {"enabled": True, "run_deadline_epoch": 9_999_999_999, "settle_seconds": 0,
            "archive_bucket": "archive"}
-    episode = {"recording": state["recording"], "deleted": False, "imports": [{"run_id": "clean"}]}
+    episode = episode or {
+        "recording": state["recording"],
+        "deleted": False,
+        "imports": [{"run_id": "clean"}],
+    }
 
     class Paginator:
         def paginate(self, **kwargs):
@@ -164,6 +176,7 @@ def run_resume_handler(monkeypatch, state, groups, pinned, state_rows=(), comple
     monkeypatch.setattr(c, "api", lambda *_: {"episodes": [episode]})
     monkeypatch.setattr(c, "discover", lambda: groups)
     monkeypatch.setattr(c, "pin_objects", lambda objects: pinned)
+    monkeypatch.setattr(c, "job_status", lambda job: job["status"])
     monkeypatch.setattr(c, "advance", lambda _cfg, value, *_: calls["advanced"].append(value.copy()))
     monkeypatch.setattr(c, "status", lambda _cfg, _state, _phase, reason: calls["holds"].append(reason))
     monkeypatch.setattr(c, "save", save)
@@ -172,6 +185,110 @@ def run_resume_handler(monkeypatch, state, groups, pinned, state_rows=(), comple
 
     c.handler({}, None)
     return calls
+
+
+def intake_state(archive_status="SUCCEEDED"):
+    ref = raw_ref("video-v1")
+    return {
+        "recording": "ego_20260916_010203_A1B2C3",
+        "fingerprint": c.digest([c.source_identity(ref)]),
+        "snapshot": [ref],
+        "phase": "hold",
+        "archive_plan": {"objects": [ref]},
+        "jobs": {"archive": {"job_id": "archive-old", "status": archive_status}},
+    }
+
+
+def completed_metadata_snapshot(state):
+    return [
+        *state["snapshot"],
+        {
+            **raw_ref("metadata-v1"),
+            "key": raw_ref("metadata-v1")["key"].replace("video.mp4", "metadata.json"),
+        },
+    ]
+
+
+def intake_episode(state, imports=None):
+    return {
+        "recording": state["recording"],
+        "deleted": False,
+        "imports": [] if imports is None else imports,
+    }
+
+
+@pytest.mark.parametrize("archive_status", ["SUCCEEDED", "FAILED"])
+def test_late_metadata_after_terminal_archive_starts_new_observation(monkeypatch, archive_status):
+    state = intake_state(archive_status)
+    snapshot = completed_metadata_snapshot(state)
+    old = datetime.now(timezone.utc) - timedelta(hours=1)
+    groups = {state["recording"]: [{"LastModified": old}]}
+
+    calls = run_resume_handler(
+        monkeypatch, state, groups, snapshot, episode=intake_episode(state)
+    )
+
+    assert calls["holds"] == []
+    assert calls["advanced"] == []
+    fresh = calls["saved"][-1]
+    assert fresh["phase"] == "observed"
+    assert fresh["snapshot"] == snapshot
+    assert fresh["fingerprint"] != state["fingerprint"]
+    assert fresh["supersedes_fingerprint"] == state["fingerprint"]
+    assert fresh["jobs"] == {}
+
+
+def test_late_metadata_while_archive_running_stays_held(monkeypatch):
+    state = intake_state("RUNNING")
+    snapshot = completed_metadata_snapshot(state)
+    old = datetime.now(timezone.utc) - timedelta(hours=1)
+    groups = {state["recording"]: [{"LastModified": old}]}
+
+    calls = run_resume_handler(
+        monkeypatch, state, groups, snapshot, episode=intake_episode(state)
+    )
+
+    assert calls["advanced"] == []
+    assert calls["saved"] == []
+    assert calls["holds"] == ["Updated upload waits for its earlier archive job to finish"]
+
+
+def test_archive_only_supersession_rejects_replaced_existing_source(monkeypatch):
+    state = intake_state("FAILED")
+    replacement = raw_ref("video-v2")
+    snapshot = completed_metadata_snapshot({**state, "snapshot": [replacement]})
+    old = datetime.now(timezone.utc) - timedelta(hours=1)
+    groups = {state["recording"]: [{"LastModified": old}]}
+
+    calls = run_resume_handler(
+        monkeypatch, state, groups, snapshot, episode=intake_episode(state)
+    )
+
+    assert calls["advanced"] == []
+    assert calls["saved"] == []
+    assert calls["holds"] == ["New source versions arrived during processing; review before supersession"]
+
+
+@pytest.mark.parametrize("activity", ["import", "conversion", "clean"])
+def test_late_metadata_after_import_conversion_or_clean_stays_held(monkeypatch, activity):
+    state = intake_state()
+    imports = []
+    if activity == "import":
+        imports = [{"run_id": "clean-existing"}]
+        state["jobs"] = {}
+    else:
+        state["jobs"][activity] = {"job_id": f"{activity}-old", "status": "SUCCEEDED"}
+    snapshot = completed_metadata_snapshot(state)
+    old = datetime.now(timezone.utc) - timedelta(hours=1)
+    groups = {state["recording"]: [{"LastModified": old}]}
+
+    calls = run_resume_handler(
+        monkeypatch, state, groups, snapshot, episode=intake_episode(state, imports)
+    )
+
+    assert calls["advanced"] == []
+    assert calls["saved"] == []
+    assert calls["holds"] == ["New source versions arrived during processing; review before supersession"]
 
 
 def test_partial_retirement_resumes_with_original_state(monkeypatch):
