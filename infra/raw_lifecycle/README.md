@@ -10,7 +10,7 @@ This workflow replaces laptop coordination with a scheduled AWS Lambda and Batch
 4. Clean: CPU Batch workers produce calibrated videos, frame sequences, timeline and IMU; exclude technically invalid intervals. Pin and verify the output manifest, preserve original metadata, then import through the authenticated portal API. Existing paid facts are preserved; this workflow creates no payouts and does not approve content.
 5. `6thsense-processed`: company Clean for every confirmed country. Missing completion, timing, calibration, attribution or conflicting IMU stays on hold. Unsupported legacy containers are archived but held, not given fabricated timing.
 6. `6thsense-sieve`: the existing portal inheritance worker copies verified Clean only for **India and Korea**. China and unknown/other countries are excluded.
-7. Retirement: a separate Lambda independently requires a complete archive receipt, every archive object version, one imported Clean run covering all current media, terminal source workers and no newer source versions. Only then can it delete the exact archived Raw versions. New uploads are never deleted by key.
+7. Retirement: a separate Lambda independently requires a complete archive receipt, every archive object version, one imported Clean run covering all nonempty current media, terminal source workers and no newer source versions. Only then can it delete the exact archived Raw versions. Empty camera placeholders are archived and verified too; they contain no frames for Clean. New uploads are never deleted by key.
 
 ## State and concurrency
 
@@ -46,3 +46,5 @@ The retirement Lambda accepts `dry_run: true` with a recording and fingerprint f
 The original Mac coordinator scripts were not in the handoff ZIP. Cloud job/plan adoption is verified; their process liveness cannot be established from old S3 timestamps. Retiring a source requires all adopted workers to finish. Any old submission capability must be fenced before live retirement.
 
 Current new conversions support complete calibrated side-by-side MP4 recordings. Native HEVC streams require portal inventory support; EGOC/legacy split recordings need format-specific measured timing recovery. Historical imported Clean can still be archived/retired when its full source hashes match. Holds preserve originals and remain visible; they are not silently treated as usable Clean.
+
+Late metadata additions can begin a new observed source set after the earlier archive-only job finishes. Existing source identities, sizes and ETags must remain unchanged. Replaced/removed files or already started conversion/Clean require review; source changes never silently supersede an active processing run.
