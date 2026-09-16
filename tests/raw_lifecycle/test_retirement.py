@@ -140,7 +140,25 @@ def test_clean_hash_or_size_mismatch_blocks_retirement(field, value):
     state, receipt, episode, _ = fixtures()
     episode["imports"][0]["sources"][0] = {**episode["imports"][0]["sources"][0], field: value}
 
-    with pytest.raises(ValueError, match="not represented by imported Clean"):
+    with pytest.raises(ValueError, match="not represented by one imported Clean run"):
+        r.validate_imports(state, receipt, episode)
+
+
+def test_partial_imports_cannot_be_combined_to_authorize_retirement():
+    state, receipt, episode, _ = fixtures()
+    second = {
+        **source("v3", b"second current video"),
+        "key": KEY.replace("video.mp4", "video-2.mp4"),
+    }
+    state["snapshot"].append(second)
+    state["archive_plan"]["objects"].append(second)
+    receipt["objects"].append(archived_item(second))
+    episode["imports"] = [
+        {"run_id": "partial-one", "sources": [state["snapshot"][0]]},
+        {"run_id": "partial-two", "sources": [second]},
+    ]
+
+    with pytest.raises(ValueError, match="not represented by one imported Clean run"):
         r.validate_imports(state, receipt, episode)
 
 
