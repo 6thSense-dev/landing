@@ -13,11 +13,13 @@ perform production erasure, or establish a legal retention period.
   with `CONTRIBUTOR_DELETION_EXPECTED_COMPLETION`). Do not invent an estimate.
 - POST additionally returns a 64-character random `receipt_token`. Store it in
   secure storage before clearing the login session. A repeated POST preserves the
-  request but rotates the token. If the response is lost, retry while signed in.
+  request and issues another token; the original and every retry token remain valid,
+  even when responses arrive out of order. If the response is lost, retry while signed in.
 - `GET /api/contributor/account-deletion/receipt` accepts that token as a Bearer
   credential independently of Cognito. It reveals only the public request status.
-  The database stores its SHA-256 hash. It permits completion confirmation after
-  Cognito removes the login. Keep this receipt across contributor logout.
+  The database stores only SHA-256 hashes of tokens, never the raw tokens. All issued
+  receipts permit completion confirmation after Cognito removes the login. Keep a
+  receipt across contributor logout.
 
 Request acceptance immediately deactivates the contributor, closes assignment
 intervals, and clears camera ownership. A shared transaction fence blocks new
@@ -72,10 +74,48 @@ responses, and append-only attempt audits. Retry the same evidence. Completion i
 never reported for deactivation alone. A crash after Cognito removal can be retried
 through the staff endpoint; the receipt still reports processing until DB completion.
 
-Deployment needs migration 0017, a narrowly scoped IAM `cognito-idp:AdminDeleteUser`
-permission for the contributor pool, a verified expected-completion policy, operator
-ownership and evidence process, and app receipt persistence. These are release gates,
-not actions taken by this change.
+## Deployment and rollback
+
+Apply migrations 0017 and 0018 before serving the updated API (`alembic upgrade head`
+from `backend/`). Migration 0018 adds the append-only `contributor_deletion_receipts`
+table for retry hashes and leaves the original `contributor_deletions.receipt_hash`
+untouched, including the hash retained from a pre-0018 request. Receipt lookup checks
+both locations; retries and fulfillment do not revoke those receipts.
+
+Migration 0018 refuses downgrade when any retry receipt rows exist. For an application
+rollback, keep both the receipt schema and the code that looks up original and retry
+hashes. Restoring code that only reads the original hash would strand retry receipts
+even if the new table remained. Do not delete receipt rows to bypass the downgrade guard.
+
+Deployment also needs a narrowly scoped IAM `cognito-idp:AdminDeleteUser` permission
+for the contributor pool, a verified expected-completion policy, operator ownership
+and evidence process, and app receipt persistence. On 2026-09-16, IAM principal
+`sixthsense-contributor-deletion-prod` was configured with only `AdminDeleteUser` on
+pool `us-west-2_mZ3Sz9xvE`; its `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` were
+staged on the Railway API service with deployment skipped. The receipt fix has not
+been deployed or verified through a real user deletion. No real user was deleted.
+
+## Local validation
+
+From the repository root, run the contributor regressions and migration checks in
+separate invocations against a fresh, disposable PostgreSQL database whose name ends
+in `_test`. Application fixtures create and drop tables; migration checks exercise
+real Alembic upgrades and downgrades and must start with an empty schema.
+
+```sh
+export TEST_DATABASE_URL=postgresql+asyncpg://USER@localhost:PORT/contributor_test
+PYTHONPATH=.:backend python -m pytest -q -c backend/pytest.ini \
+  backend/tests/test_contributor_deletion.py backend/tests/test_contributor_mobile.py \
+  backend/tests/test_contributor_terms.py backend/tests/test_contributor_recovery.py
+PYTHONPATH=.:backend python -m pytest -q -c backend/pytest.ini \
+  backend/tests/test_migrations.py backend/tests/test_contributor_deletion_migration.py \
+  backend/tests/test_contributor_receipt_migration.py
+```
+
+On 2026-09-16 these runs passed 63 contributor regressions and 7 migration tests.
+They cover concurrent and legacy receipts, hash-only storage, completion after
+authentication ends, preservation across upgrade, and refusal to downgrade with
+issued retry receipts. Provider calls are mocked; these results do not verify live erasure.
 
 ## Published pre-account notices
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3.0] - 2026-09-16
+
+### Fixed
+
+- Keep every issued account-deletion receipt valid across retries and after the login is removed, including receipts issued before this release.
+- Preserve receipt hashes with additive migration 0018 and refuse a downgrade that would revoke issued receipts.
+
 ## [0.1.2.0] - 2026-09-16
 
 ### Fixed

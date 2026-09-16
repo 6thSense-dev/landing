@@ -51,3 +51,11 @@ class ContributorDeletion(Base):
     evidence: Mapped[str | None] = mapped_column(Text)
     provider_status: Mapped[str] = mapped_column(String(24), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ContributorDeletionReceipt(Base):
+    """Additional bearer hashes; retries never invalidate an issued receipt."""
+    __tablename__ = "contributor_deletion_receipts"
+    receipt_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    subject: Mapped[str] = mapped_column(ForeignKey("contributor_deletions.subject"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

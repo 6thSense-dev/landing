@@ -24,6 +24,36 @@ async def test_before_enrollment_idempotent_and_receipt_private(app, db_session)
         assert (await c.get(PATH + '/receipt', headers={'Authorization':'Bearer incorrect'})).status_code == 404
         assert (await c.get(PATH + '/receipt', headers={'Authorization':'Bearer '+r['receipt_token']})).json()['request_id'] == r['request_id']
         assert 'receipt_token' not in (await c.get(PATH)).json()
+        # Every successful response must remain usable, not just the last one.
+        for prior in [reply.json() for reply in replies] + [r]:
+            status = await c.get(PATH + '/receipt', headers={'Authorization':'Bearer '+prior['receipt_token']})
+            assert status.status_code == 200
+            assert status.json()['request_id'] == r['request_id']
+
+
+async def test_legacy_receipt_and_retry_hashes_remain_private(app, db_session):
+    import hashlib
+    from app.models import ContributorDeletion, ContributorDeletionReceipt
+    legacy_token = 'a' * 64
+    legacy_hash = hashlib.sha256(legacy_token.encode()).hexdigest()
+    db_session.add(ContributorDeletion(subject=SUBJECT, id='legacy-request',
+                                      receipt_hash=legacy_hash, status='requested'))
+    await db_session.commit()
+    identity(app)
+    async with _client(app) as c:
+        retry = (await c.post(PATH, json={'confirmed': True})).json()
+        assert retry['request_id'] == 'legacy-request'
+        for token in [legacy_token, retry['receipt_token']]:
+            response = await c.get(PATH+'/receipt', headers={'Authorization': 'Bearer '+token})
+            assert response.status_code == 200
+            assert set(response.json()) == {'status', 'request_id', 'requested_at', 'expected_completion'}
+        assert (await c.get(PATH+'/receipt', headers={'Authorization': 'Bearer '+'f'*64})).status_code == 404
+    row = await db_session.get(ContributorDeletion, SUBJECT)
+    await db_session.refresh(row)
+    assert row.receipt_hash == legacy_hash
+    saved = (await db_session.execute(select(ContributorDeletionReceipt))).scalar_one()
+    assert saved.receipt_hash == hashlib.sha256(retry['receipt_token'].encode()).hexdigest()
+    assert saved.receipt_hash != retry['receipt_token']
 
 
 def evidence():
@@ -50,6 +80,7 @@ async def test_fulfillment_failure_retry_and_scrubbing(app, db_session, monkeypa
     monkeypatch.setattr(deletion, 'delete_cognito_user', failure)
     async with _client(app) as c:
         receipt = (await c.post(PATH, json={'confirmed':True})).json()
+        retry_receipt = (await c.post(PATH, json={'confirmed':True})).json()
         url = '/api/ops/contributors/deletions/'+receipt['request_id']+'/fulfill'
         assert (await c.post(url, json=evidence())).status_code in (401,403)
         kwargs = {'cookies':{'sid':sid}, 'headers':{'Origin':ORIGIN}}
@@ -63,6 +94,16 @@ async def test_fulfillment_failure_retry_and_scrubbing(app, db_session, monkeypa
         assert len(calls) == 2
         status = await c.get(PATH+'/receipt', headers={'Authorization':'Bearer '+receipt['receipt_token']})
         assert status.json()['status'] == 'completed'
+        # Completion remains public only to the bearer after authentication ends.
+        from app.core.contributor_auth import contributor_identity
+        from fastapi import HTTPException
+        def removed_identity():
+            raise HTTPException(401, 'authentication_required')
+        app.dependency_overrides[contributor_identity] = removed_identity
+        assert (await c.get(PATH)).status_code == 401
+        for saved in [receipt, retry_receipt]:
+            status = await c.get(PATH+'/receipt', headers={'Authorization':'Bearer '+saved['receipt_token']})
+            assert status.status_code == 200 and status.json()['status'] == 'completed'
     if account:
         await db_session.refresh(account)
         wearer = await db_session.get(Wearer, account.wearer_id)

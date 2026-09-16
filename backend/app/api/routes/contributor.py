@@ -9,7 +9,7 @@ import secrets
 from fastapi import Header
 from typing import Literal
 from app.core import contributor_deletion
-from app.models import ContributorDeletion, ProcessingJob
+from app.models import ContributorDeletion, ContributorDeletionReceipt, ProcessingJob
 from uuid import uuid4
 from app.core.ops_s3 import _client as s3_client, get_settings as s3_settings
 from fastapi import APIRouter, Depends, HTTPException
@@ -245,7 +245,13 @@ async def deletion_receipt(authorization: str | None = Header(default=None), db:
     token = authorization[7:] if authorization and authorization.startswith('Bearer ') else ''
     if not re.fullmatch('[a-f0-9]{64}', token):
         raise HTTPException(404, 'receipt_not_found')
-    row = (await db.execute(select(ContributorDeletion).where(ContributorDeletion.receipt_hash == hashlib.sha256(token.encode()).hexdigest()))).scalar_one_or_none()
+    digest = hashlib.sha256(token.encode()).hexdigest()
+    # The original hash remains valid, including receipts issued before 0018.
+    row = (await db.execute(select(ContributorDeletion).where(ContributorDeletion.receipt_hash == digest))).scalar_one_or_none()
+    if row is None:
+        receipt = await db.get(ContributorDeletionReceipt, digest)
+        if receipt is not None:
+            row = await db.get(ContributorDeletion, receipt.subject)
     if not row:
         raise HTTPException(404, 'receipt_not_found')
     return deletion_status(row)
@@ -271,7 +277,9 @@ async def request_deletion(body: DeletionIn, identity=Depends(contributor_identi
         row = ContributorDeletion(subject=subject, id=str(uuid4()), receipt_hash=digest, status='requested')
         db.add(row)
     else:
-        row.receipt_hash = digest
+        # Responses can arrive out of order. Store only a hash of each new
+        # bearer; neither another request nor fulfillment revokes older ones.
+        db.add(ContributorDeletionReceipt(subject=subject, receipt_hash=digest))
     account = await db.get(ContributorAccount, subject)
     if account:
         wearer = await db.get(Wearer, account.wearer_id)

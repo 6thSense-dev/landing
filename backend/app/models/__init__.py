@@ -10,4 +10,4 @@ from app.models.ops_workflow import FootageReview, Payout, PayoutItem, PayoutRec
 
 from app.models.contributor import ContributorAccount, ContributorConsent, ContributorCameraClaim, ContributorRecipientAttempt
 
-from app.models.contributor import ContributorDeletion
+from app.models.contributor import ContributorDeletion, ContributorDeletionReceipt
