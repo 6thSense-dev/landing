@@ -8,7 +8,8 @@ from boto3's default provider chain (the Batch job role in production).
 Destination keys are originals/<sha256(canonical JSON {bucket,key,version_id})>/
 <basename>. Every creation is conditional, including multipart completion, so a
 concurrent or conflicting writer cannot be overwritten. Archive versioning must
-be Enabled. Receipts are deterministic JSON, conditionally created and read back.
+be Enabled. Receipts are deterministic JSON, conditionally created and read back
+only after every source resolver entry is published and verified.
 An operator must resolve any conflicting/corrupt object; this worker never fixes
 one by overwriting it. Archive IAM should also deny deletion/overwrites to retain
 these immutable versions. Hashing uses 8 MiB streaming buffers; server-side copy
@@ -284,7 +285,7 @@ def publish_source_index(s3, bucket, obj, recording, receipt_key):
     if head is not None:
         ref = {"bucket": bucket, "key": key, "version_id": require_version(head.get("VersionId"))}
         existing = json.loads(read_json_bytes(s3, ref))
-        # An earlier complete plan can already index this exact immutable copy.
+        # An earlier attempt or plan can already index this exact immutable copy.
         if not isinstance(existing, dict) or any(existing.get(k) != entry[k] for k in ("schema", "source", "destination", "recording", "verified")):
             raise ArchiveError("Conflicting source resolver entry")
         require_string(existing.get("receipt_key"), "resolver receipt_key")
@@ -306,9 +307,11 @@ def run(s3, plan_ref, workers=2):
         "fingerprint": plan["fingerprint"], "plan_ref": pinned_plan,
         "objects": objects, "verified": True,
     }
-    receipt_ref = publish_receipt(s3, plan["archive_bucket"], plan["receipt_key"], receipt)
     for obj in objects:
         publish_source_index(s3, plan["archive_bucket"], obj, plan["recording"], plan["receipt_key"])
+    # The receipt commits the complete archive, including all resolver entries.
+    # Partial index publication is harmless and reused on retry.
+    receipt_ref = publish_receipt(s3, plan["archive_bucket"], plan["receipt_key"], receipt)
     return {"verified": True, "recording": plan["recording"], "fingerprint": plan["fingerprint"], "receipt_ref": receipt_ref}
 
 

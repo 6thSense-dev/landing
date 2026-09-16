@@ -131,6 +131,39 @@ def test_all_originals_preserved_and_retry_reuses_verified_versions():
     assert len([c for c in s3.calls if c[0] in {"put", "create"}]) == writes
 
 
+@pytest.mark.parametrize("failed_operation", ["put_object", "get_object"])
+def test_source_index_failure_withholds_receipt_and_retry_reuses_versions(monkeypatch, failed_operation):
+    s3, plan, ref = fixture_plan()
+    index_keys = [f"source-index/{w.identity_digest(obj)}.json" for obj in plan["objects"]]
+    original_operation = getattr(s3, failed_operation)
+
+    def fail_middle_index(**kwargs):
+        if kwargs["Bucket"] == w.ARCHIVE_BUCKET and kwargs["Key"] == index_keys[2]:
+            raise error(503)
+        return original_operation(**kwargs)
+
+    monkeypatch.setattr(s3, failed_operation, fail_middle_index)
+    with pytest.raises(ClientError):
+        w.run(s3, ref)
+
+    assert (w.ARCHIVE_BUCKET, plan["receipt_key"]) not in s3.latest
+    assert not any(c[0] == "put" and c[2] == plan["receipt_key"] for c in s3.calls)
+    assert (w.ARCHIVE_BUCKET, index_keys[0]) in s3.latest
+    existing = {key: version for key, version in s3.latest.items()
+                if key[0] == w.ARCHIVE_BUCKET and key[1].startswith(("originals/", "source-index/"))}
+    assert sum(key[1].startswith("originals/") for key in existing) == len(plan["objects"])
+
+    monkeypatch.setattr(s3, failed_operation, original_operation)
+    result = w.run(s3, ref)
+    assert result["verified"] is True
+    assert all(s3.latest[key] == version for key, version in existing.items())
+    assert all((w.ARCHIVE_BUCKET, key) in s3.latest for key in index_keys)
+    assert [c for c in s3.calls if c[0] == "put"][-1][2] == plan["receipt_key"]
+    count = len(s3.objects)
+    assert w.run(s3, ref) == result
+    assert len(s3.objects) == count
+
+
 def test_source_version_is_pinned_even_if_latest_changes():
     s3, plan, ref = fixture_plan()
     source = plan["objects"][1]
