@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.api.routes import contributor, contributor_ops, admin, auth, catalog, health, leads, ops, ops_clean, ops_payments, ops_processing, ops_sieve, intake_review, workspace
+from app.api.routes import contributor, contributor_ops, admin, auth, catalog, health, leads, ops, ops_clean, ops_payments, ops_processing, ops_pipeline, ops_sieve, intake_review, workspace
 from app.core.auth_deps import COOKIE_NAME, _ClearCookieUnauthorized
 from app.core.config import get_settings
 from app.core.limiter import limiter
@@ -125,6 +125,7 @@ def create_app() -> FastAPI:
     application.include_router(ops_clean.router)
     application.include_router(ops_payments.router)
     application.include_router(ops_processing.router)
+    application.include_router(ops_pipeline.router)
     application.include_router(ops_sieve.router)
     application.include_router(intake_review.router)
     application.include_router(workspace.router)
