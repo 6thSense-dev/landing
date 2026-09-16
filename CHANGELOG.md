@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1.0] - 2026-09-16
+
+### Fixed
+
+- Play new Clean batches in Chrome with verified H.264 stereo previews, including recording review and link reloads.
+- Keep browser playback on preview files between recordings and require a complete preview before publishing future Clean batches.
+
 ## [0.1.0.0] - 2026-09-15
 
 ### Added
