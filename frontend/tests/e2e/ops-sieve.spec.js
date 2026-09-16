@@ -33,164 +33,172 @@ async function setup(page) {
   return state;
 }
 
-test('unique hours, diversity and provenance; filters and responsive layout', async ({page},testInfo) => {
+const summary = (page, name) => page.locator('summary').filter({hasText:name});
+const metric = (page, name) => page.getByRole('article',{name,exact:true});
+
+test('delivery overview is compact and keeps totals separate', async ({page}, info) => {
   const state = await setup(page);
   await page.goto('/portal/ops?tab=sieve');
-  await expect(page.getByRole('heading',{name:'Sieve',exact:true})).toBeVisible();
-  await expect(page.locator('.sieve-stats')).toContainText('2.00');
-  await expect(page.locator('.sieve-stats')).toContainText('1.00');
-  await expect(page.locator('.sieve-deadline')).toContainText('Sep 22, 2026');
-  await expect(page.locator('.sieve-deadline')).toContainText('Sep 25');
-  await expect(page.locator('.sieve-progress')).toContainText('50% inherited');
-  await expect(page.getByRole('region',{name:'Activity',exact:true})).toContainText('Unclassified');
-  await expect(page.locator('.sieve-recording')).toHaveCount(2);
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('of 10 h delivery target');
+  await expect(metric(page,'Available in Clean')).toContainText('2.00 h');
+  await expect(metric(page,'Awaiting release')).toContainText('4.70 h');
+  await expect(metric(page,'Uploaded to Sieve').getByRole('progressbar')).toHaveAttribute('value','6.03');
+  await expect(page.getByRole('region',{name:'Delivery overview'})).not.toContainText('10.73');
+  await expect(page.getByLabel('What happens next')).toContainText('Technical checks: in progress');
+  await expect(page.getByRole('link',{name:'Review footage'})).toHaveAttribute('href','/portal/ops?tab=clean');
+  await expect(page.getByLabel('Company processing')).toContainText('38 processed');
+  await expect(page.getByLabel('Company processing')).toContainText('2 in progress');
+  await expect(page.getByLabel('Company processing')).toContainText('9 held');
+  await expect(page.locator('.sieve-processing')).not.toHaveAttribute('open','');
+  await expect(page.locator('.sieve-breakdown')).not.toHaveAttribute('open','');
+  if(info.project.name==='desktop-1280') expect((await page.getByRole('heading',{name:'Browse footage'}).boundingBox()).y).toBeLessThan(750);
   await expectNoHorizontalOverflow(page);
-  await page.screenshot({path:testInfo.outputPath('sieve-dashboard.png'),fullPage:true});
-  await page.getByLabel('Filter recordings by country',{exact:true}).selectOption('India');
-  await expect(page.locator('.sieve-recording')).toHaveCount(1);
-  await page.locator('.sieve-recording summary').click();
-  await expect(page.locator('.sieve-recording')).toContainText('Clean artifact is missing');
-  await page.getByLabel('Filter recordings by status',{exact:true}).selectOption('inherited');
-  await expect(page.getByText('No recordings match these filters.')).toBeVisible();
-  await page.getByLabel('Filter recordings by country',{exact:true}).selectOption('');
-  await page.getByLabel('Filter recordings by status',{exact:true}).selectOption('');
-  await page.getByLabel('Search recordings',{exact:true}).fill('한규태');
-  await expect(page.locator('.sieve-recording')).toHaveCount(1);
-  await expectNoHorizontalOverflow(page);
+  await page.screenshot({path:info.outputPath('sieve-overview.png'),fullPage:true});
   expect(state.requests.every(r=>r.method==='GET')).toBe(true);
 });
 
-test('refresh failure keeps previous totals and retry recovers', async ({page}) => {
-  const state = await setup(page);
+test('all original statistics and technical details remain accessible', async ({page},info) => {
+  await setup(page);
   await page.goto('/portal/ops?tab=sieve');
-  await expect(page.locator('.sieve-stats')).toBeVisible();
-  state.failing=true;
+  await summary(page,'Processing details').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('region',{name:'Sieve preparation',exact:true})).toContainText('34 / 34 recordings');
+  await expect(page.getByRole('region',{name:'Sieve preparation',exact:true})).toContainText('325 clips');
+  const upload=page.getByRole('region',{name:'Customer upload',exact:true});
+  await expect(upload).toContainText('2,600 / 2,600');
+  await expect(upload).toContainText('240 GB / 240 GB');
+  await expect(upload).toContainText('325 / 325 clips');
+  await expect(page.getByRole('region',{name:'Independent validation',exact:true})).toContainText('198 / 325');
+  await expect(page.getByRole('region',{name:'Private extra footage',exact:true})).toContainText('25.39 GB');
+  await expect(page.getByRole('region',{name:'Originals archive',exact:true})).toContainText('44 archived / 55 upload groups · 6 deleted');
+  const copies=page.getByRole('region',{name:'Internal Sieve copies',exact:true});
+  await expect(copies).toContainText('1.00 h copied · 1 recordings');
+  await expect(copies).toContainText('1 GB · 50% of Clean copied');
+  await expect(copies).toContainText('0 copy pending · 1 copy blocked');
+  await expect(copies).toContainText('Original codecs are preserved');
+  await summary(page,'Collection breakdown').click();
+  for(const name of ['Country','Contributor / business','Activity','Clean intake by day']) await expect(page.getByRole('region',{name,exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:'Activity',exact:true})).toContainText('Unclassified');
+  await expect(page.locator('.sieve-breakdown')).toContainText('2 countries · 2 contributors · 2 cameras');
+  await expect(page.locator('.sieve-deadline')).toContainText('Sep 22, 2026');
+  await expect(page.locator('.sieve-footer')).toContainText('Sep 25');
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({path:info.outputPath('sieve-expanded.png'),fullPage:true});
+});
+
+test('recordings paginate and filters search the entire collection', async ({page}) => {
+  const state=await setup(page);
+  state.data.recordings=Array.from({length:24},(_,i)=>({...state.data.recordings[i%2],run_id:`run-${i}`,recording:`recording-${String(i).padStart(2,'0')}`}));
+  await page.goto('/portal/ops?tab=sieve');
+  await expect(page.locator('.sieve-recording')).toHaveCount(10);
+  await expect(page.getByRole('navigation',{name:'Recording pages'})).toContainText('1–10 of 24');
+  await page.getByRole('button',{name:'Next',exact:true}).click();
+  await expect(page.locator('.sieve-recording').first()).toContainText('recording-10');
+  await page.getByLabel('Search recordings',{exact:true}).fill('recording-23');
+  await expect(page.locator('.sieve-recording')).toHaveCount(1);
+  await page.locator('.sieve-recording summary').click();
+  await expect(page.locator('.sieve-recording')).toContainText('Clean artifact is missing');
+  await expect(page.getByRole('navigation',{name:'Recording pages'})).toHaveCount(0);
+  await page.getByLabel('Search recordings',{exact:true}).fill('');
+  await page.getByLabel('Filter recordings by country',{exact:true}).selectOption('India');
+  await expect(page.getByRole('navigation',{name:'Recording pages'})).toContainText('1–10 of 12');
+  await page.getByLabel('Filter recordings by status',{exact:true}).selectOption('inherited');
+  await expect(page.getByText('No recordings match these filters.')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});
+
+test('unavailable or partial figures never become zero or passed', async ({page}) => {
+  const state=await setup(page);
+  state.pipeline.company={available:false};state.pipeline.supplement={available:false};
+  Object.assign(state.pipeline.delivery,{state:'TRANSFERRING',complete:false,uploaded_hours:null,uploaded_files:16,total_files:null,stale:true});
+  state.pipeline.validation={available:true,state:'COMPLETE',clip_reports:325,total_clips:325};
+  await page.goto('/portal/ops?tab=sieve');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('Not reported');
+  await expect(metric(page,'Uploaded to Sieve').getByRole('progressbar')).toHaveCount(0);
+  await expect(metric(page,'Awaiting release')).toContainText('Not reported');
+  await expect(page.getByLabel('What happens next')).toContainText('Technical checks: result pending');
+  await expect(page.getByLabel('Company processing')).toContainText('status unavailable');
+  await expect(page.getByRole('status')).toContainText('Last known figures');
+  await summary(page,'Processing details').click();
+  await expect(page.getByRole('region',{name:'Customer upload',exact:true})).toContainText('16 / —');
+  await expect(page.getByRole('region',{name:'Customer upload',exact:true})).toContainText('Stale snapshot');
+});
+
+test('refresh failures preserve snapshots and both sources recover independently', async ({page}) => {
+  const state=await setup(page);
+  await page.goto('/portal/ops?tab=sieve');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
+  state.pipelineFailing=true;state.data.totals.clean_seconds=10800;
+  await page.getByRole('button',{name:'Refresh dashboard'}).click();
+  await expect(page.getByRole('status')).toContainText('last loaded delivery snapshot');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
+  await expect(metric(page,'Available in Clean')).toContainText('3.00 h');
+  state.pipelineFailing=false;state.failing=true;state.pipeline.validation.state='PASS';
   await page.getByRole('button',{name:'Refresh dashboard'}).click();
   await expect(page.getByRole('alert')).toContainText('last loaded snapshot');
-  await expect(page.locator('.sieve-stats')).toContainText('2.00');
+  await expect(page.getByLabel('What happens next')).toContainText('Technical checks: passed');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('customer acceptance not recorded');
   state.failing=false;
   await page.getByRole('button',{name:'Refresh dashboard'}).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
-test('initial retry works; expiry removes tab and redirects to Clean', async ({page}) => {
+test('initial failure leaves the other source useful and expiry redirects', async ({page}) => {
   const state=await setup(page);state.failing=true;
   await page.goto('/portal/ops?tab=sieve');
-  await expect(page.getByRole('button',{name:'Retry',exact:true})).toBeVisible();
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
+  await expect(metric(page,'Available in Clean')).toContainText('Not reported');
   state.failing=false;
   await page.getByRole('button',{name:'Retry',exact:true}).click();
-  await expect(page.locator('.sieve-stats')).toBeVisible();
+  await expect(page.locator('.sieve-recording')).toHaveCount(2);
   state.expired=true;
   await page.getByRole('button',{name:'Refresh dashboard'}).click();
-  await expect(page.getByRole('button',{name:'Sieve',exact:true})).toHaveCount(0);
   await expect(page).toHaveURL(/tab=clean/);
 });
 
-test('empty Clean shows zero and useful empty state', async ({page}) => {
-  const state=await setup(page);state.data.recordings=[];
+test('empty collection and initial pipeline failure stay honest', async ({page}) => {
+  const state=await setup(page);state.pipelineFailing=true;state.data.recordings=[];
   for(const key of Object.keys(state.data.breakdowns))state.data.breakdowns[key]=[];
   state.data.totals={clean_seconds:0,inherited_seconds:0,recordings:0,inherited_recordings:0,copied_bytes:0,countries:0,entities:0,cameras:0,status_counts:{}};
   await page.goto('/portal/ops?tab=sieve');
+  await expect(metric(page,'Available in Clean')).toContainText('0.00 h');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('Not reported');
   await expect(page.getByText('New recordings will appear after they enter Clean.')).toBeVisible();
-  await expect(page.locator('.sieve-progress')).toContainText('0% inherited');
+  await expect(page.getByRole('status')).toContainText('Delivery status is unavailable');
   await expectNoHorizontalOverflow(page);
 });
 
-test('pipeline separates processing, customer upload, validation and private hours', async ({page}, testInfo) => {
-  const state = await setup(page);
+test('automatic refresh updates counts without collapsing open details', async ({page}) => {
+  await page.clock.install();const state=await setup(page);
   await page.goto('/portal/ops?tab=sieve');
-  const panel = page.getByRole('region', { name: 'Live pipeline progress' });
-  await expect(panel).toBeVisible();
-  await expect(page.getByRole('article', {name: 'Company Raw → Clean'})).toContainText('All countries');
-  await expect(page.getByRole('article', {name: 'Sieve preparation'})).toContainText('6.03 h');
-  const uploaded = page.getByRole('article', {name: 'Uploaded to Sieve'});
-  await expect(uploaded).toContainText('6.03 h');
-  await expect(uploaded).toContainText('2,600 / 2,600');
-  await expect(uploaded).toContainText('240 GB / 240 GB');
-  await expect(uploaded).toContainText('Upload complete');
-  await expect(uploaded.getByRole('progressbar')).toHaveAttribute('value', '2600');
-  const validation = page.getByRole('article', {name: 'Independent validation'});
-  await expect(validation).toContainText('198 / 325');
-  await expect(validation.getByText('Passed', {exact: true})).toHaveCount(0);
-  const supplement = page.getByRole('article', {name: 'Private originals supplement'});
-  await expect(supplement).toContainText('4.70 h');
-  await expect(supplement).toContainText('not uploaded to Sieve');
-  await expect(page.getByText('Copied to internal Sieve storage', {exact:true})).toBeVisible();
-  await expect(page.getByText('Hours inherited by Sieve', {exact:true})).toHaveCount(0);
-  expect(await panel.evaluate(el => el.compareDocumentPosition(document.querySelector('.sieve-stats')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
-  await expect(panel.getByRole('button')).toHaveCount(0);
-  await expectNoHorizontalOverflow(page);
-  await page.screenshot({path:testInfo.outputPath('sieve-live-progress.png'), fullPage:true});
-  expect(state.requests.every(r=>r.method==='GET')).toBe(true);
-});
-
-test('unavailable and partial pipeline never invent zero counts or passing validation', async ({page}) => {
-  const state = await setup(page);
-  state.pipeline.company = {available:false, source_groups:null};
-  state.pipeline.delivery = {available:true, state:'RUNNING', prepared_hours:2.3, uploaded_hours:null, uploaded_files:16, total_files:null, uploaded_bytes:1e9, total_bytes:null, stale:true};
-  state.pipeline.validation = {available:true, state:'COMPLETE', clip_reports:214, total_clips:214};
-  state.pipeline.supplement = {available:false, hours:null};
-  state.pipeline.errors = ['private-implementation-error-not-for-display'];
-  await page.goto('/portal/ops?tab=sieve');
-  await expect(page.getByRole('article', {name:'Company Raw → Clean'})).toContainText('Status unavailable. No count is assumed.');
-  const uploaded = page.getByRole('article', {name:'Uploaded to Sieve'});
-  await expect(page.getByRole('article', {name:'Sieve preparation'})).toContainText('2.30 h');
-  await expect(uploaded).toContainText('Not reported');
-  await expect(uploaded).toContainText('16 / —');
-  await expect(uploaded).toContainText('Stale snapshot');
-  await expect(uploaded.getByRole('progressbar')).toHaveCount(0);
-  await expect(page.getByRole('article',{name:'Independent validation'})).toContainText('Result not yet reported');
-  await expect(page.getByRole('region',{name:'Live pipeline progress'})).not.toContainText('0.00');
-  await expect(page.getByRole('region',{name:'Live pipeline progress'})).not.toContainText('private-implementation');
-  await expect(page.locator('.sieve-stats')).toContainText('2.00');
-  await expectNoHorizontalOverflow(page);
-});
-
-test('pipeline refresh fails independently and only explicit PASS marks validation passed', async ({page}) => {
-  const state = await setup(page);
-  await page.goto('/portal/ops?tab=sieve');
-  await expect(page.getByRole('article',{name:'Uploaded to Sieve'})).toContainText('6.03 h');
-  state.pipelineFailing = true;
-  state.data.totals.clean_seconds = 10800;
-  await page.getByRole('button',{name:'Refresh dashboard'}).click();
-  await expect(page.getByRole('region',{name:'Live pipeline progress'})).toContainText('Showing the last loaded pipeline snapshot');
-  await expect(page.getByRole('article',{name:'Uploaded to Sieve'})).toContainText('6.03 h');
-  await expect(page.locator('.sieve-stats')).toContainText('3.00');
-  state.pipelineFailing = false;
-  state.pipeline.validation.state = 'PASS';
-  state.pipeline.cache.stale = true;
-  await page.getByRole('button',{name:'Refresh dashboard'}).click();
-  await expect(page.getByRole('article',{name:'Independent validation'}).locator('.sieve-pipeline-verdict')).toHaveText('Passed');
-  await expect(page.getByRole('region',{name:'Live pipeline progress'})).toContainText('Pipeline updates are delayed');
-  await expect(page.getByRole('region',{name:'Live pipeline progress'})).not.toContainText('Live update failed');
-});
-
-test('pipeline works when collection is unavailable and both endpoints poll', async ({page}) => {
-  await page.clock.install();
-  const state = await setup(page);
-  state.failing = true;
-  Object.assign(state.pipeline.delivery, {state:'TRANSFERRING', complete:false, uploaded_hours:null, uploaded_files:1656, uploaded_assets:207, uploaded_bytes:150e9});
-  await page.goto('/portal/ops?tab=sieve');
-  await expect(page.getByRole('article',{name:'Uploaded to Sieve'})).toContainText('Uploaded hours are not yet confirmed');
-  await expect(page.getByRole('button',{name:'Retry',exact:true})).toBeVisible();
-  const before = state.requests.filter(r=>r.path==='/api/ops/sieve/pipeline').length;
-  state.pipeline.delivery.uploaded_files = 1700;
+  await summary(page,'Processing details').click();
+  await summary(page,'Collection breakdown').click();
+  const before=state.requests.length;
+  state.pipeline.company.in_progress=1;state.pipeline.validation.clip_reports=222;
   await page.clock.fastForward(30001);
-  await expect(page.getByRole('article',{name:'Uploaded to Sieve'})).toContainText('1,700 / 2,600');
-  expect(state.requests.filter(r=>r.path==='/api/ops/sieve/pipeline').length).toBeGreaterThan(before);
-  expect(state.requests.filter(r=>r.path==='/api/ops/sieve/state').length).toBeGreaterThan(1);
+  await expect(page.getByLabel('Company processing')).toContainText('1 in progress');
+  await expect(page.getByRole('region',{name:'Independent validation',exact:true})).toContainText('222 / 325');
+  await expect(page.locator('.sieve-processing')).toHaveAttribute('open','');
+  await expect(page.locator('.sieve-breakdown')).toHaveAttribute('open','');
+  expect(state.requests.slice(before).some(r=>r.path==='/api/ops/sieve/pipeline')).toBeTruthy();
+  expect(state.requests.slice(before).some(r=>r.path==='/api/ops/sieve/state')).toBeTruthy();
 });
 
-test('initial pipeline error leaves collection usable', async ({page}) => {
-  const state = await setup(page);
-  state.pipelineFailing = true;
+
+test('polling shrink does not restore an obsolete page when new footage arrives', async ({page}) => {
+  await page.clock.install();
+  const state=await setup(page);
+  const all=Array.from({length:24},(_,i)=>({...state.data.recordings[0],run_id:`run-${i}`,recording:`recording-${String(i).padStart(2,'0')}`}));
+  state.data.recordings=all;
   await page.goto('/portal/ops?tab=sieve');
-  const panel = page.getByRole('region',{name:'Live pipeline progress'});
-  await expect(panel).toContainText('Live pipeline status is unavailable');
-  await expect(panel.getByRole('progressbar')).toHaveCount(0);
-  await expect(panel).not.toContainText('0.00');
-  await expect(page.locator('.sieve-recording')).toHaveCount(2);
-  state.pipelineFailing = false;
-  await page.getByRole('button',{name:'Refresh dashboard'}).click();
-  await expect(page.getByRole('article',{name:'Uploaded to Sieve'})).toContainText('6.03 h');
+  await page.getByRole('button',{name:'Next',exact:true}).click();
+  await page.getByRole('button',{name:'Next',exact:true}).click();
+  await expect(page.getByRole('navigation',{name:'Recording pages'})).toContainText('21–24 of 24');
+  state.data.recordings=all.slice(0,8);
+  await page.clock.fastForward(30001);
+  await expect(page.locator('.sieve-recording')).toHaveCount(8);
+  state.data.recordings=all;
+  await page.clock.fastForward(30001);
+  await expect(page.getByRole('navigation',{name:'Recording pages'}).getByRole('status')).toHaveText('1–10 of 24 recordings');
 });

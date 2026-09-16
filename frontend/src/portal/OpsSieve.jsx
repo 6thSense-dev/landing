@@ -4,7 +4,9 @@ import './opsSieve.css';
 
 const hours = seconds => (Number(seconds || 0) / 3600).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const stamp = value => value ? new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not yet';
-const labels = { inherited: 'Inherited', pending: 'Pending', blocked: 'Blocked' };
+const labels = { inherited: 'Copied internally', pending: 'Copy pending', blocked: 'Copy blocked' };
+const DELIVERY_TARGET_HOURS = 10;
+const PAGE_SIZE = 10;
 const knownNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const count = value => knownNumber(value) ? value.toLocaleString() : '—';
 const pipelineHours = value => knownNumber(value) ? `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : 'Not reported';
@@ -20,57 +22,90 @@ const pipelineStates = {
   PACKAGING: 'Packaging', DELIVERED_CHECKSUMS_VERIFIED: 'Uploaded and checksummed', BLOCKED: 'Held', INCONSISTENT: 'Needs verification',
 };
 
-function PipelineCard({ title, data, className = '', children, state }) {
-  const available = data?.available === true;
-  return <article className={`sieve-pipeline-card ${className}`} aria-label={title}>
-    <div className="sieve-pipeline-card-heading"><h4>{title}</h4>
-      <span className={`sieve-pipeline-state${data?.stale ? ' sieve-pipeline-stale' : ''}`}>{!available ? 'Unavailable' : data.stale ? 'Stale snapshot' : state || 'Latest snapshot'}</span>
-    </div>
-    {available ? children : <p className="sieve-pipeline-unavailable">Status unavailable. No count is assumed.</p>}
-    <p className="sieve-pipeline-updated">{data?.updated_at ? `Updated ${stamp(data.updated_at)}` : 'Update time not reported'}</p>
+function Metric({ title, value, children, accent = false }) {
+  return <article className={`sieve-metric${accent ? ' sieve-metric-accent' : ''}`} aria-label={title}>
+    <h3>{title}</h3><strong>{value}</strong>{children}
   </article>;
 }
 
-function PipelineProgress({ data, error, loading }) {
-  const company = data?.company, delivery = data?.delivery, validation = data?.validation, supplement = data?.supplement;
-  const filesKnown = knownNumber(delivery?.uploaded_files) && knownNumber(delivery?.total_files) && delivery.total_files > 0;
-  const validationState = validation?.state === 'PASS' ? 'Passed' : ({ FAILED: 'Needs attention', FAIL: 'Needs attention', ERROR: 'Needs attention', RUNNING: 'In progress', IN_PROGRESS: 'In progress', VALIDATING: 'In progress', PENDING: 'Pending', WAITING: 'Waiting' }[validation?.state] || 'Result not yet reported');
-  return <section className="sieve-pipeline" aria-labelledby="sieve-pipeline-title">
-    <div className="sieve-pipeline-heading"><div><p className="sieve-eyebrow">Processing and delivery</p><h3 id="sieve-pipeline-title">Live pipeline progress</h3>
-      <p>Company processing, customer uploads and private review footage are counted separately.</p></div>
-      <p className="sieve-pipeline-checked">{data?.checked_at ? `Checked ${stamp(data.checked_at)}` : 'Awaiting first update'}<span>Refreshes every 30 seconds</span></p>
+function DeliveryOverview({ pipeline, collection, error, loading }) {
+  const { company, delivery, validation, supplement } = pipeline || {};
+  const uploaded = delivery?.available && knownNumber(delivery.uploaded_hours) ? delivery.uploaded_hours : null;
+  const extra = supplement?.available && supplement.external_delivery_performed === false ? supplement : null;
+  const validationText = !validation?.available ? 'Status unavailable' : validation.state === 'PASS' ? 'Passed' :
+    ['FAIL', 'FAILED', 'ERROR'].includes(validation.state) ? 'Needs attention' :
+    ['RUNNING', 'IN_PROGRESS', 'VALIDATING'].includes(validation.state) ? 'In progress' : 'Result pending';
+  return <section className="sieve-overview" aria-label="Delivery overview">
+    {loading && !pipeline && <p className="sieve-notice" role="status">Loading delivery status…</p>}
+    {error && <p className="sieve-notice" role="status">{pipeline ? 'Live update failed. Showing the last loaded delivery snapshot.' : 'Delivery status is unavailable. Collection figures are shown separately.'}</p>}
+    {!error && (pipeline?.cache?.stale || pipeline?.errors?.length > 0 || [company, delivery, validation, supplement].some(stage => stage?.stale)) &&
+      <p className="sieve-notice" role="status">Some updates are delayed or unavailable. Last known figures are shown; expand Processing details for update times.</p>}
+    <div className="sieve-metrics">
+      <Metric title="Uploaded to Sieve" value={pipelineHours(uploaded)} accent>
+        <p>of {DELIVERY_TARGET_HOURS} h delivery target</p>
+        {uploaded !== null && <progress value={Math.min(uploaded, DELIVERY_TARGET_HOURS)} max={DELIVERY_TARGET_HOURS} aria-label="Uploaded hours toward delivery target" />}
+        <small>In Sieve’s customer storage · customer acceptance not recorded</small>
+      </Metric>
+      <Metric title="Available in Clean" value={collection ? `${hours(collection.totals.clean_seconds)} h` : 'Not reported'}>
+        <p>{collection ? `${count(collection.totals.recordings)} recordings · India & Korea` : 'Collection status unavailable'}</p>
+        <small>{collection ? `${hours(collection.totals.inherited_seconds)} h copied to our Sieve bucket.` : 'Our internal collection.'} Separate from customer delivery.</small>
+      </Metric>
+      <Metric title="Awaiting release" value={pipelineHours(extra?.hours)}>
+        <p>{extra ? `${count(extra.recordings)} additional recordings` : 'Release status unavailable'}</p>
+        <small>{extra ? 'Potential delivery hours. Originals staged privately; review required.' : 'No undelivered hours are assumed.'}</small>
+      </Metric>
     </div>
-    {loading && !data && <p className="sieve-pipeline-notice" role="status">Loading pipeline status…</p>}
-    {error && <p className="sieve-pipeline-notice" role="status">{data ? 'Live update failed. Showing the last loaded pipeline snapshot.' : 'Live pipeline status is unavailable. Collection figures are shown separately below.'}</p>}
-    {!error && (data?.cache?.stale || data?.errors?.length > 0) && <p className="sieve-pipeline-notice" role="status">{data?.cache?.stale ? 'Pipeline updates are delayed. These are the last available figures.' : 'Some pipeline updates are unavailable. Check each stage’s status below.'}</p>}
-    <div className="sieve-pipeline-grid">
-      <PipelineCard title="Company Raw → Clean" data={company} className="sieve-pipeline-company">
-        <p className="sieve-pipeline-context">All countries · company processing</p>
-        <dl className="sieve-pipeline-counts">{[['Source groups', company?.source_groups], ['Archived', company?.archived], ['Clean complete', company?.clean_complete], ['In progress', company?.in_progress], ['Held', company?.held], ['Deleted', company?.deleted]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{count(value)}</dd></div>)}</dl>
-      </PipelineCard>
-      <PipelineCard title="Sieve preparation" data={delivery} state={pipelineStates[delivery?.state] || 'Status not yet reported'}>
-        <p className="sieve-pipeline-value">{pipelineHours(delivery?.prepared_hours)}<span>prepared</span></p>
-        <dl className="sieve-pipeline-details"><div><dt>Recordings processed</dt><dd>{ratio(delivery?.recordings_processed, delivery?.recordings_expected)}</dd></div><div><dt>Packaged assets</dt><dd>{count(delivery?.packaged_assets)}</dd></div></dl>
-        <p className="sieve-pipeline-context">Preparation does not confirm customer upload.</p>
-      </PipelineCard>
-      <PipelineCard title="Uploaded to Sieve" data={delivery} className="sieve-pipeline-upload" state={delivery?.complete === true ? 'Upload complete' : pipelineStates[delivery?.state] || 'Status not yet reported'}>
-        <p className="sieve-pipeline-value">{pipelineHours(delivery?.uploaded_hours)}<span>uploaded hours</span></p>
-        <p className="sieve-pipeline-context">Customer delivery location · OCI</p>
-        <dl className="sieve-pipeline-details"><div><dt>Uploaded assets</dt><dd>{count(delivery?.uploaded_assets)}</dd></div><div><dt>Uploaded files</dt><dd>{ratio(delivery?.uploaded_files, delivery?.total_files)}</dd></div><div><dt>Uploaded data</dt><dd>{bytes(delivery?.uploaded_bytes)} / {bytes(delivery?.total_bytes)}</dd></div></dl>
-        {filesKnown && <progress value={Math.min(delivery.uploaded_files, delivery.total_files)} max={delivery.total_files} aria-label="Files uploaded to Sieve" aria-valuetext={`${count(delivery.uploaded_files)} of ${count(delivery.total_files)} files`} />}
-        {!knownNumber(delivery?.uploaded_hours) && <p className="sieve-pipeline-context">Uploaded hours are not yet confirmed.</p>}
-      </PipelineCard>
-      <PipelineCard title="Independent validation" data={validation} state={validationState}>
-        <p className={`sieve-pipeline-value sieve-pipeline-verdict${validation?.state === 'PASS' ? ' sieve-pipeline-pass' : ''}`}>{validationState}</p>
-        <dl className="sieve-pipeline-details"><div><dt>Clip reports found</dt><dd>{ratio(validation?.clip_reports, validation?.total_clips)}</dd></div></dl>
-        <p className="sieve-pipeline-context">Report counts do not mean every clip passed. Technical checks do not record customer acceptance.</p>
-      </PipelineCard>
-      <PipelineCard title="Private originals supplement" data={supplement} state={pipelineStates[supplement?.state] || 'Status not yet reported'}>
-        <p className="sieve-pipeline-value">{pipelineHours(supplement?.hours)}<span>potential technical hours</span></p>
-        <dl className="sieve-pipeline-details"><div><dt>Recordings</dt><dd>{count(supplement?.recordings)}</dd></div><div><dt>Original data</dt><dd>{bytes(supplement?.bytes)}</dd></div></dl>
-        <p className="sieve-pipeline-context">{supplement?.external_delivery_performed === false ? 'Privately staged · not uploaded to Sieve. Excluded from uploaded hours.' : 'External delivery status needs verification. Excluded from the main batch’s uploaded hours.'}</p>
-      </PipelineCard>
+    <div className="sieve-next" aria-label="What happens next">
+      <div><h3>What happens next</h3><p><strong>Technical checks: {validationText.toLowerCase()}.</strong>{validation?.available && validation.state !== 'PASS' && knownNumber(validation.clip_reports) ? ` ${ratio(validation.clip_reports, validation.total_clips)} clip reports received.` : ''} {extra ? 'Review the extra footage for release, then record Sieve’s acceptance.' : 'Confirm the footage review and Sieve’s acceptance before closing delivery.'}</p></div>
+      <a className="sieve-review-link" href="/portal/ops?tab=clean">Review footage <span aria-hidden="true">→</span></a>
     </div>
+    <div className="sieve-company-strip" aria-label="Company processing">
+      <span>Company processing <small>All countries</small></span>
+      {company?.available ? <><span><b>{count(company.clean_complete)}</b> processed</span><span><b>{count(company.in_progress)}</b> in progress</span><span className={company.held > 0 ? 'sieve-held' : ''}><b>{count(company.held)}</b> held for review</span></> : <span>Processing status unavailable</span>}
+    </div>
+    <details className="sieve-disclosure sieve-processing">
+      <summary>Processing details <span>Preparation, transfer, checks & storage</span></summary>
+      <div className="sieve-detail-grid">
+        <Stage title="Sieve preparation" data={delivery}>
+          <p>{pipelineHours(delivery?.prepared_hours)} prepared · {ratio(delivery?.recordings_processed, delivery?.recordings_expected)} recordings</p>
+          <p>{count(delivery?.packaged_assets)} clips packaged</p>
+        </Stage>
+        <Stage title="Customer upload" data={delivery}>
+          <p>{delivery?.complete === true ? 'Upload complete' : pipelineStates[delivery?.state] || 'Status unknown'}</p>
+          <p>{ratio(delivery?.uploaded_files, delivery?.total_files)} files · {bytes(delivery?.uploaded_bytes)} / {bytes(delivery?.total_bytes)}</p>
+          <p>{count(delivery?.uploaded_assets)} / {count(delivery?.packaged_assets)} clips uploaded</p>
+          {knownNumber(delivery?.uploaded_files) && delivery?.total_files > 0 && <progress value={Math.min(delivery.uploaded_files, delivery.total_files)} max={delivery.total_files} aria-label="Files uploaded to Sieve" />}
+          <p>Destination: Sieve’s customer storage</p>
+        </Stage>
+        <Stage title="Independent validation" data={validation}>
+          <p>{validationText} · {ratio(validation?.clip_reports, validation?.total_clips)} clip reports</p>
+          <p>Report counts alone do not mean the checks passed.</p>
+        </Stage>
+        <Stage title="Private extra footage" data={supplement}>
+          <p>{pipelineStates[supplement?.state] || 'Status unknown'} · {bytes(supplement?.bytes)}</p>
+          <p>{supplement?.external_delivery_performed === false ? 'Not uploaded to Sieve.' : 'Delivery status needs verification.'}</p>
+        </Stage>
+        <Stage title="Originals archive" data={company}>
+          <p>{count(company?.archived)} archived / {count(company?.source_groups)} upload groups · {count(company?.deleted)} deleted groups</p>
+          <p>Original uploads are preserved separately from temporary Raw storage.</p>
+        </Stage>
+        <Stage title="Internal Sieve copies" data={collection ? { available: true, updated_at: collection.sync?.completed_at } : null}>
+          <p>{collection ? `${hours(collection.totals.inherited_seconds)} h copied · ${count(collection.totals.inherited_recordings)} recordings` : 'Not reported'}</p>
+          <p>{collection ? `${collection.totals.status_counts.pending || 0} copy pending · ${collection.totals.status_counts.blocked || 0} copy blocked` : ''}</p>
+          <p>{collection ? `${bytes(collection.totals.copied_bytes)} · ${collection.totals.clean_seconds ? Math.round(collection.totals.inherited_seconds / collection.totals.clean_seconds * 100) : 0}% of Clean copied` : ''}</p>
+          {collection && <progress value={collection.totals.inherited_seconds} max={collection.totals.clean_seconds || 1} aria-label="Clean hours copied to internal Sieve storage" />}
+          <p>Internal copies are separate from customer uploads. Original codecs are preserved; deleted recordings and previous Raw-derived copies are excluded.</p>
+        </Stage>
+      </div>
+    </details>
+  </section>;
+}
+
+function Stage({ title, data, children }) {
+  return <section aria-label={title}>
+    <h4>{title}{data?.stale && <span className="sieve-held"> · Stale snapshot</span>}</h4>
+    {data?.available ? children : <p>Status unavailable. No count is assumed.</p>}
+    <small>{data?.updated_at ? `Updated ${stamp(data.updated_at)}` : 'Update time not reported'}</small>
   </section>;
 }
 
@@ -81,7 +116,7 @@ function Distribution({ title, rows, total }) {
       {rows.map(row => <li key={row.label}>
         <div><span>{row.label}</span><span className="sieve-number">{hours(row.seconds)} h <small>· {total ? Math.round(row.seconds / total * 100) : 0}%</small></span></div>
         <div className="sieve-track" aria-hidden="true"><span style={{ width: `${total ? row.seconds / total * 100 : 0}%` }}><i style={{ width: `${row.seconds ? row.inherited_seconds / row.seconds * 100 : 0}%` }} /></span></div>
-        <small>{row.recordings} recording{row.recordings === 1 ? '' : 's'} · {hours(row.inherited_seconds)} h inherited</small>
+        <small>{row.recordings} recording{row.recordings === 1 ? '' : 's'} · {hours(row.inherited_seconds)} h copied internally</small>
       </li>)}
     </ul>}
   </section>;
@@ -97,6 +132,8 @@ export default function OpsSieve({ onExpired }) {
   const [country, setCountry] = useState('');
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
+  const [pageIndex, setPageIndex] = useState(0);
+  useEffect(() => setPageIndex(0), [country, status, query]);
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -124,56 +161,55 @@ export default function OpsSieve({ onExpired }) {
   const rows = useMemo(() => (data?.recordings || []).filter(r => (!country || r.country === country) && (!status || r.status === status)
     && `${r.recording} ${r.entity.name} ${r.activity} ${r.camera}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [data, country, status, query]);
   const t = data?.totals, b = data?.breakdowns;
-  const progress = t?.clean_seconds ? t.inherited_seconds / t.clean_seconds * 100 : 0;
   const filteredHours = rows.reduce((sum, r) => sum + r.retained_seconds, 0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  useEffect(() => setPageIndex(index => Math.min(index, pageCount - 1)), [pageCount]);
+  const currentPage = Math.min(pageIndex, pageCount - 1);
+  const visibleRows = rows.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const lastCheck = data?.sync?.completed_at || data?.sync?.started_at;
   const stale = lastCheck && Date.now() - new Date(lastCheck).getTime() > 15 * 60 * 1000;
   return <section className="sieve" aria-labelledby="sieve-title">
     <div className="sieve-heading">
-      <div><p className="sieve-eyebrow">Customer collection · temporary dashboard</p><h2 id="sieve-title">Sieve</h2><p className="sieve-subtitle">Delivery and internal collection <span>MP4 · metadata · calibration</span></p></div>
-      <div className="sieve-deadline"><strong>Contract ends Sep 22, 2026</strong><span>Dashboard through Sep 25 · Los Angeles time</span><button className="ops-scan" disabled={loading || pipelineLoading} onClick={refresh}>{loading || pipelineLoading ? 'Refreshing…' : 'Refresh dashboard'}</button></div>
+      <div><p className="sieve-eyebrow">Customer delivery</p><h2 id="sieve-title">Sieve</h2><p className="sieve-subtitle">India & Korea footage · 10-hour delivery target</p></div>
+      <div className="sieve-deadline"><span>Contract ends Sep 22, 2026</span><button className="ops-scan" disabled={loading || pipelineLoading} onClick={refresh}>{loading || pipelineLoading ? 'Refreshing…' : 'Refresh dashboard'}</button></div>
     </div>
-    <PipelineProgress data={pipeline} error={pipelineError} loading={pipelineLoading} />
+    <DeliveryOverview pipeline={pipeline} collection={data} error={pipelineError} loading={pipelineLoading} />
     {error && <p className="ops-error" role="alert">{error}{data && ' Showing the last loaded snapshot.'}</p>}
     {!data && (error ? <button className="ops-scan" onClick={load}>Retry</button> : <p className="ops-muted" role="status">Loading Sieve collection…</p>)}
     {data && <>
-    {(data.sync.error || stale || !data.automatic_sync) && <p className="ops-error" role="status">{data.sync.error || (stale ? 'Inheritance verification is overdue. Counts show the last verified copies.' : 'Automatic inheritance is not running.')}</p>}
-    <div className="sieve-section-heading"><h3>Internal collection</h3><p>These copies are internal storage, not customer delivery.</p></div>
-    <div className="sieve-stats">
-      <article><span>Hours collected in Clean</span><strong>{hours(t.clean_seconds)}<small> h</small></strong><p>{t.recordings} unique recordings · retained footage</p></article>
-      <article className="sieve-stat-accent"><span>Copied to internal Sieve storage</span><strong>{hours(t.inherited_seconds)}<small> h</small></strong><p>{t.inherited_recordings} verified recordings · {(t.copied_bytes / 1e9).toFixed(1)} GB</p></article>
-      <article><span>Source diversity</span><strong>{t.countries}<small> countries</small></strong><p>{t.entities} contributors / businesses · {t.cameras} cameras</p></article>
-      <article><span>Customer acceptance</span><strong>Not recorded</strong><p>Copied footage awaits customer acceptance.</p></article>
-    </div>
-    <section className="sieve-progress" aria-label="Inheritance progress">
-      <div><strong>{Math.round(progress)}% inherited from Clean</strong><span>{t.status_counts.pending || 0} pending · {t.status_counts.blocked || 0} blocked</span></div>
-      <progress value={t.inherited_seconds} max={t.clean_seconds || 1} aria-label="Clean hours inherited by Sieve" />
-      <p>Each recording counts once across both eyes. Original codecs are preserved. Deleted recordings and previous Raw-derived Sieve files are excluded.</p>
-    </section>
-    <div className="sieve-section-heading"><h3>Collection diversity</h3><p>Active Clean recordings · <i className="sieve-legend" /> inherited portion</p></div>
-    <div className="sieve-grid">
-      <Distribution title="Country" rows={b.country} total={t.clean_seconds} />
-      <Distribution title="Contributor / business" rows={b.entity} total={t.clean_seconds} />
-      <Distribution title="Activity" rows={b.activity} total={t.clean_seconds} />
-      <Distribution title="Clean intake by day" rows={b.clean_date} total={t.clean_seconds} />
-    </div>
-    <p className="sieve-caption">Activity uses operator labels; unclassified footage stays visible. Intake dates show when footage entered Clean, in Los Angeles time.</p>
-    <div className="sieve-section-heading"><h3>Recordings</h3><p>{rows.length} shown · {hours(filteredHours)} h</p></div>
+    {(data.sync.error || stale || !data.automatic_sync) && <p className="ops-error" role="status">{data.sync.error || (stale ? 'Internal copy checks are overdue. Counts show the last verified copies.' : 'Automatic internal copying is not running.')}</p>}
+    <div className="sieve-section-heading"><h3>Browse footage</h3><p>{rows.length} recordings · {hours(filteredHours)} h</p></div>
+    <p className="sieve-caption">Clean footage for India and Korea. Copy status tracks our internal storage.</p>
     <div className="sieve-filters">
       <label>Search<input aria-label="Search recordings" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Recording, source, activity or camera" /></label>
       <label>Country<select aria-label="Filter recordings by country" value={country} onChange={e => setCountry(e.target.value)}><option value="">All countries</option>{b.country.map(r => <option key={r.label}>{r.label}</option>)}</select></label>
-      <label>Status<select aria-label="Filter recordings by status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label>Internal copy status<select aria-label="Filter recordings by status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All copy statuses</option>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     </div>
     <div className="sieve-recordings">
       {!rows.length && <p className="sieve-empty">{data.recordings.length ? 'No recordings match these filters.' : 'New recordings will appear after they enter Clean.'}</p>}
-      {rows.map(row => <details className="sieve-recording" key={`${row.run_id}/${row.recording}`}>
+      {visibleRows.map(row => <details className="sieve-recording" key={`${row.run_id}/${row.recording}`}>
         <summary><span className="sieve-recording-name"><strong>{row.recording}</strong><small>{row.entity.name} · {row.country}</small></span><span className="sieve-duration">{hours(row.retained_seconds)} h</span><span className={`sieve-status sieve-status-${row.status}`}>{labels[row.status] || row.status}</span></summary>
         <dl><div><dt>Activity</dt><dd>{row.activity}</dd></div><div><dt>Camera / format</dt><dd>{row.camera} · {row.format}</dd></div><div><dt>Clean batch</dt><dd>{row.run_id}</dd></div><div><dt>Last verified</dt><dd>{stamp(row.checked_at)}</dd></div></dl>
         {row.reason && <p className="sieve-reason">{row.reason}</p>}
         {row.status === 'inherited' && <p className="sieve-reason">MP4, original metadata, metadata provenance, and calibration copied from versioned Clean artifacts.</p>}
       </details>)}
     </div>
-    <footer className="sieve-footer"><span>Snapshot {stamp(data.updated_at)} · Last full verification {stamp(data.sync.completed_at)}</span><span>Dashboard refreshes every 30 seconds. Internal copy checks run every 5 minutes.</span></footer>
+    {pageCount > 1 && <nav className="sieve-pagination" aria-label="Recording pages">
+      <span role="status">{currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} of {rows.length} recordings</span>
+      <button className="ops-scan" disabled={currentPage === 0} onClick={() => setPageIndex(currentPage - 1)}>Previous</button>
+      <button className="ops-scan" disabled={currentPage + 1 >= pageCount} onClick={() => setPageIndex(currentPage + 1)}>Next</button>
+    </nav>}
+    <details className="sieve-disclosure sieve-breakdown">
+      <summary>Collection breakdown <span>{t.countries} countries · {t.entities} contributors · {t.cameras} cameras</span></summary>
+      <div className="sieve-grid">
+        <Distribution title="Country" rows={b.country} total={t.clean_seconds} />
+        <Distribution title="Contributor / business" rows={b.entity} total={t.clean_seconds} />
+        <Distribution title="Activity" rows={b.activity} total={t.clean_seconds} />
+        <Distribution title="Clean intake by day" rows={b.clean_date} total={t.clean_seconds} />
+      </div>
+      <p className="sieve-caption">Orange shows internal copies. Each recording counts once across both eyes. Intake dates use Los Angeles time.</p>
+    </details>
+    <footer className="sieve-footer"><span>Collection updated {stamp(data.updated_at)}</span><span>Delivery checked {stamp(pipeline?.checked_at)} · Refreshes every 30 seconds</span><span>Dashboard available through Sep 25 · Los Angeles time</span></footer>
     </>}
   </section>;
 }
