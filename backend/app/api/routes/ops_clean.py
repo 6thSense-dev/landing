@@ -121,6 +121,11 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
     errors = list(getattr(results, 'errors', []))
     added = 0
     for doc, key, version, digest in results:
+        # These runs carry source/payment evidence that only the dedicated
+        # pipeline bridge verifies. The periodic generic scan must not race it
+        # and create a weaker CleanRun before that verification completes.
+        if str(doc.get('run_id', '')).startswith('raw-clean-auto-'):
+            continue
         try:
             if doc['run_id'] in by_id:
                 if by_id[doc['run_id']].manifest_sha256 != digest:

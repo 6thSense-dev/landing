@@ -1,5 +1,7 @@
 """Clean-time estimates must not create payments or count a source twice."""
 import copy
+import hashlib
+import json
 import pytest
 from sqlalchemy import select
 from app.core.ops_clean import estimate_krw, validate_manifest
@@ -37,6 +39,33 @@ def test_bad_evidence_is_rejected(fault):
     if fault=='outside':doc['outputs'][0]['key']='other/joined.mp4'
     if fault=='missing':doc['outputs']=[]
     with pytest.raises(ValueError):validate_manifest(doc)
+
+
+@pytest.mark.asyncio
+async def test_generic_scan_reserves_automatic_runs_for_pipeline_bridge(db_session, monkeypatch):
+    from app.api.routes import ops_clean
+    from tests.test_ops_artifacts import multimodal_manifest
+
+    wearer = Wearer(name='Pipeline contributor', rate_krw_hour=11000)
+    db_session.add(wearer)
+    await db_session.flush()
+    doc = multimodal_manifest()
+    old_run = doc['run_id']
+    doc['run_id'] = 'raw-clean-auto-20260901-120000-ABC123-deadbeef00'
+    for output in doc['outputs']:
+        output['key'] = output['key'].replace(f'clean/{old_run}/', f"clean/{doc['run_id']}/")
+    recording = doc['recordings'][0]['recording']
+    await _episode(db_session, recording, wearer_id=wearer.id)
+    digest = hashlib.sha256(json.dumps(doc).encode()).hexdigest()
+    monkeypatch.setattr(ops_clean, 'committed_results', lambda: [
+        (doc, f"qc-results/{doc['run_id']}/result.json", 'manifest-v1', digest)
+    ])
+
+    result = await ops_clean.scan(None, db_session)
+
+    assert result['imported'] == 0
+    assert await db_session.get(CleanRun, doc['run_id']) is None
+    assert result['scan_errors'] == []
 
 
 @pytest.mark.asyncio

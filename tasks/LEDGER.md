@@ -37,3 +37,9 @@
 - Added coordinator coverage proving retirement cannot run while archive verification is pending, stale historical cloud jobs cannot be adopted for different Raw versions, and an uncertain Batch submission is held for reconciliation instead of blindly duplicated.
 - The review caught the archive metadata contract mismatch (`source-sha256`) and required source-bound historical job adoption and conversion receipt validation. The coordinator and retirement implementations were corrected in the shared branch.
 - Verification: `AWS_EC2_METADATA_DISABLED=true AWS_DEFAULT_REGION=us-west-2 /data/projects/6thsense/pipeline-takeover-20260916/venv/bin/python -m pytest -q tests/raw_lifecycle/test_archive_worker.py tests/raw_lifecycle/test_retirement.py tests/raw_lifecycle/test_coordinator.py` — 24 passed; mocks only, no AWS mutations. Clean coverage must come from one complete imported run rather than a union of partial historical runs.
+
+## 2026-09-16 — Reserved automatic Clean imports
+
+- Generic operator and scheduled Clean scans now skip `raw-clean-auto-*` results, reserving them for the pipeline bridge's stricter source, metadata, country, ownership, and payment checks.
+- Regression coverage proves a committed automatic result cannot create a `CleanRun` through the weaker generic scanner and is not misreported as an invalid scan.
+- Verification: Clean/pipeline/workflow/artifact suite — 94 passed. Coordinator/API review found one remaining interface gap: coordinator `.h265`/`.hevc` media are not classified as media by the portal Raw scanner; hold those native streams until both sides support them consistently.
