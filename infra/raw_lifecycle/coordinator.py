@@ -204,7 +204,7 @@ def job_status(job):
 def conversion_plan(cfg, state, episode):
     meta, _ = metadata(state['snapshot'])
     if meta.get('complete') is not True: raise ValueError('Capture completion not confirmed; source preserved')
-    media = [r for r in state['snapshot'] if r['key'].lower().endswith(('.mp4','.h265','.hevc','.egoc'))]
+    media = [r for r in state['snapshot'] if r['bytes'] > 0 and r['key'].lower().endswith(('.mp4','.h265','.hevc','.egoc'))]
     if not media: raise ValueError('Source media missing')
     if any(r['key'].endswith('.egoc') for r in media):
         raise ValueError('EgoC source requires container extraction plan; archive preserved for recovery')
