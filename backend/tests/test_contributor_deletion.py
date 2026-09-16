@@ -304,3 +304,15 @@ async def test_retry_issuance_limit_preserves_receipts_and_recovers(app, db_sess
         issued_at += timedelta(days=1)
         assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
         assert (await db_session.execute(select(func.count()).select_from(ContributorDeletionReceipt))).scalar() == contributor.RECEIPT_RETRIES_PER_DAY + 1
+        # Stagger issuance: only the older slot expires at the next boundary.
+        # Fractional seconds also verify Retry-After rounds up, never down.
+        issued_at += timedelta(hours=23, minutes=30, microseconds=500000)
+        for _ in range(contributor.RECEIPT_RETRIES_PER_DAY - 1):
+            assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
+        blocked = await c.post(PATH, json={'confirmed': True})
+        assert blocked.status_code == 429 and blocked.headers['retry-after'] == '1800'
+        issued_at += timedelta(minutes=30, microseconds=-500000)
+        assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
+        blocked = await c.post(PATH, json={'confirmed': True})
+        assert blocked.status_code == 429 and blocked.headers['retry-after'] == '84601'
+        assert (await c.get(PATH+'/receipt', headers={'Authorization':'Bearer '+tokens[0]})).status_code == 200
