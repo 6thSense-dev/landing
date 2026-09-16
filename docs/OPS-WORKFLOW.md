@@ -70,3 +70,7 @@ The worker still needs implementation/deployment and source-pinned integration t
 - Validate Wise recipient requirements, funding, retry/return handling and settlement reconciliation in sandbox before enabling production funding.
 
 Deploying this implementation does not itself pay anyone, delete originals, create an app account or record contributor consent. Those require the user's authenticated actions or the separate operator workflow.
+
+### Weekly calculation error handling
+
+Per-object S3 client errors keep the weekly calculation pending for retry; a partial storage read never writes the completion key. Invalid manifests remain visible as scan errors and are excluded from payable footage. The weekly snapshot stores `retained_seconds_exact` alongside display seconds; eligibility uses exact interval arithmetic from the versioned manifest, whose hash remains pinned in any payment reservation.

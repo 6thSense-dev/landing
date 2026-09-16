@@ -7,7 +7,7 @@ import os
 
 from sqlalchemy import select, text
 from app.core.db import get_engine, get_sessionmaker
-from app.core.ops_ledger import KOREA, PAYMENT_THRESHOLD_SECONDS, calculation_week, footage_ledger, last_sunday, price
+from app.core.ops_ledger import KOREA, PAYMENT_THRESHOLD_SECONDS, calculation_week, footage_ledger, last_sunday, price, retained_duration
 from app.models import Wearer
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,8 @@ async def save_calculation(db, due, calculated_at, scan_result):
         groups.append({
             "wearer_id": person.id, "qualifying_seconds": seconds,
             "eligible_krw": price(ready),
-            "entries": [{k: r[k] for k in ("run_id", "recording", "manifest_sha256", "retained_seconds", "allocated_krw")} for r in ready],
+            "entries": [{**{k: r[k] for k in ("run_id", "recording", "manifest_sha256", "retained_seconds", "allocated_krw")},
+                         "retained_seconds_exact": str(retained_duration(r))} for r in ready],
         })
     result = {
         "scheduled_for": due.isoformat(), "calculated_at": calculated_at.isoformat(),
@@ -89,6 +90,8 @@ async def tick(now=None):
                 if await _setting(db, calculation_key(due)):
                     return False
                 result = await scan(None, db, skip_invalid=True)
+                if any(e.get("retryable") or e.get("error") == "ClientError" for e in result.get("scan_errors", [])):
+                    raise RuntimeError("Clean storage reads remain unresolved; weekly calculation will retry")
                 # Exceptions leave the weekly key absent, allowing retry. Invalid
                 # individual imports are counted and never converted into pay.
                 return await save_calculation(db, due, now, result)

@@ -23,6 +23,11 @@ KOREA = ZoneInfo("Asia/Seoul")
 PAYMENT_THRESHOLD_SECONDS = 4 * 60 * 60
 
 
+def retained_duration(entry):
+    """Eligibility uses exact manifest interval arithmetic, never display floats."""
+    return Decimal(entry.get("retained_seconds_exact", str(entry["retained_seconds"])))
+
+
 def sunday(now):
     """Next calculation cutoff: Sunday 23:59 in Korea (including that instant)."""
     local = now.astimezone(KOREA)
@@ -127,11 +132,12 @@ async def footage_ledger(db):
             review = reviews.get(key)
             item = items.get(key)
             valid = review and review.manifest_sha256 == run.manifest_sha256
-            keep = float(sum((
+            exact_keep = sum((
                 Decimal(str(i["end_s"])) - Decimal(str(i["start_s"]))
                 for i in rec.get("intervals", [])
                 if i["disposition"] == "keep"
-            ), Decimal(0)))
+            ), Decimal(0))
+            keep = float(exact_keep)
             reasons = defaultdict(float)
             for i in rec.get("intervals", []):
                 if i["disposition"] == "reject":
@@ -158,6 +164,7 @@ async def footage_ledger(db):
                     "device_id": run.device_id,
                     "source_seconds": rec.get("source_seconds", 0),
                     "retained_seconds": keep,
+                    "retained_seconds_exact": str(exact_keep),
                     "rejected_seconds": rec.get("source_seconds", 0) - keep,
                     "rejection_reasons": dict(reasons),
                     "collection_date": collected,

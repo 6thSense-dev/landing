@@ -18,6 +18,7 @@ from app.core.ops_ledger import (
     last_sunday,
     calculation_week,
     PAYMENT_THRESHOLD_SECONDS,
+    retained_duration,
     price,
     KOREA,
 )
@@ -85,7 +86,7 @@ def eligible(entries, due, basis):
         and not e.get("allocation_needs_reconciliation", False)
     ]
     qualifying = sum((
-        Decimal(str(e["retained_seconds"]))
+        retained_duration(e)
         for e in ready
         if basis == "accumulated" or start <= e["collection_date"] < end
     ), Decimal(0))

@@ -171,7 +171,7 @@ def committed_results():
             try:
                 results.append(_committed_result(s3, key))
             except (ClientError, ValueError, KeyError, TypeError, AttributeError) as exc:
-                results.errors.append({'marker': key, 'error': type(exc).__name__})
+                results.errors.append({'marker': key, 'error': type(exc).__name__, 'retryable': isinstance(exc, ClientError)})
     return results
 
 

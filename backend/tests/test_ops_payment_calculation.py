@@ -42,6 +42,32 @@ def test_exact_four_hours_of_fractional_recordings_is_eligible():
 
 
 @pytest.mark.asyncio
+async def test_manifest_duration_below_threshold_is_not_rounded_into_eligibility(db_session):
+    from app.core.ops_ledger import footage_ledger
+    from app.api.routes.ops_payments import eligible
+    from app.models import CleanRun, FootageReview
+    from tests.test_ops_clean import manifest
+    person = Wearer(name='Exact duration', rate_krw_hour=11000)
+    db_session.add(person)
+    await db_session.flush()
+    doc = manifest()
+    rec = doc['recordings'][0]
+    rec['intervals'] = [{'start_s': 1e-13, 'end_s': 14400, 'disposition': 'keep'}]
+    run = CleanRun(run_id='exact', device_id='ABC123', wearer_id=person.id,
+                   manifest_key='x', manifest_version='v1', manifest_sha256='a'*64,
+                   manifest_json=json.dumps(doc), retained_seconds=14400,
+                   rejected_seconds=0, rate_krw_hour=11000)
+    db_session.add_all([run, FootageReview(run_id='exact', recording=rec['recording'],
+        manifest_sha256='a'*64, decision='reviewed', collection_date='2026-09-20',
+        reviewer='test', reviewed_at=DUE)])
+    await db_session.commit()
+    rows = await footage_ledger(db_session)
+    assert rows[0]['retained_seconds'] == 14400  # presentation cannot represent the difference
+    assert rows[0]['retained_seconds_exact'] == '14399.9999999999999'
+    assert eligible(rows, DUE, 'accumulated')[0] == []
+
+
+@pytest.mark.asyncio
 async def test_weekly_import_deduplicates_and_only_calculates(db_session, monkeypatch):
     enable(monkeypatch)
     active = Wearer(name='Active contributor', rate_krw_hour=11000)
@@ -79,7 +105,7 @@ async def test_weekly_import_deduplicates_and_only_calculates(db_session, monkey
     assert doc['mode'] == 'calculation_only' and doc['operator_approval_required']
     assert doc['scan_error_count'] == 1
     assert doc['contributors'] == [{'wearer_id':active.id, 'qualifying_seconds':14400,
-        'eligible_krw':44000, 'entries':[{k:base[k] for k in ('run_id','recording','manifest_sha256','retained_seconds','allocated_krw')}]}]
+        'eligible_krw':44000, 'entries':[{**{k:base[k] for k in ('run_id','recording','manifest_sha256','retained_seconds','allocated_krw')}, 'retained_seconds_exact':'14400'}]}]
     for model in (Payout, PayoutItem):
         assert (await db_session.execute(select(func.count()).select_from(model))).scalar() == 0
     # A new Sunday is a distinct calculation. Reserved data is excluded again;
@@ -100,4 +126,18 @@ async def test_failed_import_retries_without_marking_week_complete(db_session, m
     assert await db_session.get(OpsSetting, calculation.calculation_key(DUE)) is None
     async def okay(*args, **kwargs): return {'imported': 0, 'scan_errors': []}
     monkeypatch.setattr(ops_clean, 'scan', okay)
+    assert await calculation.tick(DUE + timedelta(minutes=1)) is True
+
+
+@pytest.mark.asyncio
+async def test_partial_storage_failure_keeps_week_retryable(db_session, monkeypatch):
+    enable(monkeypatch)
+    from app.api.routes import ops_clean
+    async def partial(*args, **kwargs):
+        return {'imported': 1, 'scan_errors': [{'marker': 'pending', 'error': 'ClientError', 'retryable': True}]}
+    monkeypatch.setattr(ops_clean, 'scan', partial)
+    with pytest.raises(RuntimeError): await calculation.tick(DUE)
+    assert await db_session.get(OpsSetting, calculation.calculation_key(DUE)) is None
+    async def recovered(*args, **kwargs): return {'imported': 0, 'scan_errors': []}
+    monkeypatch.setattr(ops_clean, 'scan', recovered)
     assert await calculation.tick(DUE + timedelta(minutes=1)) is True
