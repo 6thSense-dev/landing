@@ -45,6 +45,21 @@ def upload(key,body):
   r=s3.head_object(Bucket=ARTIFACTS,Key=key);assert r['Metadata']['sha256']==h;v=r['VersionId']
  return {'bucket':ARTIFACTS,'key':key,'version_id':v,'sha256':h,'bytes':len(body)}
 
+def adapt_stage_runtime(stage):
+ # Some camera muxers write 1 fps presentation timestamps around intact ~30 fps
+ # sensor frames. Preserve those source PTS; Clean still uses measured barcodes.
+ # Both guards must change: one-second presentation intervals are valid here.
+ replacements = [
+  ("assert rate and 10<=rate<=120", "assert rate and 1<=rate<=120"),
+  ("duration=(following['display_pts']-p) if following else current['nominal_period'];assert 0<duration<1000000",
+   "duration=(following['display_pts']-p) if following else current['nominal_period'];assert 0<duration<=1000000"),
+ ]
+ for old,new in replacements:
+  if stage.count(old)!=1:raise RuntimeError('Pinned stage runtime timing anchor changed')
+  stage=stage.replace(old,new)
+ return stage
+
+
 def runtime():
  ref=SOURCE_RUNTIME
  source=s3.get_object(Bucket=ref['bucket'],Key=ref['key'],VersionId=ref['version_id'])['Body'].read()
@@ -55,6 +70,7 @@ def runtime():
  stage=files['stage_worker.py'].decode().replace("TASK='raw-h265-all-20260915'", "TASK=os.environ.get('PIPELINE_TASK','raw-h265-all-20260915')")
  # Treat a permission denial as failure, never as evidence that output is absent.
  stage=stage.replace("('404','NoSuchKey','NotFound','403','AccessDenied')", "('404','NoSuchKey','NotFound')")
+ stage=adapt_stage_runtime(stage)
  files['stage_worker.py']=stage.encode()
  worker=files['worker.py'].decode()
  anchor=" assert report['recording']==spec['recording']==rec and spec['kind']=='stereo_video' and spec['source_complete_flag'] is True"
@@ -168,6 +184,42 @@ def update_archive():
  s3.put_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json',Body=json.dumps(cfg).encode(),ContentType='application/json')
  print(json.dumps({'archive_definition':definition,'existing_jobs_preserved':True,'budget_preserved':True}))
 
+def update_processing():
+ cfg=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
+ ref=runtime();definitions={}
+ for lane,filename in [('conversion','stage_worker.py'),('clean','worker.py')]:
+  old=batch.describe_job_definitions(jobDefinitions=[cfg[lane+'_definition']])['jobDefinitions'][0]
+  cp=copy.deepcopy(old['containerProperties'])
+  cp['command']=['python','-u','-c',bootstrap(ref,filename)]
+  cp['environment']=[e for e in cp.get('environment',[]) if e['name']!='PIPELINE_TASK']+[{'name':'PIPELINE_TASK','value':'raw-lifecycle-v1'}]
+  definitions[lane]=batch.register_job_definition(jobDefinitionName=NAME+'-'+lane,type='container',containerProperties=cp,
+      timeout=old['timeout'],retryStrategy=old['retryStrategy'],tags={'purpose':NAME},propagateTags=True)['jobDefinitionArn']
+ role_name=NAME+'-coordinator'
+ pol=iam.get_role_policy(RoleName=role_name,PolicyName='LifecycleScope')['PolicyDocument']
+ matched={lane:set() for lane in definitions}
+ required={'batch:SubmitJob','batch:TagResource'}
+ for st in pol['Statement']:
+  actions=st.get('Action',[]);actions=[actions] if isinstance(actions,str) else actions
+  if st.get('Effect')!='Allow' or not isinstance(st.get('Resource'),list):continue
+  for lane,definition in definitions.items():
+   if cfg[lane+'_definition'] in st['Resource'] and required.intersection(actions):
+    if definition not in st['Resource']:st['Resource'].append(definition)
+    matched[lane].update(required.intersection(actions))
+ if any(actions!=required for actions in matched.values()):
+  raise RuntimeError('Existing processing submission/tag policy not recognized; config remains unchanged')
+ iam.put_role_policy(RoleName=role_name,PolicyName='LifecycleScope',PolicyDocument=json.dumps(pol))
+ time.sleep(60)  # Existing authorized definitions remain active during propagation.
+ latest=s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')
+ current=json.loads(latest['Body'].read())
+ if any(current[lane+'_definition']!=cfg[lane+'_definition'] for lane in definitions):
+  raise RuntimeError('Processing definitions changed concurrently; config remains unchanged')
+ # Re-read flags/deadline after propagation, and fail rather than overwrite any
+ # watchdog/operator update occurring between this read and the conditional put.
+ current.update({lane+'_definition':definition for lane,definition in definitions.items()})
+ current['clean_runtime']=ref
+ s3.put_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json',Body=json.dumps(current).encode(),ContentType='application/json',IfMatch=latest['ETag'])
+ print(json.dumps({'processing_definitions':definitions,'clean_runtime':ref,'existing_jobs_preserved':True,'budget_preserved':True}))
+
 def prepare():
  try:
   previous=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
@@ -250,8 +302,9 @@ def enable(retire):
  print(json.dumps({'enabled':True,'retirement_enabled':retire,'next_tick':'within 2 minutes','budget_stop_utc':datetime.fromtimestamp(cfg['run_deadline_epoch'],timezone.utc).isoformat()}))
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('stage',choices=['prepare','enable','update-code','update-archive']);p.add_argument('--retire',action='store_true');a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('stage',choices=['prepare','enable','update-code','update-archive','update-processing']);p.add_argument('--retire',action='store_true');a=p.parse_args()
  if a.stage=='prepare':prepare()
  elif a.stage=='update-code':update_code()
  elif a.stage=='update-archive':update_archive()
+ elif a.stage=='update-processing':update_processing()
  else:enable(a.retire)
