@@ -107,7 +107,16 @@ class RetirementS3:
         return {"DeleteMarker": False}
 
 
-def install_handler_fakes(monkeypatch, storage, state, receipt, episode, *, retirement_enabled=True):
+def install_handler_fakes(
+    monkeypatch,
+    storage,
+    state,
+    receipt,
+    episode,
+    *,
+    retirement_enabled=True,
+    raw_keys=None,
+):
     def read_json(bucket, key, version=None):
         if bucket == c.ARTIFACTS:
             return {"enabled": True, "retirement_enabled": retirement_enabled,
@@ -124,6 +133,8 @@ def install_handler_fakes(monkeypatch, storage, state, receipt, episode, *, reti
     monkeypatch.setattr(c, "api", lambda *_: {"episodes": [episode]})
     monkeypatch.setattr(c, "job_status", lambda job: job["status"])
     monkeypatch.setattr(c, "now", lambda: "2026-09-16T00:00:00+00:00")
+    keys = raw_keys if raw_keys is not None else [ref["key"] for ref in state["snapshot"]]
+    monkeypatch.setattr(c, "discover", lambda: {state["recording"]: [{"Key": key} for key in keys]})
     monkeypatch.setattr(c, "s3", storage)
 
 
@@ -216,6 +227,26 @@ def test_new_current_source_version_prevents_any_raw_delete(monkeypatch):
     with pytest.raises(ValueError, match="New upload arrived"):
         r.handler({"recording": RECORDING, "fingerprint": state["fingerprint"]}, None)
 
+    assert storage.delete_calls == []
+
+
+def test_new_raw_key_prevents_any_raw_delete(monkeypatch):
+    state, receipt, episode, items = fixtures()
+    storage = RetirementS3(items)
+    new_key = KEY.replace("video.mp4", "late-sidecar.json")
+    install_handler_fakes(
+        monkeypatch,
+        storage,
+        state,
+        receipt,
+        episode,
+        raw_keys=[KEY, new_key],
+    )
+
+    with pytest.raises(ValueError, match="New Raw key arrived"):
+        r.handler({"recording": RECORDING, "fingerprint": state["fingerprint"]}, None)
+
+    assert storage.archive_heads == ["archive-v1", "archive-v2"]
     assert storage.delete_calls == []
 
 

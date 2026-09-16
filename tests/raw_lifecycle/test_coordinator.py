@@ -24,6 +24,14 @@ def raw_ref(version):
     }
 
 
+def test_nested_raw_key_belongs_to_nearest_recording_folder():
+    outer = "ego_20260916_010203_A1B2C3"
+    inner = "ego_20260916_040506_D4E5F6"
+    key = f"sessions/session/{outer}/recovered/{inner}/video.mp4"
+
+    assert c.find_recording(key) == inner
+
+
 def test_historical_job_adoption_requires_current_source_versions(monkeypatch):
     state = {
         "recording": "ego_20260916_010203_A1B2C3",
