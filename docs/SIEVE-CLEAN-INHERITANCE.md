@@ -18,6 +18,12 @@ objects or stop Clean inheritance.
 Source: `s3://6thsense-processed/clean/` and its committed `qc-results/` manifests.
 Destination: `s3://6thsense-sieve/inherited/v1/`.
 
+China recordings are excluded from Sieve, using the preserved Clean country
+attribution. They remain in the company's Clean inventory. The inventory filter
+also removes them from Sieve dashboard totals and the next published receipt
+index; the copy function rejects them before any storage access. Previously
+copied objects require a separate scoped storage withdrawal.
+
 ```text
 inherited/v1/
   latest.json                              # current receipt index

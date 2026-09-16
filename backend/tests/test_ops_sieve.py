@@ -98,6 +98,33 @@ def test_copy_is_clean_only_idempotent_and_committed_after_all_files():
     assert report['acceptance']['status'] == 'not_recorded'
 
 
+def test_china_copy_is_rejected_before_storage_access():
+    s3, row = fixture()
+    row['country'] = 'China'
+    with pytest.raises(ValueError, match='China recordings are excluded'):
+        sieve.copy_recording(s3, row)
+    assert s3.reads == [] and s3.copies == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('business', [False, True])
+async def test_china_is_excluded_without_removing_clean_run(db_session, business):
+    _, row = fixture()
+    doc = row['doc']
+    if business:
+        doc['counterparty'] = {'id': 'hejia', 'name': 'Hejia', 'country': 'china'}
+    else:
+        for source in doc['recordings'][0]['sources']:
+            source['key'] = 'sessions/china-collection/original.mp4'
+    run = CleanRun(run_id=doc['run_id'], device_id='ABC123', manifest_key='key',
+                   manifest_version='v', manifest_sha256='a'*64, manifest_json=json.dumps(doc),
+                   retained_seconds=60, rejected_seconds=40, rate_krw_hour=11000)
+    db_session.add(run)
+    await db_session.commit()
+    assert await sieve.inventory(db_session) == []
+    assert await db_session.get(CleanRun, run.run_id) is run
+
+
 @pytest.mark.parametrize('fault', ['missing_metadata','foreign_metadata','changed_source','wrong_calibration','wrong_manifest','unassigned','destination_conflict'])
 def test_no_completed_receipt_when_required_evidence_fails(fault):
     s3, row = fixture()

@@ -85,6 +85,9 @@ async def inventory(db):
                 continue
             region = clean_region({**doc, 'recordings': [rec]})
             country = REGIONS.get(party['country'], 'Unclassified') if party else region['label'] if region['key'] in REGIONS else 'Unclassified'
+            # Customer eligibility is narrower than the company's Clean inventory.
+            if country == 'China':
+                continue
             if party:
                 entity = {'id': f"business:{party['id']}", 'name': party['name'], 'kind': 'Business'}
             elif person:
@@ -250,6 +253,8 @@ def immutable_json(s3, key, value):
 
 
 def copy_recording(s3, row):
+    if row['country'] == 'China':
+        raise ValueError('China recordings are excluded from Sieve')
     from boto3.s3.transfer import TransferConfig
     manifest, files = source_files(s3, row)
     fingerprint = digest({'revision': row['revision'], 'files': files})
