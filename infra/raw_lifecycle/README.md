@@ -27,7 +27,9 @@ This workflow replaces laptop coordination with a scheduled AWS Lambda and Batch
 
 ## Deploy and operate
 
-Run `deploy.py prepare` with boto3 credentials for the production profile. It starts disabled and refuses to reset an enabled run. It needs the recovered, hash-verified runtime at the documented `RUNTIME_SOURCE`; do not replace it with an unverified archive. Re-run only after intentionally pausing the coordinator; job IDs and source states remain in S3.
+Run `deploy.py prepare` with boto3 credentials for the production profile. It starts disabled and refuses to reset an enabled run. It downloads Alex's original runtime from the exact S3 version and SHA256 pinned in `SOURCE_RUNTIME`; no Mac or local extracted folder is needed. Re-run only after intentionally pausing the coordinator; job IDs and source states remain in S3. Set `RAW_LIFECYCLE_EVIDENCE_DIR` to choose local evidence output; the default is `.context/raw-lifecycle`.
+
+For code fixes during a run, disable retirement and use `deploy.py update-code`; this preserves the budget, flags, jobs and worker definitions. `deploy.py update-archive` registers a new immutable archive worker for future jobs, extends only its exact submission permission, and preserves existing queued/running jobs and the spending deadline. Do not re-run `prepare` merely to update code.
 
 The portal's `OPS_PIPELINE_TOKEN` must equal Secrets Manager `sixthsense-raw-lifecycle-v1-portal-token`. Transfer it through protected process input (`railway variable set OPS_PIPELINE_TOKEN --stdin --skip-deploys`), never in shell arguments, Git, logs or documentation. Deploy the backend router before enabling AWS. Bearer POST requests also require the allowed `Origin: https://6thsense.dev` header.
 
@@ -36,6 +38,8 @@ After unit/adversarial tests and a live archive canary, run `deploy.py enable` (
 To pause: set config `enabled=false` and `retirement_enabled=false`; disable the tick EventBridge rule. Existing jobs do not stop automatically until the watchdog deadline. To stop this run immediately, shorten `run_deadline_epoch` to now and invoke the watchdog. Never stop unrelated queues or delete archive originals.
 
 Failed or uncertain jobs are held for review; inspect CloudWatch and version-pinned state, then record an explicit replacement attempt. Do not remove durable submission intents merely to force a retry.
+
+The retirement Lambda accepts `dry_run: true` with a recording and fingerprint for a production-role verification pass that performs zero deletions while retirement stays disabled. Interrupted cleanup retains its original snapshot and intent; subsequent ticks resume missing versions safely even if Raw is empty, or recover the existing immutable completion audit. Newly arrived keys or versions block unfinished cleanup.
 
 ## Limits
 

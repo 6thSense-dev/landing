@@ -19,8 +19,10 @@ from botocore.exceptions import ClientError
 ACCOUNT='194680606079'; REGION='us-west-2'; NAME='sixthsense-raw-lifecycle-v1'
 ARCHIVE='6thsense-archive-'+ACCOUNT; ARTIFACTS='6thsense-deploy-artifacts'
 ROOT=Path(__file__).resolve().parent
-RUNTIME_SOURCE=Path('/data/projects/6thsense/pipeline-takeover-20260916/clean-runtime')
-EVIDENCE=Path('/data/projects/6thsense/pipeline-takeover-20260916')
+SOURCE_RUNTIME={'bucket':ARTIFACTS,'key':'clean-plans/raw-clean-finalize-20260915/runtime-v2.tar.gz',
+ 'version_id':'4WnBXAczyqnY1e8GI5i4XpiwWazH6ZmP','sha256':'4208a7ed8015d58e3400f27944b1be8137d26372f0245a3ab15c2a0b49f62c36'}
+EVIDENCE=Path(os.environ.get('RAW_LIFECYCLE_EVIDENCE_DIR',str(Path.cwd()/'.context/raw-lifecycle')))
+EVIDENCE.mkdir(parents=True,exist_ok=True)
 s=boto3.Session(region_name=REGION)
 assert s.client('sts').get_caller_identity()['Account']==ACCOUNT,'Wrong AWS account'
 iam=s.client('iam'); s3=s.client('s3'); batch=s.client('batch'); ec2=s.client('ec2'); lam=s.client('lambda'); events=s.client('events')
@@ -44,7 +46,11 @@ def upload(key,body):
  return {'bucket':ARTIFACTS,'key':key,'version_id':v,'sha256':h,'bytes':len(body)}
 
 def runtime():
- files={str(p.relative_to(RUNTIME_SOURCE)):p.read_bytes() for p in RUNTIME_SOURCE.rglob('*.py')}
+ ref=SOURCE_RUNTIME
+ source=s3.get_object(Bucket=ref['bucket'],Key=ref['key'],VersionId=ref['version_id'])['Body'].read()
+ if hashlib.sha256(source).hexdigest()!=ref['sha256']:raise RuntimeError('Recovered source runtime digest changed')
+ with tarfile.open(fileobj=io.BytesIO(source),mode='r:gz') as t:
+  files={m.name:t.extractfile(m).read() for m in t.getmembers() if m.isfile() and m.name.endswith('.py')}
  # Existing runtime is immutable. New jobs use a new content-addressed copy.
  stage=files['stage_worker.py'].decode().replace("TASK='raw-h265-all-20260915'", "TASK=os.environ.get('PIPELINE_TASK','raw-h265-all-20260915')")
  # Treat a permission denial as failure, never as evidence that output is absent.
@@ -133,6 +139,7 @@ def lambda_bundle():
 def update_code():
  # Updates future invocations only; preserve the active budget, jobs and flags.
  cfg=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
+ if cfg.get('retirement_enabled'):raise RuntimeError('Disable retirement before updating its cooperating Lambda functions')
  code=lambda_bundle()
  for key in ('coordinator_function','retirement_function','watchdog_function'):
   lam.update_function_code(FunctionName=cfg[key],ZipFile=code)
