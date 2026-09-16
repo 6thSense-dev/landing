@@ -66,12 +66,18 @@ export default function OpsPayments({ onReview }) {
       ) : (
         <>
           <p className="ops-note">
-            Friday 18:00 Korea · more than 4 hours of{" "}
+            Sunday 23:59 Korea calculation · at least 4 hours of{" "}
             {data.configuration.threshold_basis === "weekly"
-              ? "reviewed, retained footage in the previous Monday–Sunday week"
+              ? "reviewed, retained footage through the latest Sunday cutoff"
               : "accumulated unpaid reviewed footage"}
             . Eligible payouts include older unpaid reviewed footage. Unreviewed
             footage and uncertain collection dates stay pending.
+          </p>
+          <p className="ops-note">
+            {data.latest_calculation
+              ? `Last weekly calculation: ${new Date(data.latest_calculation.calculated_at).toLocaleString()} · ${data.latest_calculation.scan_error_count} imports need attention.`
+              : "The first weekly calculation is pending."}
+            {" "}Calculation prepares amounts; an operator must approve each payment.
           </p>
           <p>
             {data.configuration.wise_configured
@@ -92,7 +98,7 @@ export default function OpsPayments({ onReview }) {
           </p>
           <p className="ops-muted">
             Allow up to five business days after initiation; Wise’s status
-            confirms progress. Payment initiation:{" "}
+            confirms progress. Latest completed calculation cutoff:{" "}
             {new Date(data.scheduled_for).toLocaleString("en-GB", {
               timeZone: "Asia/Seoul",
             })}{" "}

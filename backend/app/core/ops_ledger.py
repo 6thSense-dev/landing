@@ -20,6 +20,29 @@ from app.models import (
 )
 
 KOREA = ZoneInfo("Asia/Seoul")
+PAYMENT_THRESHOLD_SECONDS = 4 * 60 * 60
+
+
+def sunday(now):
+    """Next calculation cutoff: Sunday 23:59 in Korea (including that instant)."""
+    local = now.astimezone(KOREA)
+    due = local.replace(hour=23, minute=59, second=0, microsecond=0) + timedelta(
+        days=(6 - local.weekday()) % 7
+    )
+    if due < local:
+        due += timedelta(days=7)
+    return due.astimezone(timezone.utc)
+
+
+def calculation_week(due):
+    local = due.astimezone(KOREA).date()
+    start = local - timedelta(days=local.weekday())
+    return start.isoformat(), (start + timedelta(days=7)).isoformat()
+
+
+def last_sunday(now):
+    due = sunday(now)
+    return due if due <= now else due - timedelta(days=7)
 
 
 def friday(now):
@@ -104,11 +127,11 @@ async def footage_ledger(db):
             review = reviews.get(key)
             item = items.get(key)
             valid = review and review.manifest_sha256 == run.manifest_sha256
-            keep = sum(
-                i["end_s"] - i["start_s"]
+            keep = float(sum((
+                Decimal(str(i["end_s"])) - Decimal(str(i["start_s"]))
                 for i in rec.get("intervals", [])
                 if i["disposition"] == "keep"
-            )
+            ), Decimal(0)))
             reasons = defaultdict(float)
             for i in rec.get("intervals", []):
                 if i["disposition"] == "reject":
