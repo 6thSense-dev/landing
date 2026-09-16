@@ -73,6 +73,27 @@ test('missing combined video keeps one contributor, batch access, and footage-on
   await expect(card.getByRole('button', { name: 'Watch batch 2' })).toBeVisible();
 });
 
+test('multimodal batch and review prefer browser previews and never advance into native HEVC', async ({ page }) => {
+  const reviewed = { ...first, review_intervals: [{ recording: 'first-recording', start_s: 1, end_s: 10, clean_start_s: 1, reason: 'Review footage' }] };
+  await openClean(page, { runs: [reviewed], collections: [], wearers: [person], cameras: [] });
+  await page.route('**/api/ops/clean/runs/first/files', route => route.fulfill({ json: { files: [
+    { key: 'left.mp4', url: '/test-left.mp4', role: 'left_video', recording: 'first-recording' },
+    { key: 'preview.mp4', url: '/test-preview.mp4', role: 'recording_preview', recording: 'first-recording', label: 'Browser preview (stereo)' },
+    { key: 'right.mp4', url: '/test-right.mp4', role: 'right_video', recording: 'first-recording' },
+  ] } }));
+  await page.getByRole('button', { name: 'Watch footage', exact: true }).click();
+  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('1');
+  await expect(page.locator('video')).toHaveAttribute('src', '/test-preview.mp4');
+  await page.locator('video').dispatchEvent('ended');
+  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('1');
+  await page.getByRole('button', { name: 'Reload video link', exact: true }).click();
+  await expect(page.locator('video')).toHaveAttribute('src', '/test-preview.mp4');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.locator('summary').filter({ hasText: 'Flagged footage' }).click();
+  await page.getByRole('button', { name: 'Review interval', exact: true }).click();
+  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('1');
+});
+
 test('new batch outside the joined video remains accessible without claiming full playback coverage', async ({ page }) => {
   await openClean(page, { runs: [first, second, run('third', 3600, 60, 11000)], collections: [collection], wearers: [person], cameras: [] });
   const card = page.locator('.ops-clean-card');
@@ -82,6 +103,25 @@ test('new batch outside the joined video remains accessible without claiming ful
   await expect(card.locator('.ops-clean-metrics')).toContainText('8h 51m 13s');
   await card.locator('summary').filter({ hasText: 'Batch details' }).click();
   await expect(card.getByRole('button', { name: 'Watch batch 3' })).toBeVisible();
+});
+
+test('browser playlist advances between recordings while retaining manual native access', async ({ page }) => {
+  await openClean(page, { runs: [first], collections: [], wearers: [person], cameras: [] });
+  await page.route('**/api/ops/clean/runs/first/files', route => route.fulfill({ json: { files: [
+    { key: 'one.mp4', url: '/test-one.mp4', role: 'recording_preview', recording: 'first-recording' },
+    { key: 'left.mp4', url: '/test-left.mp4', role: 'left_video' },
+    { key: 'two.mp4', url: '/test-two.mp4', role: 'recording_preview', recording: 'second-recording' },
+    { key: 'right.mp4', url: '/test-right.mp4', role: 'right_video' },
+  ] } }));
+  await page.getByRole('button', { name: 'Watch footage', exact: true }).click();
+  await page.locator('video').dispatchEvent('ended');
+  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('2');
+  await page.locator('video').dispatchEvent('ended');
+  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('2');
+  await page.getByLabel('Video', { exact: true }).selectOption('1');
+  await expect(page.locator('video')).toHaveAttribute('src', '/test-left.mp4');
+  await page.locator('video').dispatchEvent('ended');
+  await expect(page.getByLabel('Video', { exact: true })).toHaveValue('2');
 });
 
 test('region navigation separates people, hours, playback and review entries', async ({ page }, testInfo) => {

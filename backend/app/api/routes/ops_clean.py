@@ -207,7 +207,8 @@ async def files(run_id: str, _: User = Depends(require_ops), db: AsyncSession = 
     if run is None:
         raise HTTPException(404, 'Unknown clean run.')
     try:
-        return {'files': await asyncio.to_thread(playback, json.loads(run.manifest_json))}
+        ref = {'key': run.manifest_key, 'version_id': run.manifest_version, 'sha256': run.manifest_sha256}
+        return {'files': await asyncio.to_thread(playback, json.loads(run.manifest_json), ref)}
     except Exception as exc:
         raise HTTPException(502, 'Clean playback is temporarily unavailable.') from exc
 

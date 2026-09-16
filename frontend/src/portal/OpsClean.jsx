@@ -92,11 +92,21 @@ export default function OpsClean({ onChanged }) {
       if (!response.ok) throw new Error(response.data?.detail || 'Could not load playback.');
       const files = response.data.files || [];
       let index = review ? files.findIndex(f => f.role === 'recording_preview' && f.recording === review.recording) : files.findIndex(f => f.role === 'joined_preview');
+      if (!review && index < 0) index = files.findIndex(f => f.role === 'recording_preview');
       if (review && index < 0) index = files.findIndex(f => f.role === 'left_video' && f.recording === review.recording);
       if (review && index < 0) throw Error('A preview for this recording is not available. Review the batch before attesting to this recording.');
       setPreview({ run, path, files, index: Math.max(0, index), start: review?.clean_start_s || 0 });
     } catch (e) { if (request === playbackRequest.current) setError(e.message); }
   };
+  const advanceVideo = () => {
+    playbackRequest.current += 1;
+    const current = preview.files[preview.index];
+    const next = current.role === 'recording_preview'
+      ? preview.files.findIndex((file, index) => index > preview.index && file.role === 'recording_preview')
+      : preview.index + 1;
+    if (next >= 0 && next < preview.files.length) setPreview({ ...preview, index: next, start: 0 });
+  };
+
   const renewVideo = async () => {
     const current = preview;
     if (!current) return;
@@ -179,7 +189,7 @@ export default function OpsClean({ onChanged }) {
 
     </div>
     {preview && <div ref={dialog} className="ops-clean-modal" role="dialog" aria-modal="true" aria-label="Clean footage player"><div className="ops-panel"><div className="ops-phead"><h2>Clean footage</h2><button autoFocus onClick={closePreview}>Close</button></div><div className="ops-pbody">
-      {!preview.files.length ? <p>No playable output is available.</p> : <><video ref={video} key={preview.files[preview.index].url} onError={() => setPlaybackError(true)} controls playsInline preload="metadata" src={preview.files[preview.index].url} onLoadedMetadata={e => { e.currentTarget.currentTime = preview.start || 0; }} onEnded={() => { playbackRequest.current += 1; if (preview.index + 1 < preview.files.length) setPreview({ ...preview, index: preview.index + 1, start: 0 }); }} /><label htmlFor="clean-file">Video</label><select id="clean-file" value={preview.index} onChange={e => { playbackRequest.current += 1; setPreview({ ...preview, index: Number(e.target.value), start: 0 }); }}>{preview.files.map((f, i) => <option key={f.key} value={i}>{f.label || f.key.split('/').pop()}</option>)}</select><button onClick={renewVideo}>Reload video link</button>{playbackError && <p role="alert">Playback stopped. Reload the link to resume, or try the browser preview if the original format is unsupported.</p>}<a href={preview.files[preview.index].url} target="_blank" rel="noreferrer">Open video in a new tab</a></>}
+      {!preview.files.length ? <p>No playable output is available.</p> : <><video ref={video} key={preview.files[preview.index].url} onError={() => setPlaybackError(true)} controls playsInline preload="metadata" src={preview.files[preview.index].url} onLoadedMetadata={e => { e.currentTarget.currentTime = preview.start || 0; }} onEnded={advanceVideo} /><label htmlFor="clean-file">Video</label><select id="clean-file" value={preview.index} onChange={e => { playbackRequest.current += 1; setPreview({ ...preview, index: Number(e.target.value), start: 0 }); }}>{preview.files.map((f, i) => <option key={f.key} value={i}>{f.label || f.key.split('/').pop()}</option>)}</select><button onClick={renewVideo}>Reload video link</button>{playbackError && <p role="alert">Playback stopped. Reload the link to resume, or try the browser preview if the original format is unsupported.</p>}<a href={preview.files[preview.index].url} target="_blank" rel="noreferrer">Open video in a new tab</a></>}
     </div></div></div>}
   </section>;
 }
