@@ -1,6 +1,6 @@
 # Clean footage in Collector operations
 
-`/portal/ops` separates Raw, Clean, Payment, and Users. These routes remain restricted to ops, founder, and admin accounts. The read-only learning preview does not expose Clean.
+`/portal/ops` separates Raw, Clean, Payment, and Users, with a temporary [Sieve collection dashboard](SIEVE-CLEAN-INHERITANCE.md) through September 25, 2026. These routes remain restricted to ops, founder, and admin accounts. The read-only learning preview does not expose Clean or Sieve.
 
 In Users, record a contributor's workplace, location, contact, and optional KRW hourly rate, and explicitly assign their camera. The optional checkbox also assigns existing unassigned, unpaid raw recordings, excluding registered business sources. It does not change existing ownership or payment history. Business footage uses a separate [maintenance registry](OPS-BUSINESS-SOURCES.md); camera assignment cannot turn it into individual earnings.
 

@@ -50,6 +50,8 @@ Copies in another delivery folder require operator-audited receipts backed by in
 
 Fully processed recordings and recordings without nonempty raw media are hidden by default; enable **show processed / unavailable** to see their history. Playback re-lists all known delivery prefixes and omits verified processed copies and empty files. **Pending raw** reports pending bytes, while **Ledger minutes** remain recording metadata estimates. Accepted hours and hourly estimates are in [Clean](../docs/OPS-CLEAN.md). Queue classification does not delete episodes or alter ownership, approvals, or payment history.
 
+Sieve inherits versioned MP4, original metadata and calibration from imported Clean recordings through a separate worker. The [Sieve operations guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) covers enabling it, retry behavior and the temporary Ops dashboard. The contract ends September 22, 2026; the dashboard remains visible through September 25 in Los Angeles time.
+
 ## Environment
 
 | name | required | purpose |
@@ -58,6 +60,8 @@ Fully processed recordings and recordings without nonempty raw media are hidden 
 | `SENSEPROBE_CORS_ORIGINS` | no | Comma-separated allowed origins. Default covers local Vite (5173/4173). |
 | `SENSEPROBE_RATE_LIMIT` | no | slowapi limit applied to `POST /api/leads`. Default `5/minute`. |
 | `PORT` | no | Auto-injected by Railway in production. |
+| `OPS_SIEVE_ENABLED` | no | Defaults to `false`; `true` starts the independent five-minute Clean → Sieve inheritance loop. |
+| `OPS_SIEVE_ROLE_ARN` | for Sieve inheritance | Dedicated scoped AWS role assumed by the worker. See the [Sieve guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) and checked-in `infra/sieve/` policies. |
 | `CONTRIBUTOR_COGNITO_POOL` / `CONTRIBUTOR_COGNITO_CLIENT` | for mobile accounts | Separate contributor pool and public app-client identifiers; both are required for token acceptance. |
 | `CONTRIBUTOR_COGNITO_REGION` | no | Contributor Cognito region; defaults to `us-west-2`. |
 | `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` | for terms publication | Comma-separated exact authenticated staff emails authorized by company founders; whitespace/case normalized. Empty or absent denies publication, including staff with the `founder` role. Do not infer identities or configure without founder direction. |
