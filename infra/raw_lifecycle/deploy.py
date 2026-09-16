@@ -123,6 +123,22 @@ def function(name,handler,arn,code,timeout=840):
  lam.put_function_concurrency(FunctionName=name,ReservedConcurrentExecutions=1)
  return lam.get_function(FunctionName=name)['Configuration']['FunctionArn']
 
+def lambda_bundle():
+ code=io.BytesIO()
+ with zipfile.ZipFile(code,'w',zipfile.ZIP_DEFLATED) as z:
+  for f in ['coordinator.py','retirement.py','watchdog.py']:z.write(ROOT/f,f)
+  for f in ['ops_calibration.py','ops_regions.py']:z.write(ROOT.parents[1]/'backend/app/core'/f,f)
+ return code.getvalue()
+
+def update_code():
+ # Updates future invocations only; preserve the active budget, jobs and flags.
+ cfg=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
+ code=lambda_bundle()
+ for key in ('coordinator_function','retirement_function','watchdog_function'):
+  lam.update_function_code(FunctionName=cfg[key],ZipFile=code)
+  lam.get_waiter('function_updated_v2').wait(FunctionName=cfg[key])
+ print(json.dumps({'lambda_code_updated':True,'configuration_preserved':True}))
+
 def prepare():
  try:
   previous=json.loads(s3.get_object(Bucket=ARTIFACTS,Key='raw-lifecycle/v1/config.json')['Body'].read())
@@ -159,14 +175,11 @@ def prepare():
    allow(['batch:SubmitJob','batch:TagResource'],[cpu,gpu,*definitions.values()]),
    {'Effect':'Allow','Action':['batch:SubmitJob','batch:TagResource'],'Resource':f'arn:aws:batch:{REGION}:{ACCOUNT}:job/*','Condition':{'StringEquals':{'aws:RequestTag/purpose':'raw-lifecycle-v1'}}},
    allow(['lambda:InvokeFunction'],f'arn:aws:lambda:{REGION}:{ACCOUNT}:function:{NAME}-retirement')])
- code=io.BytesIO()
- with zipfile.ZipFile(code,'w',zipfile.ZIP_DEFLATED) as z:
-  for f in ['coordinator.py','retirement.py','watchdog.py']:z.write(ROOT/f,f)
-  for f in ['ops_calibration.py','ops_regions.py']:z.write(ROOT.parents[1]/'backend/app/core'/f,f)
- retirefn=function(NAME+'-retirement','retirement.handler',retire_role,code.getvalue())
- coordfn=function(NAME+'-coordinator','coordinator.handler',coord_role,code.getvalue())
+ code=lambda_bundle()
+ retirefn=function(NAME+'-retirement','retirement.handler',retire_role,code)
+ coordfn=function(NAME+'-coordinator','coordinator.handler',coord_role,code)
  stop_role=role(NAME+'-watchdog','lambda.amazonaws.com',[logs,batchread,allow(['batch:TerminateJob','batch:CancelJob'],'*'),allow(['batch:UpdateJobQueue'],[cpu,gpu]),allow(['s3:GetObject','s3:PutObject'],f'arn:aws:s3:::{ARTIFACTS}/raw-lifecycle/v1/config.json')])
- stopfn=function(NAME+'-watchdog','watchdog.handler',stop_role,code.getvalue(),300)
+ stopfn=function(NAME+'-watchdog','watchdog.handler',stop_role,code,300)
  deadline=time.time()+8*3600
  cfg={'enabled':False,'retirement_enabled':False,'archive_bucket':ARCHIVE,'api_url':'https://api.6thsense.dev',
       'token_secret':secretarn,'cpu_queue':cpu,'gpu_queue':gpu,'archive_definition':definitions['archive'],'clean_definition':definitions['clean'],
@@ -208,5 +221,7 @@ def enable(retire):
  print(json.dumps({'enabled':True,'retirement_enabled':retire,'next_tick':'within 2 minutes','budget_stop_utc':datetime.fromtimestamp(cfg['run_deadline_epoch'],timezone.utc).isoformat()}))
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('stage',choices=['prepare','enable']);p.add_argument('--retire',action='store_true');a=p.parse_args()
- prepare() if a.stage=='prepare' else enable(a.retire)
+ p=argparse.ArgumentParser();p.add_argument('stage',choices=['prepare','enable','update-code']);p.add_argument('--retire',action='store_true');a=p.parse_args()
+ if a.stage=='prepare':prepare()
+ elif a.stage=='update-code':update_code()
+ else:enable(a.retire)

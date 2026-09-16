@@ -280,8 +280,26 @@ def adopt(state, old_conversion, old_clean):
     if reason: state['technical_hold'] = reason
 
 
+def validate_retirement_result(state, result):
+    expected = {digest(source_identity(r)) for r in state['archive_plan']['objects']}
+    actual = [digest(source_identity(r)) for r in result.get('deleted_versions',[])]
+    if result.get('schema') != '6thsense-raw-retirement/1' or result.get('retired') is not True or result.get('recording') != state['recording'] or result.get('fingerprint') != state['fingerprint'] or result.get('archive_receipt') != state['archive_receipt'] or len(actual) != len(expected) or set(actual) != expected:
+        raise ValueError('Retirement audit conflicts with source state')
+
+
+def restore_retirement(cfg, state):
+    if state.get('retirement_started'):
+        completed = optional_json(cfg['archive_bucket'], f"retirement/{state['recording']}/{state['fingerprint']}.json")
+        if completed:
+            validate_retirement_result(state, completed)
+            state['retired'] = True; state['retirement'] = completed; save(state)
+            return True
+    return False
+
+
 def advance(cfg,state,episode,old_conversion,old_clean):
-    if state.get('retired'): return
+    if state.get('retired') or restore_retirement(cfg,state): return
+    retirement_key = f"retirement/{state['recording']}/{state['fingerprint']}.json"
     if not state.get('archive_plan'):
         versions = archive_versions(state['snapshot'])
         state['archive_plan'] = {'schema':'6thsense-archive-plan/1','recording':state['recording'],
@@ -367,13 +385,19 @@ def advance(cfg,state,episode,old_conversion,old_clean):
         else: status(cfg,state,'converting','AWS source conversion running or queued.')
     save(state)
     if state.get('archive_receipt') and state['phase'] == 'imported' and cfg.get('retirement_enabled'):
+        if not state.get('retirement_started'):
+            state['retirement_started'] = now()
+            save(state)
+            saved,_ = read_json(PROCESSED,PREFIX+'states/'+state['recording']+'.json')
+            if saved != state: raise ValueError('Retirement intent readback mismatch')
         # Dedicated retirement function independently verifies archive and portal.
         response = boto3.client('lambda').invoke(FunctionName=cfg['retirement_function'],InvocationType='RequestResponse',
             Payload=encoded({'recording':state['recording'],'fingerprint':state['fingerprint']}))
         result = json.load(response['Payload'])
         if response.get('FunctionError'): raise ValueError('Retirement verification failed')
         if result.get('retired'):
-            put_json(cfg['archive_bucket'],f"retirement/{state['recording']}/{state['fingerprint']}.json",result,True)
+            validate_retirement_result(state,result)
+            put_json(cfg['archive_bucket'],retirement_key,result,True)
             state['retired'] = True; state['retirement'] = result; save(state)
 
 
@@ -397,11 +421,28 @@ def handler(event,context):
         if max(o['LastModified'].timestamp() for o in objects) > time.time()-cfg.get('settle_seconds',600): continue
         state=optional_json(PROCESSED,PREFIX+'states/'+rec+'.json')
         candidates.append((state.get('updated_at','') if state else '',rec,objects,state,ep))
+    # A crash after the last delete must not strand an unfinished retirement just
+    # because the recording is no longer discoverable in temporary Raw storage.
+    for page in s3.get_paginator('list_objects_v2').paginate(Bucket=PROCESSED,Prefix=PREFIX+'states/'):
+        for obj in page.get('Contents',[]):
+            rec=obj['Key'].rsplit('/',1)[-1].removesuffix('.json')
+            ep=episodes.get(rec)
+            if rec in groups or not ep or ep['deleted'] or rec in EXCLUDED: continue
+            state=optional_json(PROCESSED,obj['Key'])
+            if state and state.get('retirement_started') and not state.get('retired'):
+                candidates.append((state.get('updated_at',''),rec,[],state,ep))
     for _,rec,objects,state,ep in sorted(candidates):
         if context and context.get_remaining_time_in_millis() < 90000: break
         try:
+            if state and not state.get('retired') and restore_retirement(cfg,state) and not objects:
+                summary['advanced']+=1
+                continue
             snapshot=pin_objects(objects); fingerprint=digest([source_identity(r) for r in snapshot])
-            if not state or state['fingerprint'] != fingerprint:
+            if state and state.get('retirement_started') and not state.get('retired'):
+                archived={digest(source_identity(r)):r for r in state['archive_plan']['objects']}
+                if any(digest(source_identity(r)) not in archived or any(r[k] != archived[digest(source_identity(r))][k] for k in ('bytes','etag')) for r in snapshot):
+                    raise ValueError('New source arrived during retirement; review before cleanup')
+            elif not state or state['fingerprint'] != fingerprint:
                 if state and state.get('jobs') and not state.get('retired'):
                     raise ValueError('New source versions arrived during processing; review before supersession')
                 state={'recording':rec,'fingerprint':fingerprint,'snapshot':snapshot,'phase':'observed','observed_at':now(),'jobs':{}}

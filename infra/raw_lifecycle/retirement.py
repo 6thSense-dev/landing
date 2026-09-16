@@ -48,7 +48,8 @@ def validate_imports(state, receipt, episode):
 
 def handler(event, context):
     cfg,_=c.read_json(c.ARTIFACTS,os.environ.get('CONFIG_KEY','raw-lifecycle/v1/config.json'))
-    if not cfg.get('enabled') or not cfg.get('retirement_enabled') or time.time() >= cfg['run_deadline_epoch']: return {'retired':False,'reason':'disabled'}
+    dry_run=event.get('dry_run') is True
+    if not cfg.get('enabled') or (not cfg.get('retirement_enabled') and not dry_run) or time.time() >= cfg['run_deadline_epoch']: return {'retired':False,'reason':'disabled'}
     rec=event['recording']
     if not c.RECORDING.fullmatch(rec) or rec in c.EXCLUDED: raise ValueError('Invalid or deleted recording')
     state,_=c.read_json(c.PROCESSED,c.PREFIX+'states/'+rec+'.json')
@@ -80,6 +81,9 @@ def handler(event, context):
         versions={x['source']['version_id'] for x in entries.values() if x['source']['key']==ref['key']}
         if head['VersionId'] not in versions: raise ValueError('New upload arrived; Raw cleanup deferred')
     deleted=[]
+    if dry_run:
+        return {'retired':False,'verified':True,'recording':rec,'fingerprint':state['fingerprint'],
+                'archive_receipt':state['archive_receipt'],'versions_verified':len(entries),'dry_run':True}
     for item in entries.values():
         src=item['source']
         c.s3.delete_object(Bucket=c.RAW,Key=src['key'],VersionId=src['version_id'])
