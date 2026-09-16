@@ -23,10 +23,11 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
       { recording: 'new-source', device_id: '16A4A5', wearer_id: 1, raw: { status: 'pending', pending_files: 1 }, processing: { state: 'recovering', reason: 'Recover missing metadata' } },
       { recording, device_id: '16A4A5', wearer_id: 1, raw: { status: 'processed' }, processing: { state: 'clean' } },
     ] };
-    else if (path === '/api/ops/clean/state') data = { wearers: [person], cameras: [], collections: [], ledger: [{ ...entry, review_status: reviewed ? 'reviewed' : 'needs_review' }], runs: [{ run_id: 'run', device_id: '16A4A5', wearer_id: 1, source_seconds: 20000, retained_seconds: 18000, rejected_seconds: 2000, recordings: [], recording_count: 1 }] };
+    else if (path === '/api/ops/clean/state') data = { wearers: [person], cameras: [], collections: [], ledger: [{ ...entry, review_status: reviewed ? 'reviewed' : 'needs_review' }], runs: [{ region: { key: 'korea', label: 'Korea' }, run_id: 'run', device_id: '16A4A5', wearer_id: 1, source_seconds: 20000, retained_seconds: 18000, rejected_seconds: 2000, recordings: [], recording_count: 1 }] };
     else if (path === '/api/ops/clean/runs/run/files') data = { files: [{ key: 'left.mp4', url: '/test-left.mp4', role: 'left_video', recording }, { key: 'right.mp4', url: '/test-right.mp4', role: 'right_video', recording }] };
     else if (path === '/api/ops/payments/review') { reviewed = true; data = { ok: true }; }
     else if (path === '/api/ops/payments/state') data = payment();
+    else if (path === '/api/ops/contributors') data = { accounts: [], claims: [], recipients: [] };
     else if (path === '/api/ops/payments/approve') { approved = true; data = payment(); }
     else return route.fulfill({ status: 404 });
     return route.fulfill({ json: data });
@@ -42,6 +43,7 @@ test('Raw monitors sources, Clean records review, and Payment requires explicit 
   await page.locator('summary').filter({ hasText: 'Camera assignments' }).click();
   await expect(page.getByRole('button', { name: 'Save camera assignment' })).toBeVisible();
   await page.getByRole('button', { name: 'Clean', exact: true }).click();
+  await page.getByRole('button', { name: 'View Korea', exact: true }).click();
   await page.locator('.ops-footage-review > summary').click();
   await expect(page.getByText('Both eye videos, full frame sequences and IMU are verified.')).toBeVisible();
   await page.getByRole('button', { name: 'Watch this recording' }).click();

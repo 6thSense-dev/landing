@@ -90,3 +90,14 @@ class WiseClient:
             {"type": "BALANCE"},
             p.id,
         )
+
+
+def recipient_confirmation_required(info):
+    """Do not link a recipient while Wise requires explicit customer acceptance."""
+    def pending(value):
+        if isinstance(value, dict):
+            return value.get("requiresCustomerAcceptance") is True or any(pending(v) for v in value.values())
+        if isinstance(value, list):
+            return any(pending(v) for v in value)
+        return False
+    return pending(info.get("confirmations"))

@@ -1,13 +1,15 @@
 """Required multimodal outputs for new Clean results; legacy ledgers stay readable."""
 import math
+import re
+from app.core.ops_calibration import recording_camera
 
 SCHEMA = "6thsense-clean-qc/2"
 PROFILE = "stereo-imu-frames/1"
 REQUIREMENT = {"schema": SCHEMA, "profile": PROFILE,
-               "required_roles": ["left_video", "right_video", "left_frames", "right_frames", "imu", "frame_index", "timeline"]}
+               "required_roles": ["left_video", "right_video", "left_frames", "right_frames", "imu", "frame_index", "timeline", "calibration"]}
 ROLE_EXTENSIONS = {"left_video": ".mp4", "right_video": ".mp4", "left_frames": ".tar",
                    "right_frames": ".tar", "imu": ".csv", "frame_index": ".csv",
-                   "timeline": ".json", "joined_preview": ".mp4"}
+                   "timeline": ".json", "calibration": ".json", "joined_preview": ".mp4"}
 
 
 def _count(value):
@@ -18,7 +20,7 @@ def _number(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
-def validate_artifacts(doc):
+def validate_artifacts(doc, *, require_calibration=True):
     """Validate inventory and timeline claims; S3 verifies every pinned output next.
 
     The trusted worker must fully decode videos and check actual frame/IMU coverage.
@@ -70,6 +72,20 @@ def validate_artifacts(doc):
         a, b = crops
         if a[2:] != b[2:] or (max(a[0], b[0]) < min(a[0]+a[2], b[0]+b[2]) and max(a[1], b[1]) < min(a[1]+a[3], b[1]+b[3])):
             raise ValueError("Eye crops overlap or have different dimensions")
+        calibrations = [o for o in outputs if o.get("role") == "calibration"]
+        if require_calibration or calibrations or media.get("calibration") or rec.get("calibration_source"):
+            if len(calibrations) != 1:
+                raise ValueError("Exactly one calibration artifact is required per retained recording")
+            calibration, source = media.get("calibration", {}), rec.get("calibration_source", {})
+            digest = calibration.get("sha256", "")
+            if not re.fullmatch(r"[a-f0-9]{64}", digest) or digest != calibrations[0].get("sha256") or digest != source.get("sha256"):
+                raise ValueError("Calibration source, artifact and timeline hashes must agree")
+            if source.get("version_id") in (None, "", "null") or source.get("bucket") not in ("6thsense-raw", "6thsense-deploy-artifacts") or not source.get("key"):
+                raise ValueError("Version-pinned calibration source is required")
+            if calibration.get("device_id") != recording_camera(name) or calibration.get("image_size") != a[2:]:
+                raise ValueError("Calibration camera/resolution disagrees with this recording")
+            if calibration.get("coordinate_frame") != "native_unrotated_eye_pixels" or calibration.get("output_rotation_degrees") != layout["rotation_degrees"] or set(calibration.get("eye_mapping", {})) != {"left", "right"} or set(calibration["eye_mapping"].values()) != {"cam0", "cam1"}:
+                raise ValueError("Explicit calibration pixel coordinates and eye mapping are required")
         origin = media.get("sensor_origin_us")
         segments = media.get("segments", [])
         if type(origin) is not int or origin < 0 or len(segments) != len(keep):

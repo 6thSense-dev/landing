@@ -1,5 +1,7 @@
 """Clean-time estimates must not create payments or count a source twice."""
 import copy
+import hashlib
+import json
 import pytest
 from sqlalchemy import select
 from app.core.ops_clean import estimate_krw, validate_manifest
@@ -37,6 +39,33 @@ def test_bad_evidence_is_rejected(fault):
     if fault=='outside':doc['outputs'][0]['key']='other/joined.mp4'
     if fault=='missing':doc['outputs']=[]
     with pytest.raises(ValueError):validate_manifest(doc)
+
+
+@pytest.mark.asyncio
+async def test_generic_scan_reserves_automatic_runs_for_pipeline_bridge(db_session, monkeypatch):
+    from app.api.routes import ops_clean
+    from tests.test_ops_artifacts import multimodal_manifest
+
+    wearer = Wearer(name='Pipeline contributor', rate_krw_hour=11000)
+    db_session.add(wearer)
+    await db_session.flush()
+    doc = multimodal_manifest()
+    old_run = doc['run_id']
+    doc['run_id'] = 'raw-clean-auto-20260901-120000-ABC123-deadbeef00'
+    for output in doc['outputs']:
+        output['key'] = output['key'].replace(f'clean/{old_run}/', f"clean/{doc['run_id']}/")
+    recording = doc['recordings'][0]['recording']
+    await _episode(db_session, recording, wearer_id=wearer.id)
+    digest = hashlib.sha256(json.dumps(doc).encode()).hexdigest()
+    monkeypatch.setattr(ops_clean, 'committed_results', lambda: [
+        (doc, f"qc-results/{doc['run_id']}/result.json", 'manifest-v1', digest)
+    ])
+
+    result = await ops_clean.scan(None, db_session)
+
+    assert result['imported'] == 0
+    assert await db_session.get(CleanRun, doc['run_id']) is None
+    assert result['scan_errors'] == []
 
 
 @pytest.mark.asyncio
@@ -87,6 +116,70 @@ async def test_import_is_unpaid_idempotent_and_rate_is_snapshotted(app,db_sessio
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('conflict', ['same_segment', 'renamed_identical_source'])
+async def test_segment_import_keeps_siblings_distinct_without_duplicate_earnings(app, db_session, monkeypatch, conflict):
+    from app.api.routes import ops_clean
+    from app.models import Payout, PayoutItem
+    from tests.test_ops_artifacts import multimodal_manifest
+
+    def segment(run_id, suffix, source_hash):
+        doc = multimodal_manifest()
+        original_run = doc['run_id']
+        doc['run_id'] = run_id
+        rec = doc['recordings'][0]
+        original_recording = rec['recording']
+        rec['recording'] += suffix
+        for source in rec['sources']:
+            source['key'] = source['key'].replace(original_recording, rec['recording'])
+            source['sha256'] = source_hash
+        for output in doc['outputs']:
+            output['key'] = output['key'].replace(original_run, run_id)
+            output['recording'] = rec['recording']
+        validate_manifest(doc)
+        return doc, f'qc-results/{run_id}/result.json', 'v1', source_hash
+
+    sid = await _sid(db_session, 'ops')
+    wearer = Wearer(name='Segment contributor', rate_krw_hour=11000)
+    db_session.add(wearer)
+    await db_session.commit()
+    db_session.add(OpsCamera(device_id='ABC123', wearer_id=wearer.id))
+    await db_session.commit()
+    results = [segment('segment-first', '_s11', 'c' * 64), segment('segment-second', '_s12', 'd' * 64)]
+    for doc, *_ in results:
+        await _episode(db_session, doc['recordings'][0]['recording'], wearer_id=wearer.id)
+    monkeypatch.setattr(ops_clean, 'committed_results', lambda: results)
+
+    async with _client(app) as client:
+        async def scan():
+            return await client.post('/api/ops/clean/scan', cookies={'sid': sid}, headers={'Origin': ORIGIN})
+
+        response = await scan()
+        assert response.status_code == 200, response.text
+        assert response.json()['imported'] == 2
+        rows = response.json()['runs']
+        assert {row['recordings'][0]['recording'] for row in rows} == {
+            'ego_20260901_120000_ABC123_s11', 'ego_20260901_120000_ABC123_s12'}
+        assert all(row['wearer_id'] == wearer.id and row['device_id'] == 'ABC123'
+                   and row['paid'] is False and row['estimated_krw'] == 183 for row in rows)
+        repeat = await scan()
+        assert repeat.status_code == 200 and repeat.json()['imported'] == 0
+
+        suffix, digest = ('_s11', 'e' * 64) if conflict == 'same_segment' else ('_s13', 'c' * 64)
+        candidate = segment('segment-conflict', suffix, digest)
+        if conflict == 'renamed_identical_source':
+            await _episode(db_session, candidate[0]['recordings'][0]['recording'], wearer_id=wearer.id)
+        results[:] = [candidate]
+        rejected = await scan()
+        assert rejected.status_code == 409 and 'already have a clean result' in rejected.json()['detail']
+
+    stored = (await db_session.execute(select(CleanRun))).scalars().all()
+    assert {row.run_id for row in stored} == {'segment-first', 'segment-second'}
+    assert all(not row.paid and row.retained_seconds == 60 and row.rate_krw_hour == 11000 for row in stored)
+    assert not (await db_session.execute(select(Payout))).scalars().all()
+    assert not (await db_session.execute(select(PayoutItem))).scalars().all()
+
+
+@pytest.mark.asyncio
 async def test_unassigned_camera_cannot_create_earnings(app,db_session,monkeypatch):
     from app.api.routes import ops_clean
     sid=await _sid(db_session,'ops')
@@ -96,11 +189,13 @@ async def test_unassigned_camera_cannot_create_earnings(app,db_session,monkeypat
         assert res.status_code==409
     assert not (await db_session.execute(select(CleanRun))).scalars().all()
 
-@pytest.mark.parametrize('tamper',[None,'digest','size','metadata','marker','mixed'])
+@pytest.mark.parametrize('tamper',[None,'digest','size','metadata','marker','mixed','legacy_calibration'])
 def test_import_checks_committed_marker_and_output(tamper,monkeypatch):
     import hashlib,json,io
     from app.core import ops_clean
-    doc=manifest();body=json.dumps(doc).encode();digest=hashlib.sha256(body).hexdigest()
+    doc=manifest()
+    if tamper=='legacy_calibration': doc['outputs'][0].update(role='calibration',recording='foreign')
+    body=json.dumps(doc).encode();digest=hashlib.sha256(body).hexdigest()
     marker={'manifest':{'key':'qc-results/factory-test/result.json','version_id':'v1','sha256':digest}}
     if tamper=='digest':marker['manifest']['sha256']='c'*64
     if tamper=='marker':marker['manifest']['key']='qc-results/different/result.json'

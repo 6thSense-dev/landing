@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from app.api.routes.ops import require_ops
 from app.core.db import get_session
+from app.core.ops_external_payments import external_payment_history
 from app.core.ops_ledger import (
     footage_ledger,
     friday,
@@ -67,6 +68,7 @@ def eligible(entries, due, basis):
         e
         for e in entries
         if not e["legacy_paid"]
+        and not e.get("counterparty")
         and not e["payout_id"]
         and e["retained_seconds"] > 0
         and e["review_status"] == "reviewed"
@@ -151,7 +153,7 @@ async def state(db):
                 "error": p.error,
             }
             for p in payouts
-        ],
+        ] + await external_payment_history(db),
     }
 
 
@@ -181,14 +183,17 @@ async def review(body: ReviewIn, user=Depends(require_ops), db=Depends(get_sessi
         )
     if body.decision == "withheld" and not body.note.strip():
         raise HTTPException(
-            422, "A reason is required when withholding footage from payment."
+            422, "A reason is required when placing footage on hold."
         )
-    if body.collection_date and body.collection_date > datetime.now(KOREA).date():
-        raise HTTPException(422, "Collection date cannot be in the future.")
     await db.execute(text("SELECT pg_advisory_xact_lock(61306131)"))
     run = await db.get(CleanRun, body.run_id)
     if not run or run.manifest_sha256 != body.manifest_sha256:
         raise HTTPException(409, "Footage changed. Reload before reviewing.")
+    from app.core.ops_sources import counterparty, source_timezone
+    doc = json.loads(run.manifest_json)
+    party = counterparty(doc['counterparty']) if 'counterparty' in doc else None
+    if body.collection_date and body.collection_date > datetime.now(source_timezone(party)).date():
+        raise HTTPException(422, "Collection date cannot be in the future.")
     if body.recording not in {
         r["recording"] for r in json.loads(run.manifest_json)["recordings"]
     }:
@@ -307,7 +312,7 @@ class RecipientIn(BaseModel):
 async def recipient(
     body: RecipientIn, user=Depends(require_ops), db=Depends(get_session)
 ):
-    from app.core.wise import WiseClient
+    from app.core.wise import WiseClient, recipient_confirmation_required
 
     if not body.confirm_recipient:
         raise HTTPException(422, "Confirm the recipient belongs to this contributor.")
@@ -324,7 +329,8 @@ async def recipient(
             "Wise recipient verification failed. Check the connection and recipient ID.",
         )
     if (
-        not info.get("active")
+        recipient_confirmation_required(info)
+        or not info.get("active")
         or not info.get("hash")
         or info.get("currency") != "KRW"
         or str(info.get("profileId")) != os.getenv("WISE_PROFILE_ID")

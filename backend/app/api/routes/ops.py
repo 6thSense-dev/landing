@@ -67,6 +67,10 @@ async def _setting(db: AsyncSession, key: str) -> str:
 
 
 async def _put_setting(db: AsyncSession, key: str, value: str) -> None:
+    # Terms and their approval history belong exclusively to the founder-gated
+    # publisher. Generic scans/imports must never gain publication authority.
+    if key.strip().lower().startswith("contributor_terms_"):
+        raise PermissionError("Contributor terms require the founder publication workflow.")
     row = (await db.execute(
         select(OpsSetting).where(OpsSetting.key == key))).scalar_one_or_none()
     if row is None:
@@ -132,6 +136,9 @@ async def _raw_context(db: AsyncSession):
 
 
 async def _state(db: AsyncSession) -> dict:
+    from app.core.ops_sources import business_source, source_registry
+    from app.api.routes.contributor import terms_for
+    registry = await source_registry(db)
     eps = (await db.execute(
         select(Episode).order_by(Episode.started_at.desc().nullslast(),
                                  Episode.recording.desc()))).scalars().all()
@@ -146,9 +153,9 @@ async def _state(db: AsyncSession) -> dict:
     return {
         "contributor_stats": await contributor_summary(db),
         "cameras": [{"device_id": c.device_id, "wearer_id": c.wearer_id} for c in (await db.execute(select(OpsCamera))).scalars()],
-        "onboarding": {"account_service_connected": False, "terms_status": "terms_not_configured", "required_agreements": ["participation", "privacy", "collection"]},
+        "onboarding": {"account_service_connected": bool(os.getenv("CONTRIBUTOR_COGNITO_POOL") and os.getenv("CONTRIBUTOR_COGNITO_CLIENT")), "terms_status": "configured" if await terms_for({"routing_version": "kr-2026-v1"}, db) else "terms_not_configured", "required_agreements": ["participation", "privacy", "collection", "international_transfer"]},
         "processing": {"automatic_scan": os.getenv("OPS_AUTOMATION_ENABLED") == "true", "worker_access_configured": bool(os.getenv("OPS_PROCESSOR_TOKEN"))},
-        "episodes": [{**_episode_json(e), "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
+        "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),
         "last_scan": await _setting(db, SCAN_KEY),
         "wearers": [_wearer_json(w) for w in wearers],
@@ -160,7 +167,7 @@ async def _state(db: AsyncSession) -> dict:
             "bytes": sum((e.size_bytes or 0) for e in live),
             "approved": sum(1 for e in live if e.approved),
             "paid": sum(1 for e in live if e.paid),
-            "unassigned": sum(1 for e in live if e.wearer_id is None),
+            "unassigned": sum(1 for e in live if e.wearer_id is None and not business_source(e, registry)),
             "unlabelled": sum(1 for e in live if e.task_id is None),
             "clock_flagged": sum(1 for e in live if e.clock_source != "ntp"),
         },
@@ -209,12 +216,16 @@ async def scan_bucket(_: User = Depends(require_ops),
     known = {e.recording: e for e in
              (await db.execute(select(Episode))).scalars().all()}
 
+    from app.core.contributor_attribution import owner_at_capture
+    from app.core.ops_sources import source_registry
+    confirmed_sources = await source_registry(db)
     added = updated = 0
     for rec, t in takes.items():
         facts = facts_from(t)
         e = known.get(rec)
         if e is None:
-            db.add(Episode(recording=rec, **facts))
+            owner = None if rec in confirmed_sources else await owner_at_capture(db, facts)
+            db.add(Episode(recording=rec, wearer_id=owner, **facts))
             added += 1
             continue
         # Refresh only what can grow, and backfill what was never set. Notably
@@ -381,7 +392,11 @@ class AssignIn(BaseModel):
 async def assign_episode(recording: str, body: AssignIn,
                          _: User = Depends(require_ops),
                          db: AsyncSession = Depends(get_session)) -> dict:
+    from app.core.ops_sources import source_registry
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
     e = await _episode_or_404(db, recording)
+    if recording in await source_registry(db):
+        raise HTTPException(409, 'This source belongs to a business contract and cannot be assigned to an individual.')
     if body.wearer_id is not None:
         exists = (await db.execute(
             select(func.count()).select_from(Wearer)

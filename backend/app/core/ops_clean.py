@@ -7,6 +7,7 @@ import re
 from decimal import Decimal, ROUND_HALF_UP
 from app.core.ops_s3 import _client, get_settings
 from app.core.ops_artifacts import SCHEMA as MULTIMODAL_SCHEMA, validate_artifacts
+from app.core.ops_calibration import validate_calibration, recording_camera
 
 SCHEMA = '6thsense-clean-qc/1'
 
@@ -34,6 +35,11 @@ def validate_manifest(doc):
             raise ValueError(f'Invalid {name}')
     if abs(doc['retained_seconds'] + doc['rejected_seconds'] - doc['source_seconds']) > .05:
         raise ValueError('QC time does not balance')
+    if "counterparty" in doc:
+        from app.core.ops_sources import counterparty
+        party = counterparty(doc["counterparty"])
+        if doc.get("country") != party["country"]:
+            raise ValueError("Business source country is inconsistent")
     recordings = doc.get('recordings')
     if not isinstance(recordings, list) or not recordings:
         raise ValueError('Source recordings are required')
@@ -46,7 +52,7 @@ def validate_manifest(doc):
             raise ValueError('Invalid recording duration')
         if not isinstance(rec.get('recording'), str) or rec['recording'] in seen:
             raise ValueError('Duplicate or missing recording identity')
-        if not re.fullmatch(r'ego_[0-9]{8}_[0-9]{6}_[A-Fa-f0-9]{6}', rec['recording']) or rec['recording'].rsplit('_', 1)[-1].upper() != doc['device_id']:
+        if recording_camera(rec['recording']) != doc['device_id']:
             raise ValueError('Recording identity must identify its source camera')
         seen.add(rec['recording'])
         intervals = rec.get('intervals', [])
@@ -92,12 +98,16 @@ def validate_manifest(doc):
         if not key.startswith(f"clean/{doc['run_id']}/") or any(p in ('', '.', '..') for p in key.split('/')):
             raise ValueError('Output outside this clean run')
         extensions = ('.mp4', '.m3u8') if doc['schema'] == SCHEMA else ('.mp4', '.tar', '.csv', '.json')
+        if doc['schema'] == SCHEMA and output.get('role') == 'calibration':
+            raise ValueError('Legacy QC uses a separate calibration supplement')
         if not key.endswith(extensions) or output.get('version_id') in (None, '', 'null') or type(output.get('bytes')) is not int or output['bytes'] <= 0:
             raise ValueError('Invalid output reference')
         if not re.fullmatch(r'[a-f0-9]{64}', output.get('sha256', '')):
             raise ValueError('Output digest is required')
     if doc['schema'] == MULTIMODAL_SCHEMA:
-        validate_artifacts(doc)
+        # Historical v2 runs remain readable. New imports/completion use the
+        # strict default and cannot omit calibration.
+        validate_artifacts(doc, require_calibration=False)
     return doc
 
 
@@ -135,6 +145,16 @@ def _committed_result(s3, key):
         head = s3.head_object(Bucket=clean_bucket(), Key=output['key'], VersionId=output['version_id'])
         if head['ContentLength'] != output['bytes'] or head.get('Metadata', {}).get('sha256') != output['sha256']:
             raise ValueError('Clean output does not match its committed inventory')
+        if output.get('role') == 'calibration':
+            calibration, raw, _ = _json(s3, output['key'], output['version_id'])
+            if hashlib.sha256(raw).hexdigest() != output['sha256']:
+                raise ValueError('Calibration content digest mismatch')
+            rec = next((r for r in doc['recordings'] if r['recording'] == output.get('recording')), None)
+            if rec is None:
+                raise ValueError('Calibration references an unknown recording')
+            mapping = validate_calibration(calibration, rec['recording'], rec['media']['layout'])
+            if rec['media']['calibration'] != {**mapping, 'sha256':output['sha256']}:
+                raise ValueError('Calibration content differs from the declared camera/geometry')
     return doc, ref['key'], version, digest
 
 

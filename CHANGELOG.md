@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.1.0.0] - 2026-09-15
+
+### Added
+
+- Track Sieve collected and inherited hours, diversity, intake dates, and blocked recordings in a temporary Operations tab through September 25.
+- Inherit versioned Clean MP4, original metadata and calibration into Sieve with retryable copies and a role that cannot read Raw.
+
+## [0.0.8.0] - 2026-09-15
+
+### Fixed
+
+- Attribute contracted factory footage to its business and country in Raw and Clean, keeping it separate from individual contributors and payouts.
+- Preserve confirmed business ownership during camera assignment and processing; refuse Clean imports with mismatched business, source session, or region.
+- Use the source country's collection date for business footage reviews and keep its hours in regional totals without an individual payment estimate.
+
+## [0.0.7.1] - 2026-09-15
+
+### Fixed
+
+- Import existing segmented EGO footage into Clean with its original episode identity and camera-matched calibration. Source-location checks and duplicate-earnings protection remain in effect.
+
+## [0.0.7.0] - 2026-09-15
+
+### Changed
+
+- Start Clean with region selection and collected, accepted, excluded hours, acceptance rate, and recording/contributor/camera counts.
+- Browse contributors, combined footage and review ledgers within the selected region, keeping each region's totals visible while filtering people.
+- Derive collection geography from preserved source records and hold missing or conflicting batches under Needs region review. Joined videos do not duplicate hours.
+
+## [0.0.6.0] - 2026-09-15
+
+### Fixed
+
+- Record externally paid Clean footage against exact existing earnings, preserving rates and accepted time while keeping incentives separate.
+- Show external payment reports and incentive breakdowns in Payment, with recipient delivery explicitly unverified until provider evidence is available.
+- Keep versioned private receipts and prevent duplicate transfer imports or payment of already reserved footage.
+
+## [0.0.5.0] - 2026-09-15
+
+### Fixed
+
+- Require each new retained Clean recording to include versioned, camera-matched calibration alongside stereo video, frames, IMU and timing.
+- Verify calibration file contents, image geometry and hashes before importing a new result. Historical Clean playback and existing earnings remain readable without rewriting payment records.
+
 ## [0.0.4.1] - 2026-09-14
 
 ### Fixed

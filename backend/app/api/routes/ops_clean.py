@@ -11,6 +11,8 @@ from app.core.db import get_session
 from app.core.ops_clean import committed_results, estimate_krw, playback
 from app.core.ops_artifacts import validate_artifacts
 from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
+from app.core.ops_regions import clean_region
+from app.core.ops_sources import business_source, source_registry, counterparty
 from app.models import CleanRun, OpsCamera, Episode, Wearer, User
 
 router = APIRouter(prefix='/api/ops/clean', tags=['ops'])
@@ -46,6 +48,7 @@ async def state(db):
     for run in runs:
         doc = json.loads(run.manifest_json)
         rows.append({'run_id': run.run_id, 'device_id': run.device_id, 'wearer_id': run.wearer_id,
+                     'region': clean_region(doc), 'counterparty': doc.get('counterparty'),
                      'artifact_status': artifact_status(doc),
                      'retained_seconds': run.retained_seconds, 'rejected_seconds': run.rejected_seconds,
                      'source_seconds': doc['source_seconds'], 'recording_count': len(doc['recordings']),
@@ -88,12 +91,16 @@ async def assign_camera(body: CameraIn, _: User = Depends(require_ops), db: Asyn
         db.add(OpsCamera(device_id=device, wearer_id=wearer.id))
     else:
         camera.wearer_id = wearer.id
+    from app.core.contributor_attribution import end_mobile_assignment
+    await end_mobile_assignment(db, device, wearer.id)
     if body.assign_unassigned_recordings:
+        registry = await source_registry(db)
         normalized = func.replace(func.upper(func.trim(Episode.device_id)), 'EGO-', '')
         same_camera = or_(normalized == device, and_(func.coalesce(normalized, '') == '', func.upper(func.right(Episode.recording, 7)) == '_' + device))
         episodes = (await db.execute(select(Episode).where(same_camera, Episode.wearer_id.is_(None), Episode.paid.is_(False), Episode.deleted_at.is_(None)).with_for_update())).scalars().all()
         for episode in episodes:
-            episode.wearer_id = wearer.id
+            if episode.recording not in registry:
+                episode.wearer_id = wearer.id
     # Previously imported clean collections keep their original attribution and rate.
     await db.commit()
     return await state(db)
@@ -114,6 +121,11 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
     errors = list(getattr(results, 'errors', []))
     added = 0
     for doc, key, version, digest in results:
+        # These runs carry source/payment evidence that only the dedicated
+        # pipeline bridge verifies. The periodic generic scan must not race it
+        # and create a weaker CleanRun before that verification completes.
+        if str(doc.get('run_id', '')).startswith('raw-clean-auto-'):
+            continue
         try:
             if doc['run_id'] in by_id:
                 if by_id[doc['run_id']].manifest_sha256 != digest:
@@ -132,23 +144,45 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
                 raise HTTPException(409, 'New Clean imports require both eye videos, full frame sequences, IMU and a shared timeline. Existing historical ledger entries are preserved.') from exc
             # A current camera holder cannot establish the owner of historical
             # footage. Resolve every decoded recording before assigning a batch.
-            episode_owners = dict((await db.execute(
-                select(Episode.recording, Episode.wearer_id).where(Episode.recording.in_(names))
-            )).all())
-            if names - episode_owners.keys() or any(owner is None for owner in episode_owners.values()):
-                raise HTTPException(409, 'Every decoded recording needs a confirmed contributor before importing. Scan Raw and resolve its attribution in Users.')
-            owners = set(episode_owners.values())
-            if len(owners) > 1:
-                raise HTTPException(409, 'This QC batch contains multiple contributors; split the batch before importing.')
-            camera = await db.get(OpsCamera, doc['device_id']) if not owners else None
-            owner = next(iter(owners)) if owners else camera.wearer_id if camera else None
-            wearer = await db.get(Wearer, owner) if owner else None
-            if wearer is None or not wearer.is_active:
-                raise HTTPException(409, f"Assign EGO-{doc['device_id']} to a contributor before importing clean footage.")
-            imported_run = CleanRun(run_id=doc['run_id'], device_id=doc['device_id'], wearer_id=wearer.id,
+            episodes = (await db.execute(select(Episode).where(Episode.recording.in_(names)))).scalars().all()
+            if {e.recording for e in episodes} != names:
+                raise HTTPException(409, 'Every source recording needs a confirmed contributor or business attribution before importing.')
+            registry = await source_registry(db)
+            try:
+                parties = [business_source(e, registry) for e in episodes]
+                declared = counterparty(doc['counterparty']) if 'counterparty' in doc else None
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
+            if declared or any(parties):
+                if not declared or not all(p == declared for p in parties) or doc.get('country') != declared['country']:
+                    raise HTTPException(409, 'Business output must match the confirmed business and country for every source.')
+                sessions = {e.recording: e.session for e in episodes}
+                for rec in doc['recordings']:
+                    if rec['recording'] not in names:
+                        continue
+                    for source in rec.get('sources', []):
+                        parts = source.get('key', '').split('/')
+                        # The optional folder is the UPLOADING camera, which can
+                        # differ after a card swap. Recording/calibration bind
+                        # the capture camera; the registry binds its session.
+                        layout_ok = len(parts) == 4 or (len(parts) == 5 and re.fullmatch(r'(?:EGO-)?[A-Fa-f0-9]{6}', parts[2]))
+                        if source.get('bucket') != '6thsense-raw' or not layout_ok or parts[:2] != ['sessions', sessions[rec['recording']]] or parts[-2] != rec['recording']:
+                            raise HTTPException(409, 'Business output source session does not match the confirmed attribution.')
+                owner, rate = None, None
+            else:
+                owners = {e.wearer_id for e in episodes}
+                if len(owners - {None}) > 1:
+                    raise HTTPException(409, 'This batch contains multiple contributors; split it before importing.')
+                if None in owners or len(owners) != 1:
+                    raise HTTPException(409, 'Every decoded recording needs the same confirmed contributor before importing.')
+                wearer = await db.get(Wearer, next(iter(owners)))
+                if wearer is None or not wearer.is_active:
+                    raise HTTPException(409, 'Assign the sources to an active contributor before importing.')
+                owner, rate = wearer.id, wearer.rate_krw_hour
+            imported_run = CleanRun(run_id=doc['run_id'], device_id=doc['device_id'], wearer_id=owner,
                             manifest_key=key, manifest_version=version, manifest_sha256=digest,
                             manifest_json=json.dumps(doc), retained_seconds=doc['retained_seconds'],
-                            rejected_seconds=doc['rejected_seconds'], rate_krw_hour=wearer.rate_krw_hour)
+                            rejected_seconds=doc['rejected_seconds'], rate_krw_hour=rate)
             db.add(imported_run)
             by_id[doc['run_id']] = imported_run
             used |= names

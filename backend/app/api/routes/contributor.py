@@ -1,0 +1,225 @@
+"""Authenticated mobile pilot. All totals come from the existing Ops ledgers."""
+import asyncio
+from datetime import datetime, timezone, timedelta
+import hashlib
+import json
+import re
+from uuid import uuid4
+from app.core.ops_s3 import _client as s3_client, get_settings as s3_settings
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.contributor_auth import contributor_identity, REGIONS
+from app.core.db import get_session
+from app.core.ops_ledger import footage_ledger
+from app.models import ContributorAccount, ContributorConsent, ContributorCameraClaim, ContributorRecipientAttempt, Episode, Wearer, OpsCamera, OpsSetting, Payout, PayoutRecipient
+
+router = APIRouter(prefix="/api/contributor", tags=["contributor"])
+RECORDS_BUCKET = "6thsense-contributor-records"
+AGREEMENTS = {"participation", "privacy", "collection", "international_transfer"}
+
+def now():
+    return datetime.now(timezone.utc)
+
+async def account_for(identity, db):
+    account = await db.get(ContributorAccount, identity["subject"])
+    if not account:
+        raise HTTPException(409, "enrollment_required")
+    wearer = await db.get(Wearer, account.wearer_id)
+    if not wearer or not wearer.is_active or account.routing_version != identity["region"]["routing_version"]:
+        raise HTTPException(403, "enrollment_inactive")
+    return account
+
+async def terms_for(region, db):
+    row = await db.get(OpsSetting, "contributor_terms_" + region["routing_version"])
+    try:
+        docs = json.loads(row.value) if row else []
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(docs, list) or any(not isinstance(d, dict) for d in docs):
+        return []
+    complete = []
+    for locale in ("en", "ko"):
+        localized = [d for d in docs if d.get("locale") == locale]
+        if (len(localized) == len(AGREEMENTS)
+                and all(isinstance(d.get("agreement"), str) for d in localized)
+                and {d.get("agreement") for d in localized} == AGREEMENTS
+                and all(all(isinstance(d.get(k), str) and d[k] for k in
+                            ("version", "sha256", "key", "object_version")) for d in localized)):
+            complete.extend(localized)
+    return complete
+
+async def has_consent(account, region, db, locale=None):
+    terms = await terms_for(region, db)
+    if locale is not None:
+        terms = [d for d in terms if d["locale"] == locale]
+    required = {(d["agreement"], d["version"], d["sha256"], d["locale"]) for d in terms}
+    if not required:
+        return False
+    receipts = (await db.execute(select(ContributorConsent).where(ContributorConsent.subject == account.subject))).scalars().all()
+    return any({(d["agreement"], d["version"], d["sha256"], d["locale"]) for d in json.loads(c.snapshot)["documents"]}.issubset(required) and {d["agreement"] for d in json.loads(c.snapshot)["documents"]} == AGREEMENTS for c in receipts)
+
+@router.get("/configuration")
+async def configuration():
+    import os
+    return {"identity": {"region": os.getenv("CONTRIBUTOR_COGNITO_REGION", "us-west-2"), "clientId": os.getenv("CONTRIBUTOR_COGNITO_CLIENT", "")}, "signup": os.getenv("CONTRIBUTOR_SIGNUP_MODE", "closed"), "upload": "operator_sd_card", "payment": "operator_approved", "threshold_seconds": 14400, "threshold_comparison": "strictly_greater_than"}
+
+class EnrollmentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+@router.post("/enrollment")
+async def enrollment(body: EnrollmentIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    if not body.name.strip():
+        raise HTTPException(422, "name_required")
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
+    account = await db.get(ContributorAccount, identity["subject"])
+    if not account:
+        region = identity["region"]
+        wearer = Wearer(name=body.name.strip(), contact="", location=region["region"], rate_krw_hour=region["hourly_rate_minor"] if region["currency"] == "KRW" else None, note="Verified mobile contributor; camera assignment requires operator confirmation.")
+        db.add(wearer)
+        await db.flush()
+        account = ContributorAccount(subject=identity["subject"], wearer_id=wearer.id, routing_version=region["routing_version"])
+        db.add(account)
+        await db.commit()
+    return {"enrolled": True}
+
+@router.get("/terms")
+async def terms(locale: str = "en", identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    if locale not in ("en", "ko"):
+        raise HTTPException(422, "unsupported_locale")
+    docs = [d for d in await terms_for(identity["region"], db) if d["locale"] == locale]
+    if {d["agreement"] for d in docs} != AGREEMENTS:
+        return {"status": "not_published", "documents": []}
+    def urls():
+        s3 = s3_client(s3_settings())
+        # Founder identity belongs to the private approval audit, not the phone.
+        return [{**{k: d[k] for k in ("agreement", "version", "sha256", "locale")}, "url": s3.generate_presigned_url("get_object", Params={"Bucket": RECORDS_BUCKET, "Key": d["key"], "VersionId": d["object_version"]}, ExpiresIn=900)} for d in docs]
+    return {"status": "published", "documents": await asyncio.to_thread(urls)}
+
+class ConsentIn(BaseModel):
+    locale: str = Field(pattern="^(en|ko)$")
+    documents: dict[str, str]
+    versions: dict[str, str]
+
+@router.post("/consent")
+async def consent(body: ConsentIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    account = await account_for(identity, db)
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306132)"))
+    docs = [d for d in await terms_for(identity["region"], db) if d["locale"] == body.locale]
+    if (set(body.documents) != AGREEMENTS or set(body.versions) != AGREEMENTS
+            or {d["agreement"]: d["sha256"] for d in docs} != body.documents
+            or {d["agreement"]: d["version"] for d in docs} != body.versions):
+        raise HTTPException(409, "terms_changed_or_unavailable")
+    if not await has_consent(account, identity["region"], db, locale=body.locale):
+        receipt_id = str(uuid4())
+        snapshot = {"id": receipt_id, "subject": account.subject, "wearer_id": account.wearer_id, "routing_version": account.routing_version, "accepted_at": now().isoformat(), "locale": body.locale, "documents": docs}
+        db.add(ContributorConsent(id=receipt_id, subject=account.subject, snapshot=json.dumps(snapshot)))
+        await db.commit()
+    return {"accepted": True}
+
+class ClaimIn(BaseModel):
+    device_id: str = Field(min_length=6, max_length=16)
+
+@router.post("/cameras")
+async def claim_camera(body: ClaimIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    account = await account_for(identity, db)
+    if not await has_consent(account, identity["region"], db):
+        raise HTTPException(409, "consent_required")
+    device = body.device_id.strip().upper().removeprefix("EGO-")
+    if not re.fullmatch("[A-F0-9]{6}", device):
+        raise HTTPException(422, "unsupported_camera")
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
+    camera = await db.get(OpsCamera, device)
+    if camera and camera.wearer_id not in (None, account.wearer_id):
+        raise HTTPException(409, "camera_assignment_conflict")
+    existing = (await db.execute(select(ContributorCameraClaim).where(ContributorCameraClaim.subject == account.subject, ContributorCameraClaim.device_id == device, ContributorCameraClaim.status.in_(["pending", "approved"]), ContributorCameraClaim.ended_at.is_(None)))).scalars().first()
+    if not existing:
+        existing = ContributorCameraClaim(id=str(uuid4()), subject=account.subject, device_id=device, status="pending")
+        db.add(existing)
+        await db.commit()
+    return {"id": existing.id, "device_id": device, "status": existing.status}
+
+@router.get("/dashboard")
+async def dashboard(identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    account = await account_for(identity, db)
+    wearer = await db.get(Wearer, account.wearer_id)
+    raw = (await db.execute(select(Episode).where(Episode.wearer_id == account.wearer_id, Episode.deleted_at.is_(None)).order_by(Episode.first_seen_at.desc()))).scalars().all()
+    rows = [r for r in await footage_ledger(db) if r["wearer_id"] == account.wearer_id and not r.get("counterparty")]
+    approved = [r for r in rows if r["review_status"] == "reviewed"]
+    by_recording = {r["recording"]: r for r in rows}
+    claims = (await db.execute(select(ContributorCameraClaim).where(ContributorCameraClaim.subject == account.subject).order_by(ContributorCameraClaim.created_at.desc()))).scalars().all()
+    payouts = (await db.execute(select(Payout).where(Payout.wearer_id == account.wearer_id).order_by(Payout.approved_at.desc()))).scalars().all()
+    attempts = (await db.execute(select(ContributorRecipientAttempt).where(ContributorRecipientAttempt.subject == account.subject, ContributorRecipientAttempt.status != "retry_allowed").order_by(ContributorRecipientAttempt.created_at.desc()))).scalars().all()
+    linked = await db.get(PayoutRecipient, account.wearer_id)
+    bank = next((a for a in attempts if linked and a.recipient_id == linked.wise_recipient_id), attempts[0] if attempts else None)
+    return {"name": wearer.name, "country": identity["region"]["country"], "consent_current": await has_consent(account, identity["region"], db), "rate": wearer.rate_krw_hour, "currency": identity["region"]["currency"], "recorded_seconds": sum(e.duration_s or 0 for e in raw), "unknown_duration_count": sum(not e.duration_s for e in raw), "approved_seconds": sum(r["retained_seconds"] for r in approved), "cameras": [{"id": c.id, "device_id": c.device_id, "status": "ended" if c.ended_at else c.status} for c in claims], "recordings": [{"recording": e.recording, "duration_seconds": e.duration_s or None, "uploaded_at": e.uploaded_at, "approved_seconds": by_recording[e.recording]["retained_seconds"] if e.recording in by_recording and by_recording[e.recording]["review_status"] == "reviewed" else None, "review_status": by_recording[e.recording]["review_status"] if e.recording in by_recording else "awaiting_qc"} for e in raw], "payouts": [{"id": p.id, "amount": p.amount_krw, "currency": "KRW", "status": p.status, "scheduled_for": p.scheduled_for} for p in payouts], "bank": {**json.loads(bank.summary), "status": "ready" if linked and bank.recipient_id == linked.wise_recipient_id else bank.status} if bank else None, "updated_at": now().isoformat()}
+
+class BankIn(BaseModel):
+    values: dict[str, str] = Field(default_factory=dict, max_length=20)
+    operation_id: str | None = Field(default=None, pattern="^[0-9a-f-]{36}$")
+    owns_account: bool = False
+    shares_details: bool = False
+
+    @staticmethod
+    def clean(values):
+        if any(len(k) > 40 or len(v) > 255 for k, v in values.items()):
+            raise HTTPException(422, "invalid_bank_fields")
+        return {k: v.strip().upper() if k == "ifscCode" else v.strip() for k, v in values.items()}
+
+@router.post("/bank/requirements")
+async def bank_requirements(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    account = await account_for(identity, db)
+    if not await has_consent(account, identity["region"], db):
+        raise HTTPException(409, "consent_required")
+    from app.core.contributor_wise import RecipientClient, ROUTES
+    country = identity["region"]["country"]
+    if country not in ROUTES:
+        raise HTTPException(409, "payout_region_unavailable")
+    values = BankIn.clean(body.values)
+    try:
+        return await asyncio.to_thread(RecipientClient().requirements, country, values)
+    except Exception:
+        raise HTTPException(503, "bank_requirements_unavailable") from None
+
+@router.post("/bank")
+async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    account = await account_for(identity, db)
+    if not await has_consent(account, identity["region"], db):
+        raise HTTPException(409, "consent_required")
+    from app.core.contributor_wise import RecipientClient, ROUTES, validate
+    country = identity["region"]["country"]
+    if country not in ROUTES or not body.owns_account or not body.shares_details or not body.operation_id:
+        raise HTTPException(422, "bank_confirmation_required")
+    values = BankIn.clean(body.values)
+    # Lock and commit a durable attempt BEFORE any non-idempotent provider write.
+    # Unknown outcomes remain held for an operator; retries never POST again.
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306133)"))
+    existing = (await db.execute(select(ContributorRecipientAttempt).where(ContributorRecipientAttempt.subject == account.subject, ContributorRecipientAttempt.status != "retry_allowed"))).scalars().first()
+    if existing:
+        return {"status": existing.status}
+    if await db.get(ContributorRecipientAttempt, body.operation_id):
+        raise HTTPException(409, "operation_conflict")
+    try:
+        client = RecipientClient()
+        requirements = await asyncio.to_thread(client.requirements, country, values)
+        issues = validate(requirements, values)
+    except Exception:
+        raise HTTPException(503, "bank_requirements_unavailable") from None
+    if issues:
+        raise HTTPException(422, {"code": "invalid_bank_fields", "fields": issues})
+    bank_field = next((f for f in requirements["fields"] if f["key"] == "bankCode"), {})
+    summary = {"country": country, "currency": ROUTES[country][0], "accountHolderName": values["accountHolderName"], "bankLabel": next((v["label"] for v in bank_field.get("options", []) if v["value"] == values.get("bankCode")), values.get("ifscCode", "")), "maskedAccount": "•••• " + values["accountNumber"][-4:]}
+    attempt = ContributorRecipientAttempt(id=body.operation_id, subject=account.subject, summary=json.dumps(summary), status="submitting")
+    db.add(attempt)
+    await db.commit()
+    try:
+        result = await asyncio.to_thread(client.create, country, values)
+        if not isinstance(result.get("id"), int) or result["id"] <= 0:
+            raise ValueError()
+        attempt.recipient_id = str(result["id"])
+        attempt.status = "needs_review"
+    except Exception:
+        attempt.status = "needs_reconciliation"
+    await db.commit()
+    return {"status": attempt.status}

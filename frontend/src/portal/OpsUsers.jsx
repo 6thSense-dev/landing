@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import CameraAssignments from "./CameraAssignments.jsx";
+import MobileContributorRequests from "./MobileContributorRequests.jsx";
 import { fmt } from "./opsShared.js";
 
 /** Contributor records preserve footage/payment history independently of login access.
- * App registration and versioned consent will link to these stable identities. */
+ * Verified mobile enrollment links app accounts to their contributor identities. */
 
 /** Hours, never a decimal — a decimal reads as a headcount-derived figure. */
 function hhmm(seconds) {
@@ -11,7 +12,7 @@ function hhmm(seconds) {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
-export default function OpsUsers({ state, act, busy, readOnly = false }) {
+export default function OpsUsers({ state, act, busy, onChanged, readOnly = false }) {
   const wearers = state?.wearers ?? [];
   const episodes = state?.episodes ?? [];
 
@@ -60,7 +61,8 @@ export default function OpsUsers({ state, act, busy, readOnly = false }) {
         ))}
       </div>
 
-      <p className="ops-note">App registration is not connected yet. Participation, privacy and collection terms are not configured; these contributor records do not establish an app account or recorded consent.</p>
+      <p className="ops-note">Mobile accounts are linked after verified enrollment; these contributor records do not establish an app account or recorded consent by themselves. Current published terms must be accepted before camera approval.</p>
+      {!readOnly && <MobileContributorRequests wearers={wearers} onChanged={onChanged} parentBusy={busy} />}
       {!readOnly && <CameraAssignments state={state} act={act} busy={busy} />}
       <div className="ops-cols ops-cols--narrow">
         <div className="ops-panel">

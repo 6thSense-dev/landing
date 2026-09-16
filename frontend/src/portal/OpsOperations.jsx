@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
-import { fmt, regionOf } from "./opsShared.js";
+import { fmt, regionOfEpisode, sourceKey } from "./opsShared.js";
 
 const labels = {
   unknown: "Awaiting scan",
@@ -37,8 +37,8 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
         if (!history && ["clean", "rejected"].includes(s)) return false;
         return (
           (!status || s === status) &&
-          (!person || String(e.wearer_id) === person) &&
-          `${e.recording} ${e.device_id} ${people.get(e.wearer_id)?.name || ""} ${e.processing?.reason || ""}`
+          (!person || sourceKey(e) === person) &&
+          `${e.recording} ${e.device_id} ${e.counterparty?.name || people.get(e.wearer_id)?.name || ""} ${regionOfEpisode(e)} ${e.counterparty ? "B2B" : ""} ${e.processing?.reason || ""}`
             .toLowerCase()
             .includes(q.toLowerCase())
         );
@@ -116,7 +116,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
           <input
             className="ops-q"
             aria-label="Search raw sources"
-            placeholder="Camera, contributor or episode"
+            placeholder="Camera, person, business or episode"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -133,16 +133,17 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             ))}
           </select>
           <select
-            aria-label="Raw contributor"
+            aria-label="Raw source"
             value={person}
             onChange={(e) => setPerson(e.target.value)}
           >
-            <option value="">All contributors</option>
+            <option value="">All sources</option>
             {[...people.values()].map((p) => (
-              <option key={p.id} value={p.id}>
+              <option key={p.id} value={`wearer:${p.id}`}>
                 {p.name}
               </option>
             ))}
+            {[...new Map((state.episodes || []).filter(e => e.counterparty).map(e => [e.counterparty.id, e.counterparty])).values()].map(b => <option key={`business:${b.id}`} value={`business:${b.id}`}>{b.name} · B2B</option>)}
           </select>
           <label className="ops-check">
             <input
@@ -158,7 +159,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             <thead>
               <tr>
                 <th>Episode / camera</th>
-                <th>Contributor</th>
+                <th>Source</th>
                 <th>Uploaded</th>
                 <th>Status</th>
                 <th>Reason / next step</th>
@@ -181,10 +182,10 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
                     <td className="mono">
                       {e.recording}
                       <div className="ops-muted">
-                        EGO-{e.device_id} · {regionOf(e.session)}
+                        EGO-{e.device_id} · {regionOfEpisode(e)}
                       </div>
                     </td>
-                    <td>{people.get(e.wearer_id)?.name || "Unassigned"}</td>
+                    <td>{e.counterparty?.name || people.get(e.wearer_id)?.name || "Unassigned"}{e.counterparty && <> <span className="ops-chip">B2B</span></>}</td>
                     <td className="mono">
                       {e.uploaded_at
                         ? new Date(e.uploaded_at).toLocaleString()
