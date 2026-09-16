@@ -9,6 +9,39 @@
 .sieve-deadline strong { font-weight: 500; }
 .sieve-deadline span { color: var(--o-muted); font-size: 12px; }
 .sieve-deadline button { margin-top: 8px; }
+.sieve-pipeline { border: 1px solid var(--o-line); border-top: 3px solid var(--o-accent); border-radius: 14px; padding: 22px; margin-bottom: 28px; background: var(--o-surface); }
+.sieve-pipeline-heading { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.sieve-pipeline-heading h3 { margin: 0 0 8px; font-size: 22px; font-weight: 500; letter-spacing: -.025em; }
+.sieve-pipeline-heading p:not(.sieve-eyebrow) { margin: 0; color: var(--o-muted); font-size: 12px; line-height: 1.6; }
+.sieve-pipeline-checked { flex-shrink: 0; text-align: right; }
+.sieve-pipeline-checked span { display: block; }
+.sieve-pipeline-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sieve-pipeline-card { min-width: 0; padding: 18px; background: var(--o-surface-2); border: 1px solid var(--o-line); border-radius: 10px; }
+.sieve-pipeline-company { grid-column: 1 / -1; }
+.sieve-pipeline-card-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sieve-pipeline-card h4 { margin: 0; font-size: 14px; font-weight: 500; }
+.sieve-pipeline-state { font-size: 11px; color: var(--o-muted); }
+.sieve-pipeline-stale { color: var(--o-warn); }
+.sieve-pipeline-context { margin: 10px 0 0; color: var(--o-muted); font-size: 12px; line-height: 1.6; }
+.sieve-pipeline-counts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin: 20px 0 14px; }
+.sieve-pipeline-counts dt { font-size: 11px; color: var(--o-muted); margin-bottom: 8px; }
+.sieve-pipeline-counts dd { margin: 0; font: 500 25px/1.3 var(--o-mono); }
+.sieve-pipeline-value { margin: 22px 0 18px; font: 500 clamp(25px, 2.4vw, 34px)/1.25 var(--o-mono); letter-spacing: -.035em; overflow-wrap: anywhere; }
+.sieve-pipeline-value span { display: block; margin-top: 6px; color: var(--o-muted); font: 12px/1.5 var(--o-mono); letter-spacing: 0; }
+.sieve-pipeline-verdict { font-family: inherit; font-size: 25px; }
+.sieve-pipeline-upload .sieve-pipeline-value { color: var(--o-accent); }
+.sieve-pipeline-pass { color: var(--o-ok); }
+.sieve-pipeline-details { display: grid; gap: 9px; margin: 0; font-size: 12px; }
+.sieve-pipeline-details > div { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sieve-pipeline-details dt { color: var(--o-muted); }
+.sieve-pipeline-details dd { margin: 0; font-family: var(--o-mono); overflow-wrap: anywhere; }
+.sieve-pipeline-updated { margin: 18px 0 0; color: var(--o-muted); font-size: 10px; line-height: 1.5; }
+.sieve-pipeline-notice { margin: 0 0 18px; padding: 12px; border-left: 2px solid var(--o-warn); color: var(--o-warn); background: var(--o-surface-2); font-size: 12px; line-height: 1.6; }
+.sieve-pipeline-unavailable { color: var(--o-muted); margin: 20px 0; font-size: 13px; line-height: 1.6; }
+.sieve-pipeline progress { display: block; width: 100%; height: 6px; margin: 16px 0 0; appearance: none; overflow: hidden; border: 0; border-radius: 6px; background: var(--o-line); accent-color: var(--o-accent); }
+.sieve-pipeline progress::-webkit-progress-bar { background: var(--o-line); }
+.sieve-pipeline progress::-webkit-progress-value { background: var(--o-accent); }
+.sieve-pipeline progress::-moz-progress-bar { background: var(--o-accent); }
 .sieve-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
 .sieve-stats article { display: flex; flex-direction: column; padding: 20px; border: 1px solid var(--o-line); background: var(--o-surface); border-radius: 14px; }
 .sieve-stats article > span { color: var(--o-muted); font-size: 12px; }
@@ -71,6 +104,13 @@
 .sieve-footer code { font: inherit; overflow-wrap: anywhere; }
 @media (max-width: 1000px) { .sieve-stats { grid-template-columns: repeat(2, minmax(0,1fr)); } .sieve-stats strong { font-size: 30px; } }
 @media (max-width: 600px) {
+  .sieve-pipeline { padding: 16px 12px; }
+  .sieve-pipeline-heading { flex-direction: column; gap: 12px; }
+  .sieve-pipeline-checked { text-align: left; }
+  .sieve-pipeline-grid { grid-template-columns: minmax(0, 1fr); }
+  .sieve-pipeline-card { padding: 16px 12px; }
+  .sieve-pipeline-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 20px; }
+  .sieve-pipeline-value { font-size: 29px; }
   .sieve-heading { flex-direction: column; gap: 18px; }
   .sieve-deadline { justify-items: start; }
   .sieve-subtitle span { display: block; margin: 6px 0 0; }

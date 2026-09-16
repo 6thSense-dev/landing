@@ -5,6 +5,74 @@ import './opsSieve.css';
 const hours = seconds => (Number(seconds || 0) / 3600).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const stamp = value => value ? new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Not yet';
 const labels = { inherited: 'Inherited', pending: 'Pending', blocked: 'Blocked' };
+const knownNumber = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const count = value => knownNumber(value) ? value.toLocaleString() : '—';
+const pipelineHours = value => knownNumber(value) ? `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : 'Not reported';
+const bytes = value => knownNumber(value) ? `${(value / 1e9).toLocaleString(undefined, { maximumFractionDigits: 2 })} GB` : 'Not reported';
+const ratio = (value, total) => `${count(value)} / ${count(total)}`;
+const pipelineStates = {
+  PASS: 'Passed', FAILED: 'Needs attention', FAIL: 'Needs attention', ERROR: 'Needs attention',
+  RUNNING: 'In progress', IN_PROGRESS: 'In progress', PREPARING: 'Preparing', PROCESSING: 'Processing',
+  UPLOADING: 'Uploading', TRANSFERRING: 'Uploading', COMPLETE: 'Complete', COMPLETED: 'Complete',
+  DELIVERED: 'Uploaded', SUCCEEDED: 'Complete', READY_FOR_REVIEW: 'Ready for review',
+  DRAFT_PENDING_REVIEW: 'Review pending', PENDING: 'Pending', WAITING: 'Waiting',
+  VALIDATING: 'Validating', PARTIAL: 'In progress', UNAVAILABLE: 'Unavailable', UNKNOWN: 'Not yet reported',
+  PACKAGING: 'Packaging', DELIVERED_CHECKSUMS_VERIFIED: 'Uploaded and checksummed', BLOCKED: 'Held', INCONSISTENT: 'Needs verification',
+};
+
+function PipelineCard({ title, data, className = '', children, state }) {
+  const available = data?.available === true;
+  return <article className={`sieve-pipeline-card ${className}`} aria-label={title}>
+    <div className="sieve-pipeline-card-heading"><h4>{title}</h4>
+      <span className={`sieve-pipeline-state${data?.stale ? ' sieve-pipeline-stale' : ''}`}>{!available ? 'Unavailable' : data.stale ? 'Stale snapshot' : state || 'Latest snapshot'}</span>
+    </div>
+    {available ? children : <p className="sieve-pipeline-unavailable">Status unavailable. No count is assumed.</p>}
+    <p className="sieve-pipeline-updated">{data?.updated_at ? `Updated ${stamp(data.updated_at)}` : 'Update time not reported'}</p>
+  </article>;
+}
+
+function PipelineProgress({ data, error, loading }) {
+  const company = data?.company, delivery = data?.delivery, validation = data?.validation, supplement = data?.supplement;
+  const filesKnown = knownNumber(delivery?.uploaded_files) && knownNumber(delivery?.total_files) && delivery.total_files > 0;
+  const validationState = validation?.state === 'PASS' ? 'Passed' : ({ FAILED: 'Needs attention', FAIL: 'Needs attention', ERROR: 'Needs attention', RUNNING: 'In progress', IN_PROGRESS: 'In progress', VALIDATING: 'In progress', PENDING: 'Pending', WAITING: 'Waiting' }[validation?.state] || 'Result not yet reported');
+  return <section className="sieve-pipeline" aria-labelledby="sieve-pipeline-title">
+    <div className="sieve-pipeline-heading"><div><p className="sieve-eyebrow">Processing and delivery</p><h3 id="sieve-pipeline-title">Live pipeline progress</h3>
+      <p>Company processing, customer uploads and private review footage are counted separately.</p></div>
+      <p className="sieve-pipeline-checked">{data?.checked_at ? `Checked ${stamp(data.checked_at)}` : 'Awaiting first update'}<span>Refreshes every 30 seconds</span></p>
+    </div>
+    {loading && !data && <p className="sieve-pipeline-notice" role="status">Loading pipeline status…</p>}
+    {error && <p className="sieve-pipeline-notice" role="status">{data ? 'Live update failed. Showing the last loaded pipeline snapshot.' : 'Live pipeline status is unavailable. Collection figures are shown separately below.'}</p>}
+    {!error && (data?.cache?.stale || data?.errors?.length > 0) && <p className="sieve-pipeline-notice" role="status">{data?.cache?.stale ? 'Pipeline updates are delayed. These are the last available figures.' : 'Some pipeline updates are unavailable. Check each stage’s status below.'}</p>}
+    <div className="sieve-pipeline-grid">
+      <PipelineCard title="Company Raw → Clean" data={company} className="sieve-pipeline-company">
+        <p className="sieve-pipeline-context">All countries · company processing</p>
+        <dl className="sieve-pipeline-counts">{[['Source groups', company?.source_groups], ['Archived', company?.archived], ['Clean complete', company?.clean_complete], ['In progress', company?.in_progress], ['Held', company?.held], ['Deleted', company?.deleted]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{count(value)}</dd></div>)}</dl>
+      </PipelineCard>
+      <PipelineCard title="Sieve preparation" data={delivery} state={pipelineStates[delivery?.state] || 'Status not yet reported'}>
+        <p className="sieve-pipeline-value">{pipelineHours(delivery?.prepared_hours)}<span>prepared</span></p>
+        <dl className="sieve-pipeline-details"><div><dt>Recordings processed</dt><dd>{ratio(delivery?.recordings_processed, delivery?.recordings_expected)}</dd></div><div><dt>Packaged assets</dt><dd>{count(delivery?.packaged_assets)}</dd></div></dl>
+        <p className="sieve-pipeline-context">Preparation does not confirm customer upload.</p>
+      </PipelineCard>
+      <PipelineCard title="Uploaded to Sieve" data={delivery} className="sieve-pipeline-upload" state={delivery?.complete === true ? 'Upload complete' : pipelineStates[delivery?.state] || 'Status not yet reported'}>
+        <p className="sieve-pipeline-value">{pipelineHours(delivery?.uploaded_hours)}<span>uploaded hours</span></p>
+        <p className="sieve-pipeline-context">Customer delivery location · OCI</p>
+        <dl className="sieve-pipeline-details"><div><dt>Uploaded assets</dt><dd>{count(delivery?.uploaded_assets)}</dd></div><div><dt>Uploaded files</dt><dd>{ratio(delivery?.uploaded_files, delivery?.total_files)}</dd></div><div><dt>Uploaded data</dt><dd>{bytes(delivery?.uploaded_bytes)} / {bytes(delivery?.total_bytes)}</dd></div></dl>
+        {filesKnown && <progress value={Math.min(delivery.uploaded_files, delivery.total_files)} max={delivery.total_files} aria-label="Files uploaded to Sieve" aria-valuetext={`${count(delivery.uploaded_files)} of ${count(delivery.total_files)} files`} />}
+        {!knownNumber(delivery?.uploaded_hours) && <p className="sieve-pipeline-context">Uploaded hours are not yet confirmed.</p>}
+      </PipelineCard>
+      <PipelineCard title="Independent validation" data={validation} state={validationState}>
+        <p className={`sieve-pipeline-value sieve-pipeline-verdict${validation?.state === 'PASS' ? ' sieve-pipeline-pass' : ''}`}>{validationState}</p>
+        <dl className="sieve-pipeline-details"><div><dt>Clip reports found</dt><dd>{ratio(validation?.clip_reports, validation?.total_clips)}</dd></div></dl>
+        <p className="sieve-pipeline-context">Report counts do not mean every clip passed. Technical checks do not record customer acceptance.</p>
+      </PipelineCard>
+      <PipelineCard title="Private originals supplement" data={supplement} state={pipelineStates[supplement?.state] || 'Status not yet reported'}>
+        <p className="sieve-pipeline-value">{pipelineHours(supplement?.hours)}<span>potential technical hours</span></p>
+        <dl className="sieve-pipeline-details"><div><dt>Recordings</dt><dd>{count(supplement?.recordings)}</dd></div><div><dt>Original data</dt><dd>{bytes(supplement?.bytes)}</dd></div></dl>
+        <p className="sieve-pipeline-context">{supplement?.external_delivery_performed === false ? 'Privately staged · not uploaded to Sieve. Excluded from uploaded hours.' : 'External delivery status needs verification. Excluded from the main batch’s uploaded hours.'}</p>
+      </PipelineCard>
+    </div>
+  </section>;
+}
 
 function Distribution({ title, rows, total }) {
   return <section className="sieve-panel" aria-label={title}>
@@ -23,6 +91,9 @@ export default function OpsSieve({ onExpired }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pipeline, setPipeline] = useState(null);
+  const [pipelineError, setPipelineError] = useState(false);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
   const [country, setCountry] = useState('');
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
@@ -36,25 +107,41 @@ export default function OpsSieve({ onExpired }) {
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   }, [onExpired]);
-  useEffect(() => { load(); const timer = setInterval(load, 30000); return () => clearInterval(timer); }, [load]);
+  const loadPipeline = useCallback(async () => {
+    setPipelineLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await portalFetch('/api/ops/sieve/pipeline', { signal: controller.signal });
+      if (response.status === 410) { onExpired?.(); return; }
+      if (!response.ok || !response.data || typeof response.data !== 'object') throw Error('Unavailable');
+      setPipeline(response.data); setPipelineError(false);
+    } catch { setPipelineError(true); }
+    finally { clearTimeout(timeout); setPipelineLoading(false); }
+  }, [onExpired]);
+  const refresh = useCallback(() => { load(); loadPipeline(); }, [load, loadPipeline]);
+  useEffect(() => { refresh(); const timer = setInterval(refresh, 30000); return () => clearInterval(timer); }, [refresh]);
   const rows = useMemo(() => (data?.recordings || []).filter(r => (!country || r.country === country) && (!status || r.status === status)
     && `${r.recording} ${r.entity.name} ${r.activity} ${r.camera}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [data, country, status, query]);
-  if (!data) return <section className="sieve"><h2>Sieve</h2>{error ? <><p className="ops-error" role="alert">{error}</p><button className="ops-scan" onClick={load}>Retry</button></> : <p className="ops-muted" role="status">Loading Sieve collection…</p>}</section>;
-  const t = data.totals, b = data.breakdowns;
-  const progress = t.clean_seconds ? t.inherited_seconds / t.clean_seconds * 100 : 0;
+  const t = data?.totals, b = data?.breakdowns;
+  const progress = t?.clean_seconds ? t.inherited_seconds / t.clean_seconds * 100 : 0;
   const filteredHours = rows.reduce((sum, r) => sum + r.retained_seconds, 0);
-  const lastCheck = data.sync.completed_at || data.sync.started_at;
+  const lastCheck = data?.sync?.completed_at || data?.sync?.started_at;
   const stale = lastCheck && Date.now() - new Date(lastCheck).getTime() > 15 * 60 * 1000;
   return <section className="sieve" aria-labelledby="sieve-title">
     <div className="sieve-heading">
-      <div><p className="sieve-eyebrow">Customer collection · temporary dashboard</p><h2 id="sieve-title">Sieve</h2><p className="sieve-subtitle">Clean → Sieve <span>MP4 · metadata · calibration</span></p></div>
-      <div className="sieve-deadline"><strong>Contract ends Sep 22, 2026</strong><span>Dashboard through Sep 25 · Los Angeles time</span><button className="ops-scan" disabled={loading} onClick={load}>{loading ? 'Refreshing…' : 'Refresh dashboard'}</button></div>
+      <div><p className="sieve-eyebrow">Customer collection · temporary dashboard</p><h2 id="sieve-title">Sieve</h2><p className="sieve-subtitle">Delivery and internal collection <span>MP4 · metadata · calibration</span></p></div>
+      <div className="sieve-deadline"><strong>Contract ends Sep 22, 2026</strong><span>Dashboard through Sep 25 · Los Angeles time</span><button className="ops-scan" disabled={loading || pipelineLoading} onClick={refresh}>{loading || pipelineLoading ? 'Refreshing…' : 'Refresh dashboard'}</button></div>
     </div>
-    {error && <p className="ops-error" role="alert">{error} Showing the last loaded snapshot.</p>}
+    <PipelineProgress data={pipeline} error={pipelineError} loading={pipelineLoading} />
+    {error && <p className="ops-error" role="alert">{error}{data && ' Showing the last loaded snapshot.'}</p>}
+    {!data && (error ? <button className="ops-scan" onClick={load}>Retry</button> : <p className="ops-muted" role="status">Loading Sieve collection…</p>)}
+    {data && <>
     {(data.sync.error || stale || !data.automatic_sync) && <p className="ops-error" role="status">{data.sync.error || (stale ? 'Inheritance verification is overdue. Counts show the last verified copies.' : 'Automatic inheritance is not running.')}</p>}
+    <div className="sieve-section-heading"><h3>Internal collection</h3><p>These copies are internal storage, not customer delivery.</p></div>
     <div className="sieve-stats">
       <article><span>Hours collected in Clean</span><strong>{hours(t.clean_seconds)}<small> h</small></strong><p>{t.recordings} unique recordings · retained footage</p></article>
-      <article className="sieve-stat-accent"><span>Hours inherited by Sieve</span><strong>{hours(t.inherited_seconds)}<small> h</small></strong><p>{t.inherited_recordings} verified recordings · {(t.copied_bytes / 1e9).toFixed(1)} GB</p></article>
+      <article className="sieve-stat-accent"><span>Copied to internal Sieve storage</span><strong>{hours(t.inherited_seconds)}<small> h</small></strong><p>{t.inherited_recordings} verified recordings · {(t.copied_bytes / 1e9).toFixed(1)} GB</p></article>
       <article><span>Source diversity</span><strong>{t.countries}<small> countries</small></strong><p>{t.entities} contributors / businesses · {t.cameras} cameras</p></article>
       <article><span>Customer acceptance</span><strong>Not recorded</strong><p>Copied footage awaits customer acceptance.</p></article>
     </div>
@@ -86,6 +173,7 @@ export default function OpsSieve({ onExpired }) {
         {row.status === 'inherited' && <p className="sieve-reason">MP4, original metadata, metadata provenance, and calibration copied from versioned Clean artifacts.</p>}
       </details>)}
     </div>
-    <footer className="sieve-footer"><span>Snapshot {stamp(data.updated_at)} · Last full verification {stamp(data.sync.completed_at)}</span><code>s3://{data.bucket}/{data.prefix}</code><span>Dashboard refreshes every 30 seconds. Inheritance checks run every 5 minutes.</span></footer>
+    <footer className="sieve-footer"><span>Snapshot {stamp(data.updated_at)} · Last full verification {stamp(data.sync.completed_at)}</span><span>Dashboard refreshes every 30 seconds. Internal copy checks run every 5 minutes.</span></footer>
+    </>}
   </section>;
 }
