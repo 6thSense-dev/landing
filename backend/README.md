@@ -37,6 +37,7 @@ cd backend && pytest -v
 
 Tests use [testcontainers-python](https://testcontainers-python.readthedocs.io/) which boots an ephemeral Postgres in Docker. The Docker daemon must be running.
 Alternatively, set `TEST_DATABASE_URL` to a disposable PostgreSQL database whose name ends in `_test`, using a `postgresql+asyncpg://` URL. The fixtures create and drop application tables; do not point them at a development or production ledger. See the [mobile pilot test command](../docs/CONTRIBUTOR-MOBILE-PILOT.md#deployment-and-validation).
+Run the contributor-deletion regressions and real migration checks in separate invocations, with migration checks starting from an empty disposable schema. See the [deletion validation commands](../docs/CONTRIBUTOR-DELETION.md#local-validation), including migration 0018's preservation and downgrade-refusal tests.
 
 ## Raw processing queue
 
@@ -68,6 +69,7 @@ Sieve inherits versioned MP4, original metadata and calibration from imported Cl
 | `CONTRIBUTOR_SIGNUP_MODE` | no | Public configuration label; defaults to `closed`. The Cognito signup gate remains the authority for who can register. |
 
 The [contributor pilot guide](../docs/CONTRIBUTOR-MOBILE-PILOT.md) documents `/api/contributor/*`, staff supervision in `/api/ops/contributors/*`, migration `0016`, versioned agreement storage and recipient recovery. Terms use the configured `OPS_AWS_ACCESS_KEY_ID` / `OPS_AWS_SECRET_ACCESS_KEY` pair and `OPS_S3_REGION`; credentials need the relevant terms read and consent-export write permissions. Wise configuration remains server-only and follows the [Ops payment workflow](../docs/OPS-WORKFLOW.md#payment-policy-and-operation).
+The [deletion release contract](../docs/CONTRIBUTOR-DELETION.md#deployment-and-rollback) adds migrations `0017` and `0018`. Cognito deletion uses the default AWS credential chain (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` on Railway) with permission limited to `cognito-idp:AdminDeleteUser` for the contributor pool. Preserve both the receipt schema and original/retry lookup code during an application rollback.
 
 ## Deploy (Railway)
 

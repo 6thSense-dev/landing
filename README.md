@@ -28,6 +28,7 @@ For contracted footage outside individual payouts, see [business source attribut
 For Sieve's Clean-only MP4, metadata and calibration handoff and its temporary hours/diversity dashboard, see [Sieve collection and inheritance](docs/SIEVE-CLEAN-INHERITANCE.md).
 For audited bookkeeping of payments made outside the payout workflow, see [external payment records](docs/EXTERNAL-PAYMENT-RECORDS.md).
 For verified mobile accounts, supervised camera requests and bank-recipient review, see the [contributor mobile pilot](docs/CONTRIBUTOR-MOBILE-PILOT.md). The pilot retains manual SD-card upload and requires published agreements before camera or bank registration.
+For account-deletion receipts, operator fulfillment, and migration/rollback requirements, see the [contributor deletion release contract](docs/CONTRIBUTOR-DELETION.md).
 
 ## Frontend
 

@@ -15,7 +15,7 @@ The mobile API connects verified Cognito subjects to new Ops wearer records. It 
 
 ## API and supervision
 
-All `/api/contributor/*` account routes require a Cognito access token. The server restricts issuer/client/token kind, then calls Cognito GetUser to verify the token and current phone/routing attributes. Staff cookie auth does not grant mobile access. `/configuration` is public and contains only mobile client configuration and pilot mode.
+Authenticated `/api/contributor/*` account routes require a Cognito access token. The server restricts issuer/client/token kind, then calls Cognito GetUser to verify the token and current phone/routing attributes. Staff cookie auth does not grant mobile access. `/configuration` is public and contains only mobile client configuration and pilot mode. The [deletion receipt endpoint](CONTRIBUTOR-DELETION.md#mobile-api) uses its own Bearer token so original and retry receipts remain usable after the login is removed; `/notice` serves published pre-account notices without authentication.
 
 The `/api/ops/contributors` routes use the existing staff role gate and CSRF origin check. Operators can list requests, approve physical camera assignments, export immutable consent receipts, and reconcile recipient attempts. Terms publication additionally requires the authenticated staff email to appear in the server-only `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` allowlist. A staff role, including `founder`, does not itself grant this authority; an empty or absent allowlist denies everyone. The user-facing account cannot call these routes.
 
@@ -62,6 +62,7 @@ For an unknown outcome, select **Recipient found** or **No recipient was created
 ## Deployment and validation
 
 Migration 0016 is additive. Empty installations can downgrade; populated mobile audit tables deliberately block destructive schema rollback. Roll back application code while retaining these tables if needed.
+Account deletion also requires migrations 0017 and 0018. Retain the receipt schema and original/retry lookup code on application rollback; migration 0018 refuses downgrade once retry receipts exist. See the [deletion deployment and rollback guidance](CONTRIBUTOR-DELETION.md#deployment-and-rollback) and [separate regression and migration test commands](CONTRIBUTOR-DELETION.md#local-validation).
 
 Configure `CONTRIBUTOR_COGNITO_POOL` and `CONTRIBUTOR_COGNITO_CLIENT`; the region defaults to `us-west-2` through `CONTRIBUTOR_COGNITO_REGION`. `CONTRIBUTOR_SIGNUP_MODE` labels the public configuration and defaults to `closed`; it does not replace the Cognito signup gate. S3 access uses the configured `OPS_AWS_ACCESS_KEY_ID` / `OPS_AWS_SECRET_ACCESS_KEY` pair and `OPS_S3_REGION` for versioned terms reads and consent exports. Cognito GetUser authenticates with the caller's access token, and Wise uses existing server-only credentials. No AWS or Wise credentials go into the app.
 
