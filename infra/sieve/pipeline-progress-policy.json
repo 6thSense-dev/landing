@@ -27,6 +27,12 @@
           ]
         }
       }
+    },
+    {
+      "Sid": "ReadSupplementDeliveryStatus",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::6thsense-sieve/reports/sow1-20260916-supplement-v1/delivery/status.json"
     }
   ]
 }

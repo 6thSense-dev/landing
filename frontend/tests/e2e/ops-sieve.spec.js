@@ -42,7 +42,7 @@ test('delivery overview is compact and keeps totals separate', async ({page}, in
   await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
   await expect(metric(page,'Uploaded to Sieve')).toContainText('of 10 h delivery target');
   await expect(metric(page,'Available in Clean')).toContainText('2.00 h');
-  await expect(metric(page,'Awaiting release')).toContainText('4.70 h');
+  await expect(metric(page,'Originals transfer')).toContainText('4.70 h');
   await expect(metric(page,'Uploaded to Sieve').getByRole('progressbar')).toHaveAttribute('value','6.03');
   await expect(page.getByRole('region',{name:'Delivery overview'})).not.toContainText('10.73');
   await expect(page.getByLabel('What happens next')).toContainText('Technical checks: in progress');
@@ -116,7 +116,7 @@ test('unavailable or partial figures never become zero or passed', async ({page}
   await page.goto('/portal/ops?tab=sieve');
   await expect(metric(page,'Uploaded to Sieve')).toContainText('Not reported');
   await expect(metric(page,'Uploaded to Sieve').getByRole('progressbar')).toHaveCount(0);
-  await expect(metric(page,'Awaiting release')).toContainText('Not reported');
+  await expect(metric(page,'Originals transfer')).toContainText('Not reported');
   await expect(page.getByLabel('What happens next')).toContainText('Technical checks: result pending');
   await expect(page.getByLabel('Company processing')).toContainText('status unavailable');
   await expect(page.getByRole('status')).toContainText('Last known figures');
@@ -201,4 +201,60 @@ test('polling shrink does not restore an obsolete page when new footage arrives'
   state.data.recordings=all;
   await page.clock.fastForward(30001);
   await expect(page.getByRole('navigation',{name:'Recording pages'}).getByRole('status')).toHaveText('1–10 of 24 recordings');
+});
+
+const originalsTransfer = (overrides = {}) => ({
+  available:true, state:'UPLOADED_FOR_CUSTOMER_QC', total_files:604, uploaded_files:604,
+  total_bytes:25394461079, uploaded_bytes:25394461079,
+  potential_unique_technical_hours:4.696644566, uploaded_hours:4.696644566,
+  complete:true, external_transfer_completed:true, customer_accepted:false, human_review:'PENDING',
+  updated_at:new Date().toISOString(), ...overrides,
+});
+
+test('verified original folders add hours with explicit split and pending customer QC', async ({page},info) => {
+  const state=await setup(page);state.pipeline.supplement_delivery=originalsTransfer();
+  state.pipeline.validation.state='PASS';
+  await page.goto('/portal/ops?tab=sieve');
+  const uploaded=metric(page,'Uploaded to Sieve');
+  await expect(uploaded).toContainText('10.73 h');
+  await page.screenshot({path:info.outputPath('supplement-delivered.png'),fullPage:true});
+  await expect(uploaded).toContainText('6.03 h formatted + 4.70 h original folders for customer QC');
+  await expect(uploaded).toContainText('not accepted hours');
+  await expect(uploaded).toContainText('customer acceptance not recorded');
+  await expect(metric(page,'Originals transfer')).toContainText('Sent for customer QC');
+  await expect(metric(page,'Originals transfer')).toContainText('604 / 604 files');
+  await expect(metric(page,'Originals transfer')).toContainText('Human review and acceptance pending');
+  await expect(page.getByLabel('What happens next')).toContainText('Formatted batch only');
+  await summary(page,'Processing details').click();
+  await expect(page.getByRole('region',{name:'Originals customer transfer',exact:true})).toContainText('separate from the formatted batch');
+  await expect(page.getByRole('region',{name:'Private extra footage',exact:true})).toContainText('Historical private staging snapshot');
+  await expectNoHorizontalOverflow(page);
+  expect(state.requests.every(r=>r.method==='GET')).toBe(true);
+});
+
+for(const transferState of ['PREPARING','UPLOADING','FAILED','INCONSISTENT']) {
+  test(`${transferState} originals remain excluded from uploaded hours`, async ({page}) => {
+    const state=await setup(page);
+    state.pipeline.supplement_delivery=originalsTransfer({state:transferState,complete:false,external_transfer_completed:false,
+      uploaded_hours:null,uploaded_files:100,uploaded_bytes:2e9});
+    await page.goto('/portal/ops?tab=sieve');
+    await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
+    await expect(metric(page,'Uploaded to Sieve')).not.toContainText('10.73');
+    await expect(metric(page,'Originals transfer')).toContainText('100 / 604 files');
+    await expect(metric(page,'Originals transfer')).toContainText('excluded from uploaded hours');
+    await expect(metric(page,'Originals transfer').getByRole('progressbar')).toHaveAttribute('value','100');
+    await expectNoHorizontalOverflow(page);
+  });
+}
+
+test('contradictory completion and unavailable originals never inflate delivered hours', async ({page}) => {
+  const state=await setup(page);state.pipeline.supplement_delivery=originalsTransfer({uploaded_files:603});
+  await page.goto('/portal/ops?tab=sieve');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
+  await expect(metric(page,'Uploaded to Sieve')).not.toContainText('10.73');
+  state.pipeline.supplement_delivery={available:false};
+  await page.getByRole('button',{name:'Refresh dashboard'}).click();
+  await expect(metric(page,'Originals transfer')).toContainText('Transfer status unavailable');
+  await expect(metric(page,'Originals transfer').getByRole('progressbar')).toHaveCount(0);
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('6.03 h');
 });
