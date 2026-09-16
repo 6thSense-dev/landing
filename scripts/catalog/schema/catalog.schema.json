@@ -1398,7 +1398,7 @@
         },
         "hands": {
           "title": "Hands facet",
-          "description": "Buckets over ClipSummary.hands. Conventional values are 'left', 'right' and 'both'; 'both' is emitted only when a clip carries two hands, in addition to its left and right buckets.",
+          "description": "Buckets over ClipSummary.hands. Conventional values are 'left', 'right', 'both' and 'none'; 'both' is emitted only when a clip carries two hands, in addition to its left and right buckets, and 'none' is emitted for a clip whose `hands` is []. 'none' is a REAL bucket, not a placeholder for a missing value: a camera-only package is one of the two products this rig ships, and a clip that fell into no bucket at all could not be selected, counted or priced by a buyer who wants exactly that product. `hands` is never null, so there is no unknown state to confuse it with.",
           "type": "array",
           "items": {
             "$ref": "#/$defs/FacetBucket"

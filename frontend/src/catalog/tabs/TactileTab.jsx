@@ -244,17 +244,41 @@ export default function TactileTab({ clip }) {
     return best;
   }, [tp, playT, stillHand]);
 
-  /* ---------------- empty ---------------- */
+  /* ---------------- empty ----------------
+
+     Two different answers, and rendering them the same is how a sellable product got
+     described to a buyer as a packaging fault.
+
+       hands == []   this is the CAMERA-ONLY product. There is no glove because none was
+                     worn, by design. Nothing is missing and nothing went wrong.
+       hands != []   a glove WAS worn and this clip publishes no preview for it. That is a
+                     packaging fault, and it is still not the same as a glove that recorded
+                     nothing. */
   if (!tp) {
+    const gloveless = !Array.isArray(clip?.hands) || clip.hands.length === 0;
     return (
       <div className="cat-empty">
-        <p className="cat-empty__head">No tactile data in this clip</p>
+        <p className="cat-empty__head">
+          {gloveless ? "Camera only — no tactile gloves" : "No tactile data in this clip"}
+        </p>
         <p className="cat-empty__body">
-          <code>tactile_preview</code> is null and <code>hands</code> is{" "}
-          <code>{JSON.stringify(clip?.hands ?? [])}</code>, so no glove was worn. Every clip in
-          this catalog is egocentric stereo video <em>and</em> tactile, so this is a packaging
-          fault to report rather than a shape the product ships — and it is still not the same
-          as a glove that recorded nothing.
+          {gloveless ? (
+            <>
+              <code>hands</code> is <code>[]</code>, so no glove was worn on this take. This
+              rig ships two products and they are equals: egocentric stereo video with two
+              tactile gloves, and egocentric stereo video on its own. This clip is the second
+              one. Nothing here was left unmeasured — the tactile QA checks report{" "}
+              <code>not_applicable</code>, not <code>not_run</code>, and this clip is graded
+              on the streams it actually carries.
+            </>
+          ) : (
+            <>
+              <code>hands</code> is <code>{JSON.stringify(clip?.hands ?? [])}</code> — a glove
+              was worn — and <code>tactile_preview</code> is null, so this clip publishes no
+              channel map for a stream it says it carries. That is a packaging fault to
+              report, and it is not the same as a glove that recorded nothing.
+            </>
+          )}
         </p>
       </div>
     );

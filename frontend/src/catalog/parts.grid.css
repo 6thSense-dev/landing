@@ -755,8 +755,16 @@
   backdrop-filter: saturate(1.1);
 }
 
-/* The same slot, not quiet. A clip that is not stereo-plus-tactile is a data
-   fault in this collection, so it is coloured like one. */
+/* The same slot, not quiet — reserved for a clip that really is broken.
+   THE TWO PRODUCTS SHARE THE QUIET PILL ABOVE. Egocentric stereo with gloves and
+   egocentric stereo without gloves are both things this rig sells, so "Stereo ·
+   Camera only" is rendered in exactly the same tone as "Stereo · Tactile": a
+   different product, not a missing feature. This alert tone used to fire on
+   camera-only, which put a red warning triangle and the words "No tactile" on
+   the first surface a buyer sees, for a clip with nothing wrong with it.
+   What is left here is the genuine article: a clip that is not stereo (mono is
+   not a product), or one that says a glove was worn and then publishes no
+   census for it. */
 .cat-root .cat-card__mark--alert {
   background: var(--accent, #592202);
   color: #fff;

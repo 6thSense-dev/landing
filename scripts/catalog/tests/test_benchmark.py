@@ -423,6 +423,38 @@ def test_scope_and_the_collection_block_describe_the_same_set():
                     if c["check_id"] == "varies")["scope"] == "clip"
 
 
+def test_a_clip_the_check_does_not_apply_to_does_not_break_the_uniformity():
+    """A drop can hold both products, and a tactile check on a camera-only clip abstains.
+
+    Counting `not_applicable` as "did not miss" meant one camera-only clip in a thirty-clip
+    drop knocked a genuinely programme-wide tactile warning off collection scope and
+    reprinted it on twenty-nine tactile clip pages -- the exact noise this predicate exists
+    to remove. `clips` on the collection entry then reports the clips it APPLIES to, not
+    the size of the drop, because the statement covers no others.
+    """
+    details = {
+        "a": _doc(("tactile_channel_coverage", "warn", "collection")),
+        "b": _doc(("tactile_channel_coverage", "warn", "collection")),
+        "camera_only": _doc(("tactile_channel_coverage", "not_applicable", "clip")),
+    }
+    assert measured_scope(details) == {"tactile_channel_coverage"}
+    entry, = collection_wide_limitations(details)
+    assert entry["check_id"] == "tactile_channel_coverage"
+    assert entry["clips"] == 2, "3 would claim the camera-only clip is covered by it"
+
+
+def test_one_applicable_clip_cannot_carry_a_collection_wide_claim():
+    """Abstentions do not shrink the electorate to one. A check that applies to a single
+    clip is a fact about that clip however loudly it misses."""
+    details = {
+        "a": _doc(("tactile_channel_coverage", "warn", "collection")),
+        "b": _doc(("tactile_channel_coverage", "not_applicable", "clip")),
+        "c": _doc(("tactile_channel_coverage", "not_applicable", "clip")),
+    }
+    assert measured_scope(details) == set()
+    assert collection_wide_limitations(details) == []
+
+
 def test_a_uniform_clip_check_is_never_promoted_to_collection():
     """Demotion only. Two clips that happen to agree do not make a check programme-scoped,
     and a two-clip corpus would otherwise promote almost everything it measures."""

@@ -46,7 +46,7 @@ from .validate import (normalization_from, probe_disagreements, render_report, r
 # `provenance.pipeline_version`, so a buyer can scope a defect to the clips it touched --
 # and it is part of the per-take content hash, so a behaviour change invalidates the cache
 # instead of quietly re-publishing records the old code produced.
-PIPELINE_VERSION = "6s-catalog-ingest/1.1.0"
+PIPELINE_VERSION = "6s-catalog-ingest/1.2.0"
 PATHS = {"detail": "clips/{id}.json", "poster": "posters/{id}.jpg", "preview": "previews/{id}.mp4"}
 STATE_FILE, MODES = ".ingest-state.json", ("copy", "link", "reference")
 _COLLECTION_NAMES = ("collection.toml", "collection.json", "collection.yaml", "collection.yml")

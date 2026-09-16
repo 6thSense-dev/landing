@@ -174,9 +174,20 @@ export default function MetadataTab({ clip }) {
           label="Modalities"
           value={clip?.modalities?.length ? clip.modalities.join(", ") : dash(null)}
         />
+        {/* "none" is a determined answer here, not a gap — `hands: []` is the camera-only
+            product, one of the two this rig ships. Worded so it reads as which product
+            this is rather than as an instrument somebody forgot to fit. */}
         <Def
           label="Hands"
-          value={clip?.hands?.length ? clip.hands.join(" + ") : "none instrumented"}
+          value={clip?.hands?.length ? clip.hands.join(" + ") : "none — camera only"}
+          title={
+            clip?.hands?.length
+              ? undefined
+              : "No tactile glove was worn on this take. This is the camera-only product, " +
+                "not a capture with a stream missing: its tactile QA checks read " +
+                "not_applicable rather than not_run, and its grade is computed on the " +
+                "streams it actually carries."
+          }
         />
         <Def
           label="QA grade"

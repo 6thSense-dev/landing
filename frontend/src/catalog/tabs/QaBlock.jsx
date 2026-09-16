@@ -43,8 +43,15 @@ export function checkValue(v) {
   return String(v);
 }
 
-/** Worst first. A warn buried under fifteen passes is a warn nobody reads. */
-const RESULT_ORDER = { fail: 0, warn: 1, not_run: 2, pass: 3 };
+/** Worst first. A warn buried under fifteen passes is a warn nobody reads.
+ *
+ * `not_applicable` sorts LAST, below `pass`. It is not a lesser pass and it is not a
+ * softer `not_run`: it means the package does not carry the stream this check tests, so
+ * there was never anything to measure. Those rows are the least newsworthy thing in the
+ * table — for a camera-only clip they are simply the shape of the product — and putting
+ * them above `pass` would make a clean camera-only clip's check table open on three rows
+ * that say nothing happened. */
+const RESULT_ORDER = { fail: 0, warn: 1, not_run: 2, pass: 3, not_applicable: 4 };
 
 /** `qa.checks` grouped by category, worst result first inside each group. */
 export function groupChecks(checks) {
@@ -76,7 +83,7 @@ export function splitByScope(checks) {
 
 /** How many checks landed on each result. */
 export function tallyChecks(checks) {
-  const t = { pass: 0, warn: 0, fail: 0, not_run: 0 };
+  const t = { pass: 0, warn: 0, fail: 0, not_run: 0, not_applicable: 0 };
   for (const c of checks) if (c.result in t) t[c.result] += 1;
   return t;
 }
@@ -98,6 +105,10 @@ export default function QaBlock({ qa }) {
             `${tally.warn} warn` +
             (tally.fail ? ` · ${tally.fail} fail` : "") +
             (tally.not_run ? ` · ${tally.not_run} not run` : "") +
+            /* Counted separately from `not run`, and worded as the product fact it is.
+               Folding the two together is what let three tactile rows on a camera-only
+               clip read as three checks somebody forgot to run. */
+            (tally.not_applicable ? ` · ${tally.not_applicable} n/a` : "") +
             (colChecks.length ? ` · +${colChecks.length} collection-wide` : "")
           : null
       }
@@ -307,6 +318,18 @@ export default function QaBlock({ qa }) {
             <code className="cat-code">fail</code> quarantines the clip and it never reaches
             this catalog.
           </p>
+          {tally.not_applicable || colTally.not_applicable ? (
+            <p className="cat-note">
+              <code className="cat-code">not applicable</code> is not a pass and not a shrug:
+              this package does not carry the stream that check tests, so there was nothing to
+              measure. It is the only result that does not cap the grade. A check that{" "}
+              <em>does</em> apply here and was not run reads{" "}
+              <code className="cat-code">not run</code> and still caps it. Each n/a row names
+              the structural fact behind it, and you can verify that fact yourself in the same
+              record — <code className="cat-code">hands</code> for the tactile checks,{" "}
+              <code className="cat-code">sync</code> for the inter-stream ones.
+            </p>
+          ) : null}
         </>
       ) : (
         <p className="cat-m-para cat-m-para--dash">{dash(null)}</p>

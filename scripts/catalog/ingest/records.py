@@ -524,7 +524,11 @@ def build_clip(ci: ClipInputs) -> tuple[dict, list[str]]:
         ci.layout, meta, cfg, imu_status=ci.imu_status, grid=ci.geometry.get("grid"),
         index_rule=ci.geometry.get("index_rule"), pitch_mm=ci.geometry.get("taxel_pitch_mm"))
     warn += w
-    qa, w = build_qa(ci, sync=sync, calibration=calib, rights=rights, privacy=privacy); warn += w
+    # `streams` is passed in, not re-derived: the QA record has to say whether a check was
+    # inapplicable, and "fewer than two clocked streams" is the same fact that made
+    # `build_sync` return None above. Deriving it twice is how the two drift apart.
+    qa, w = build_qa(ci, sync=sync, calibration=calib, rights=rights, privacy=privacy,
+                     streams=streams); warn += w
 
     seen: set[str] = set()
     limitations: list[str] = []
