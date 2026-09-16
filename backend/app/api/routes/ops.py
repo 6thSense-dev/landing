@@ -219,8 +219,12 @@ async def scan_bucket(_: User = Depends(require_ops),
              (await db.execute(select(Episode))).scalars().all()}
 
     from app.core.contributor_attribution import owner_at_capture
-    from app.core.ops_sources import source_registry
-    confirmed_sources = await source_registry(db)
+    from app.core.ops_sources import register_upload_sources
+    try:
+        confirmed_sources = await register_upload_sources(db, takes, known, bucket=raw_settings().bucket)
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(409, str(exc)) from exc
     added = updated = 0
     for rec, t in takes.items():
         facts = facts_from(t)

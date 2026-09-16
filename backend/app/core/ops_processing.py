@@ -133,6 +133,7 @@ async def reconcile(db, takes, manifests, receipts):
             j.state == "blocked"
             and same_input
             and not j.reason.startswith("Assign the source camera")
+            and j.reason != "Contributor or business attribution required"
         ):
             continue
         elif attribution_error or not e or (not e.wearer_id and not party):
