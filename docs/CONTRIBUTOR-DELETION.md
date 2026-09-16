@@ -1,7 +1,8 @@
 # Contributor deletion release contract
 
-This implementation is staged. It does not publish regional agreements, enable signup,
-perform production erasure, or establish a legal retention period.
+Receipt preservation is live. The retry-issuance limit documented below is a
+follow-up awaiting deployment. Neither release publishes regional agreements,
+enables signup, or establishes a legal retention period. No real user has been deleted.
 
 ## Mobile API
 
@@ -13,13 +14,27 @@ perform production erasure, or establish a legal retention period.
   with `CONTRIBUTOR_DELETION_EXPECTED_COMPLETION`). Do not invent an estimate.
 - POST additionally returns a 64-character random `receipt_token`. Store it in
   secure storage before clearing the login session. A repeated POST preserves the
-  request and issues another token; the original and every retry token remain valid,
-  even when responses arrive out of order. If the response is lost, retry while signed in.
+  request and, within the retry limit below, issues another token. The original and
+  every retry token remain valid, even when responses arrive out of order. If the
+  response is lost, retry while signed in.
 - `GET /api/contributor/account-deletion/receipt` accepts that token as a Bearer
   credential independently of Cognito. It reveals only the public request status.
   The database stores only SHA-256 hashes of tokens, never the raw tokens. All issued
   receipts permit completion confirmation after Cognito removes the login. Keep a
   receipt across contributor logout.
+
+The follow-up limits additional receipt tokens to **20 per authenticated subject per
+rolling 24 hours**. The first valid authenticated deletion request and its original
+receipt are always accepted by this limiter and do not consume a retry slot. The API
+counts stored retry timestamps under the shared database advisory transaction lock,
+so the limit holds across workers, restarts, concurrent requests, and changing IPs.
+
+Once all retry slots are used, POST returns HTTP `429` with
+`{"detail":"deletion_receipt_retry_limited"}` and a `Retry-After` header containing
+the number of seconds to wait before trying again. Keep any saved receipt and honor
+that delay. The limit affects only new receipt issuance: the existing deletion
+request, authenticated status lookup, and every original/retry receipt remain valid.
+Slots reopen as issuance timestamps leave the rolling window; receipt rows are retained.
 
 Request acceptance immediately deactivates the contributor, closes assignment
 intervals, and clears camera ownership. A shared transaction fence blocks new
@@ -87,13 +102,16 @@ rollback, keep both the receipt schema and the code that looks up original and r
 hashes. Restoring code that only reads the original hash would strand retry receipts
 even if the new table remained. Do not delete receipt rows to bypass the downgrade guard.
 
-Deployment also needs a narrowly scoped IAM `cognito-idp:AdminDeleteUser` permission
-for the contributor pool, a verified expected-completion policy, operator ownership
-and evidence process, and app receipt persistence. On 2026-09-16, IAM principal
-`sixthsense-contributor-deletion-prod` was configured with only `AdminDeleteUser` on
-pool `us-west-2_mZ3Sz9xvE`; its `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` were
-staged on the Railway API service with deployment skipped. The receipt fix has not
-been deployed or verified through a real user deletion. No real user was deleted.
+On 2026-09-16, the original receipt-preservation fix (PR 76, commit `93eae43`) was
+deployed. Migration 0018 and IAM principal `sixthsense-contributor-deletion-prod`
+were verified in the running API. Its `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+provide only `cognito-idp:AdminDeleteUser` on contributor pool `us-west-2_mZ3Sz9xvE`.
+This runtime verification did not delete a real user or verify live erasure.
+
+The 20-token retry-issuance follow-up is not deployed yet. It uses the existing
+migration 0018 table and requires no new schema migration. Release acceptance still
+requires a verified expected-completion policy, operator ownership and evidence
+process, and app receipt persistence.
 
 ## Local validation
 
@@ -112,10 +130,14 @@ PYTHONPATH=.:backend python -m pytest -q -c backend/pytest.ini \
   backend/tests/test_contributor_receipt_migration.py
 ```
 
-On 2026-09-16 these runs passed 63 contributor regressions and 7 migration tests.
-They cover concurrent and legacy receipts, hash-only storage, completion after
-authentication ends, preservation across upgrade, and refusal to downgrade with
-issued retry receipts. Provider calls are mocked; these results do not verify live erasure.
+On 2026-09-16 the follow-up passed 64 contributor regressions, including competing
+requests for the final retry slot, the 429 response and `Retry-After`, continued
+receipt/status access, separate subjects, and recovery at the 24-hour boundary.
+The original receipt release passed 7 migration tests; the follow-up does not change
+the schema. Existing coverage includes concurrent and legacy receipts, hash-only
+storage, completion after authentication ends, preservation across upgrade, and
+refusal to downgrade with issued retry receipts. Provider calls are mocked; these
+results do not verify live erasure.
 
 ## Published pre-account notices
 

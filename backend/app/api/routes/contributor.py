@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 import hashlib
 import json
+import math
 import re
 import os
 import secrets
@@ -24,6 +25,7 @@ from app.models import ContributorAccount, ContributorConsent, ContributorCamera
 router = APIRouter(prefix="/api/contributor", tags=["contributor"])
 RECORDS_BUCKET = "6thsense-contributor-records"
 AGREEMENTS = {"participation", "privacy", "collection", "international_transfer"}
+RECEIPT_RETRIES_PER_DAY = 20
 
 def now():
     return datetime.now(timezone.utc)
@@ -271,6 +273,17 @@ async def request_deletion(body: DeletionIn, identity=Depends(contributor_identi
     await contributor_deletion.lock(db)
     subject = identity['subject']
     row = await db.get(ContributorDeletion, subject)
+    issued_at = now()
+    if row is not None:
+        # The shared DB lock makes issuance limits hold across workers and IPs.
+        # Only minting is limited: existing receipts and status stay available.
+        recent = (await db.execute(select(ContributorDeletionReceipt.created_at).where(
+            ContributorDeletionReceipt.subject == subject,
+            ContributorDeletionReceipt.created_at > issued_at - timedelta(days=1),
+        ).order_by(ContributorDeletionReceipt.created_at.desc()).limit(RECEIPT_RETRIES_PER_DAY))).scalars().all()
+        if len(recent) >= RECEIPT_RETRIES_PER_DAY:
+            retry_after = max(1, math.ceil((recent[-1] + timedelta(days=1) - issued_at).total_seconds()))
+            raise HTTPException(429, 'deletion_receipt_retry_limited', headers={'Retry-After': str(retry_after)})
     token = secrets.token_hex(32)
     digest = hashlib.sha256(token.encode()).hexdigest()
     if row is None:
@@ -279,7 +292,7 @@ async def request_deletion(body: DeletionIn, identity=Depends(contributor_identi
     else:
         # Responses can arrive out of order. Store only a hash of each new
         # bearer; neither another request nor fulfillment revokes older ones.
-        db.add(ContributorDeletionReceipt(subject=subject, receipt_hash=digest))
+        db.add(ContributorDeletionReceipt(subject=subject, receipt_hash=digest, created_at=issued_at))
     account = await db.get(ContributorAccount, subject)
     if account:
         wearer = await db.get(Wearer, account.wearer_id)

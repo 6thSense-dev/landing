@@ -265,3 +265,54 @@ async def test_scan_cannot_restore_jobs_after_deletion_acceptance(app, db_sessio
             replies=await asyncio.gather(scan,deletion)
         assert all(r.status_code==200 for r in replies)
     assert (await db_session.get(ProcessingJob,'mine')).state=='blocked'
+
+
+async def test_retry_issuance_limit_preserves_receipts_and_recovers(app, db_session, monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import func
+    from app.api.routes import contributor
+    from app.models import ContributorDeletionReceipt
+    issued_at = datetime(2026, 9, 16, tzinfo=timezone.utc)
+    monkeypatch.setattr(contributor, 'now', lambda: issued_at)
+    identity(app)
+    async with _client(app) as c:
+        original = (await c.post(PATH, json={'confirmed': True})).json()
+        tokens = [original['receipt_token']]
+        # Fill all but one slot, then race two clients for the final slot.
+        for _ in range(contributor.RECEIPT_RETRIES_PER_DAY - 1):
+            response = await c.post(PATH, json={'confirmed': True})
+            assert response.status_code == 200
+            tokens.append(response.json()['receipt_token'])
+        replies = await asyncio.gather(*(c.post(PATH, json={'confirmed': True}) for _ in range(2)))
+        assert sorted(r.status_code for r in replies) == [200, 429]
+        tokens.append(next(r for r in replies if r.status_code == 200).json()['receipt_token'])
+        blocked = next(r for r in replies if r.status_code == 429)
+        assert blocked.json() == {'detail': 'deletion_receipt_retry_limited'}
+        assert blocked.headers['retry-after'] == '86400'
+        assert (await db_session.execute(select(func.count()).select_from(ContributorDeletionReceipt))).scalar() == contributor.RECEIPT_RETRIES_PER_DAY
+        assert (await c.get(PATH)).json()['request_id'] == original['request_id']
+        for token in tokens:
+            result = await c.get(PATH+'/receipt', headers={'Authorization':'Bearer '+token})
+            assert result.status_code == 200 and result.json()['request_id'] == original['request_id']
+        # Limits are per authenticated subject, not an IP-wide signup blocker.
+        from app.core.contributor_auth import contributor_identity
+        app.dependency_overrides[contributor_identity] = lambda: {'subject':'another-person','region':REGION}
+        assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
+        identity(app)
+        # A fresh process needs no in-memory limiter state; rolling-window expiry
+        # permits recovery and never deletes or invalidates prior receipt rows.
+        issued_at += timedelta(days=1)
+        assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
+        assert (await db_session.execute(select(func.count()).select_from(ContributorDeletionReceipt))).scalar() == contributor.RECEIPT_RETRIES_PER_DAY + 1
+        # Stagger issuance: only the older slot expires at the next boundary.
+        # Fractional seconds also verify Retry-After rounds up, never down.
+        issued_at += timedelta(hours=23, minutes=30, microseconds=500000)
+        for _ in range(contributor.RECEIPT_RETRIES_PER_DAY - 1):
+            assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
+        blocked = await c.post(PATH, json={'confirmed': True})
+        assert blocked.status_code == 429 and blocked.headers['retry-after'] == '1800'
+        issued_at += timedelta(minutes=30, microseconds=-500000)
+        assert (await c.post(PATH, json={'confirmed': True})).status_code == 200
+        blocked = await c.post(PATH, json={'confirmed': True})
+        assert blocked.status_code == 429 and blocked.headers['retry-after'] == '84601'
+        assert (await c.get(PATH+'/receipt', headers={'Authorization':'Bearer '+tokens[0]})).status_code == 200
