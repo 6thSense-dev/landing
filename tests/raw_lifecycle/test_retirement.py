@@ -173,6 +173,54 @@ def test_partial_imports_cannot_be_combined_to_authorize_retirement():
         r.validate_imports(state, receipt, episode)
 
 
+def test_empty_media_placeholder_needs_archive_but_not_clean_coverage():
+    state, receipt, episode, _ = fixtures()
+    placeholder = {
+        **source("empty", b""),
+        "key": KEY.replace("video.mp4", "terminal-placeholder.mp4"),
+    }
+    state["snapshot"].append(placeholder)
+    state["archive_plan"]["objects"].append(placeholder)
+    receipt["objects"].append(archived_item(placeholder))
+
+    entries = r.validate_receipt(state, receipt)
+    r.validate_imports(state, receipt, episode)
+
+    assert c.digest(c.source_identity(placeholder)) in entries
+    receipt["objects"].pop()
+    with pytest.raises(ValueError, match="Incomplete archive inventory"):
+        r.validate_receipt(state, receipt)
+
+
+def test_all_empty_media_source_set_is_rejected():
+    state, receipt, episode, _ = fixtures()
+    placeholder = source("empty", b"")
+    state["snapshot"] = [placeholder]
+    state["archive_plan"]["objects"] = [placeholder]
+    receipt["objects"] = [archived_item(placeholder)]
+    episode["imports"] = [{"run_id": "clean-empty", "sources": []}]
+
+    r.validate_receipt(state, receipt)
+    with pytest.raises(ValueError, match="No source media to reconcile"):
+        r.validate_imports(state, receipt, episode)
+
+
+def test_nonempty_media_still_requires_clean_coverage_with_empty_placeholder():
+    state, receipt, episode, _ = fixtures()
+    placeholder = {
+        **source("empty", b""),
+        "key": KEY.replace("video.mp4", "terminal-placeholder.mp4"),
+    }
+    state["snapshot"].append(placeholder)
+    state["archive_plan"]["objects"].append(placeholder)
+    receipt["objects"].append(archived_item(placeholder))
+    episode["imports"] = [{"run_id": "clean-empty-only", "sources": [placeholder]}]
+
+    r.validate_receipt(state, receipt)
+    with pytest.raises(ValueError, match="not represented by one imported Clean run"):
+        r.validate_imports(state, receipt, episode)
+
+
 def test_every_archive_version_is_verified_before_any_raw_delete(monkeypatch):
     state, receipt, episode, items = fixtures()
     storage = RetirementS3(items, corrupt_archive="archive-v2")
