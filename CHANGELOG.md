@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0.1] - 2026-09-18
+
+### Changed
+
+- Use familiar “회원가입” / “Sign up” labels and friendlier phone-verification guidance throughout contributor signup.
+
 ## [0.4.0.0] - 2026-09-18
 
 ### Added

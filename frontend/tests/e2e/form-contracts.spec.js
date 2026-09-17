@@ -20,7 +20,7 @@ test('form signup, wrong SMS code, resend, confirmation and camera handover gate
   const calls=await mock(page);await page.goto('/upload?activate=1');
   await page.getByLabel('Phone number',{exact:true}).fill('+821012345678');
   await page.getByLabel('Choose a password',{exact:false}).fill('ExamplePassword1');
-  await page.getByRole('button',{name:'Create login',exact:true}).click();
+  await page.getByRole('button',{name:'Sign up',exact:true}).click();
   await expect(page.locator('input[type=password]')).toHaveCount(0);
   await page.getByLabel('SMS verification code').fill('000000');
   await page.getByRole('button',{name:'Verify and continue'}).click();
@@ -44,10 +44,10 @@ test('unfinished phone verification resumes after reload without password collec
   const calls=await mock(page,{resume:true});await page.goto('/upload?activate=1');
   await page.getByLabel('Phone number',{exact:true}).fill('+821012345678');
   await page.getByLabel('Choose a password',{exact:false}).fill('ExamplePassword1');
-  await page.getByRole('button',{name:'Create login',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('already has a login');
+  await page.getByRole('button',{name:'Sign up',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('already has an account');
   await page.reload();
-  await page.getByRole('button',{name:'Already created a login? Finish phone verification'}).click();
+  await page.getByRole('button',{name:'Finish phone verification'}).click();
   await expect(page.locator('input[type=password]')).toHaveCount(0);
   await page.getByLabel('Phone number',{exact:true}).fill('+821012345678');
   await page.getByRole('button',{name:'Send verification code',exact:true}).click();
