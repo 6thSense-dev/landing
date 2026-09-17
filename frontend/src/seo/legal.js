@@ -19,7 +19,7 @@
 
 const CONTACT_EMAIL = "ops@6thsense.dev";
 const LAST_UPDATED = "July 18, 2026";
-const SYNAPSE_LAST_UPDATED = "September 15, 2026";
+const SYNAPSE_LAST_UPDATED = "September 17, 2026";
 
 export const legalPages = [
   {
@@ -29,10 +29,10 @@ export const legalPages = [
     updated: SYNAPSE_LAST_UPDATED,
     title: "Synapse Privacy Policy | 6thSense",
     description:
-      "How 6thSense Synapse handles local-network camera data, app-local settings, recording playback and export, optional analytics, and software updates.",
+      "How 6thSense Synapse handles camera data, fleet diagnostics, contributor accounts and payments, optional analytics, and software updates.",
     h1: "Synapse Privacy Policy",
     intro:
-      "Synapse is a mobile control plane for compatible egocentric capture rigs and cameras. Camera controls work without an account. Where enabled, an optional contributor account connects to a separate cloud service for supervised data contributions and payments. Capture devices remain the primary storage for local recordings; Synapse communicates with them over the local network, sends usage analytics only after affirmative consent, and contacts software-update services as described below.",
+      "Synapse is a mobile control plane for compatible egocentric capture rigs and cameras. Camera controls work without an account. Where enabled, an optional contributor account connects to a separate cloud service for supervised data contributions and payments. Capture devices remain the primary storage for local recordings. Synapse communicates with cameras over the local network, sends camera health and status reports to the configured fleet registry, sends optional product analytics only after affirmative consent, and contacts software-update services as described below.",
     sections: [
       {
         h2: "Camera and recording data",
@@ -44,7 +44,7 @@ export const legalPages = [
       {
         h2: "Data stored on this phone",
         body: [
-          "Synapse may store camera IP addresses, device identifiers and nicknames, app settings, analytics consent, recent onboarding network names, an opaque installation identifier, and an optional camera access token. This data stays in the app's local storage.",
+          "Synapse may store camera IP addresses, device identifiers and nicknames, app settings, analytics consent, recent onboarding network names, separate opaque analytics and fleet-report identifiers, and an optional camera access token. These settings are kept locally; identifiers used for analytics, fleet reporting and contributor assignments are also transmitted as described below.",
           "Uninstalling Synapse removes that app-local data, but it does not delete recordings on cameras or copies previously shared to another app or service.",
         ],
       },
@@ -60,6 +60,14 @@ export const legalPages = [
         ],
       },
       {
+        h2: "Camera fleet reports",
+        body: [
+          "When fleet reporting is configured, Synapse sends limited camera health and status information over HTTPS to 6thSense's registry hosted by Supabase. Reports include the camera identifier, observation time, app and camera software versions, camera model, recording status, storage and SD-card status, temperature, capture frame rate, clock and calibration status, and an upload-configuration status. Reports can be queued locally and sent when an internet connection is available.",
+          "These reports help maintain camera availability and diagnose recording and upload problems. They use a separate opaque reporter identifier, not the installation identifier used for optional PostHog analytics. A camera identifier can be linked to your contributor account when that camera is assigned to you. The reports do not contain footage, audio, preview images, Wi-Fi passwords, camera access tokens, bank details or upload credentials.",
+          "Fleet reporting is separate from the optional analytics setting; disabling analytics stops PostHog events but does not disable configured fleet reporting. Contact ops@6thsense.dev for questions or requests concerning fleet records associated with you or your camera.",
+        ],
+      },
+      {
         h2: "Software and camera updates",
         body: "Synapse uses Expo Updates to check 6thSense's configured app-update service. It may also contact a configured HTTPS manifest and download endpoint to retrieve camera software. These requests transmit standard network information such as IP address and user agent to the receiving service. Camera software is cached privately before it is sent to a selected camera over the local network.",
       },
@@ -68,7 +76,7 @@ export const legalPages = [
         body: "Synapse requests only the access needed for its current features:",
         items: [
           "Local network — find and communicate with compatible cameras.",
-          "Internet and network state — reach update services, optional contributor authentication and cloud services, and, after consent, PostHog; determine whether camera networking is available.",
+          "Internet and network state — reach the fleet registry, update services, optional contributor authentication and cloud services, and, after consent, PostHog; determine whether camera networking is available.",
           "Location while in use on iOS — read the current Wi-Fi network name during camera setup. Apple gates Wi-Fi-name access behind this permission. Synapse does not use it to determine or transmit geographic location.",
           "Notifications — show an immediate local alert when a capture finishes saving. Synapse does not register for marketing notifications or remote push messages.",
         ],
@@ -77,16 +85,16 @@ export const legalPages = [
         h2: "Accounts, advertising, and sharing",
         items: [
           "Camera controls require no login. The optional contributor service uses a separate account and regional participation agreements.",
-          "Synapse contains no advertising network and does not sell or rent data.",
+          "Synapse contains no advertising network. Optional analytics and fleet reports are not sold or rented. Contributor footage may be licensed to customers for commercial AI training and research under the applicable regional agreements and recipient disclosures.",
           "Synapse does not build advertising profiles or use analytics for tracking.",
-          "6thSense receives the consented analytics described above. Outside the contributor service described below, camera and recording data is exchanged between the phone, the compatible camera, and destinations you explicitly choose.",
+          "6thSense receives the fleet reports and consented analytics described above. Outside the contributor service described below, footage is exchanged between the phone, the compatible camera, and destinations you explicitly choose.",
         ],
       },
       {
         h2: "Optional contributor accounts and cloud data",
         body: [
           "Where contributor enrollment is enabled, account authentication uses Amazon Cognito, including your phone number, verification status, and regional routing information. The contributor service stores your name, agreement receipts, operator-confirmed camera assignments, footage and review metadata, and payment records. Sign-in credentials and a deletion-status receipt may be kept in secure storage on this phone.",
-          "Bank details you submit are sent over HTTPS through the contributor service to Wise for recipient setup. The app shows a masked account summary. Recipient creation does not authorize a payment; an operator separately verifies assignments, footage, and payments. In the supervised pilot, an operator imports recordings from the camera storage card; creating an account does not upload footage from your phone.",
+          "Bank details you submit are sent over HTTPS through the contributor service to Wise for recipient setup. Depending on the payment route, these details include the account-holder name, bank and account identifiers, and required contact, address or date-of-birth information. The app shows a masked account summary. Recipient creation does not authorize a payment; an operator separately verifies assignments, footage, and payments. In the supervised pilot, an operator imports recordings from the camera storage card; creating an account does not upload footage from your phone.",
           "Regional notices and agreements explain the collection, sharing, international transfers, and retention that apply to participation. Enrollment stays unavailable where the required final documents have not been published. This public policy does not replace those agreements.",
         ],
       },

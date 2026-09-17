@@ -31,8 +31,8 @@ inherited/v1/
   <clean-run>/<recording>/<fingerprint>/
     left.mp4 + right.mp4                    # split stereo, existing codec
     # or native.mp4 for historical native-stereo Clean recordings
-    metadata.json                          # byte-exact original capture metadata
-    metadata-provenance.json                # original → Clean provenance
+    metadata.json                          # original or disclosed reconstructed metadata
+    metadata-provenance.json                # source → Clean metadata evidence
     calibration.json                       # validated camera-specific calibration
     manifest.json                          # pinned Clean → Sieve handoff receipt
 ```
@@ -46,9 +46,9 @@ such, rather than claiming split-eye delivery.
 
 Each source and destination file has a bucket, key, VersionId, SHA-256 and byte
 count in the receipt. The Clean completion marker must still agree with the DB's
-pinned manifest. Original metadata must match the Clean metadata-provenance
-supplement and source identities. Calibration is read and validated against the
-recording camera and, when available, the output layout. Canonical supplements
+pinned manifest. Metadata must match the Clean metadata-provenance supplement
+and source identities under the validation rules below. Calibration is read and
+validated against the recording camera and, when available, the output layout. Canonical supplements
 are supported alongside revised MP4 prefixes within the same Clean run.
 
 S3 performs version-pinned server-side copies, including multipart copy for large
@@ -71,6 +71,68 @@ Legacy `prepared/`, `sources/`, and `reports/` content was produced by the old
 Raw-fed CodeBuild process. It is retained separately as legacy history and is
 excluded from this active inheritance index and its hour counts. Do not restart
 that old preparation flow for new Sieve data.
+
+## Metadata validation
+
+Original capture metadata uses `6thsense-clean-source-metadata/1` provenance
+with `copy_mode: byte_exact_from_versioned_source`. Its bytes must match the
+pinned original references. Reconstructed metadata cannot pass as an original.
+
+The recovery path uses `6thsense-clean-source-metadata/2` with
+`copy_mode: reconstructed_from_verified_sources` and an empty `source_metadata`
+list. Its `6thsense-reconstructed-source-metadata/1` artifact must disclose
+`metadata_origin: reconstructed`, `capture_completeness: unknown` and inspection
+of `all_available_sources`. The measured frame count covers available source
+frames only. Completeness, wall-clock time and original capture totals remain
+unknown: `complete`, `start_time`, `clock_synced`, `stop_reason`,
+`received_frames`, `written_frames`, `dropped_frames`, `fw`, `lossless` and
+`truncated` must all be explicitly `null`.
+
+Sieve checks those disclosures, source versions/sizes/SHA-256, the pinned recovery
+authorization reference, and calibration provenance against the committed Clean
+recording. Clean import separately reads the explicit authorization and conversion
+evidence and validates their measured observations. The Sieve worker reads Clean;
+it does not inspect Raw or independently approve the recovery authorization. It
+copies the generated artifact and provenance without changing their disclosures.
+Original files remain preserved, and neither successful validation nor inheritance
+establishes complete capture or customer acceptance.
+
+At the September 17 07:56 UTC metadata-recovery promotion checkpoint, backend
+validation and cloud workers are deployed. Conversion and metadata Clean canaries
+passed; the 900-frame Clean canary retained 568 frames, rejected 203 and held 129
+for review, preserving unknown capture fields. Recovery job submissions remain
+in progress. Canary success and deployment do not establish completed recovery,
+verified Clean import, Sieve delivery or customer acceptance.
+
+## Contributor delivery exclusions
+
+Store Sieve-only contributor exclusions in `OpsSetting.sieve_delivery_exclusions_v1`
+as a JSON object with `schema: "6thsense-sieve-delivery-exclusions/1"` and a
+`wearers` object. Each `wearers` key must be a positive decimal contributor ID
+without leading zeroes; its value must be an object containing a nonblank string
+`reason`. Use IDs and operational reasons, not contributor names or other personal
+information in repository examples. An absent setting or empty `wearers` object
+adds no contributor exclusions; existing country and other eligibility rules still
+apply. Invalid JSON, schema or entries fail closed and hold delivery.
+
+Inventory excludes recordings owned by a listed contributor through either
+`Episode.wearer_id` or `CleanRun.wearer_id`. The exclusion also covers historical
+manifests with the same recording name and aliases sharing an excluded source
+SHA-256, so relabelling a recording or using an older run cannot bypass it.
+Excluded recordings leave Sieve dashboard totals, new delivery candidates and
+the next published receipt index. Internal Raw/Clean records and payment history
+remain unchanged. Previously copied Sieve objects require a separate scoped
+withdrawal; changing this policy does not delete them or rewrite immutable audit
+receipts.
+
+Policy writers **must acquire `SELECT pg_advisory_xact_lock(61306135)` in the same
+database transaction before updating the setting**, then retain the lock through
+commit. This is the same lock key held by the inheritance worker and serializes
+policy changes with active copies. Do not update the policy outside that locking
+protocol. `sync_once` rechecks current inventory and revision before every copy,
+before saving its result, and before publishing `latest.json`; an earlier
+inventory snapshot cannot authorize a newly excluded recording. This policy uses
+the existing settings table and requires no migration.
 
 ## Railway operation
 

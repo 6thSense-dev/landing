@@ -14,8 +14,10 @@ def diagnose(take, now):
     updated = take.get("uploaded")
     if isinstance(updated, str):
         updated = datetime.fromisoformat(updated)
-    if not updated or now - updated < timedelta(hours=6):
-        return "uploading", "Waiting for the delivery to remain stable for six hours."
+    if not updated:
+        return "uploading", "Waiting to verify when the latest source file was uploaded."
+    if now - updated < timedelta(minutes=10):
+        return "uploading", "Waiting for 10 minutes without new or updated source files before processing."
     if not media:
         return (
             "recovering",
