@@ -13,7 +13,7 @@ Company: 6thSense AI, Inc., Delaware file 10635916. Registered office: c/o Corpo
 - Apps Script: https://script.google.com/home/projects/1VxvnIq02VKmRhqENhv3sejahCX2Wjg-Zpbx4mR5pVUwniSvYfyifu8Ol/edit
 - Local spec: `scripts/google-contracts/contract-spec.review.json`.
 - The older application form already has a response. Its acknowledgments do not constitute the new contract. Preserve its original purpose, timestamps and 30-day retention rule.
-- The new form remains unpublished. Production API/frontend are unchanged. No contract-sync secret or bundle has been enabled.
+- Read-back at 01:01 KST verified 16 questions, zero responses, no password question, private source saved and the contractor register created (zero signed contractors). The new form remains unpublished. Production API/frontend are unchanged. No contract-sync secret or bundle has been enabled.
 
 ## Identity and evidence
 
@@ -49,3 +49,5 @@ The submit trigger records the contract before calling the API. The five-minute 
 - Google processors: https://workspace.google.com/terms/subprocessors/
 - Railway DPA: https://railway.com/legal/dpa
 - Cognito signup: https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_SignUp.html
+
+Current access blocker: the Google Admin page at `https://admin.google.com/ac/companyprofile/legal` requires owner re-authentication. The open preview tab `tab_f` is at that Google sign-in prompt. Do not retrieve or request the password; the owner signs in directly.

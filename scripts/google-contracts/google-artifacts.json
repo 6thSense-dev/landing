@@ -7,5 +7,12 @@
   "version": "KR-FORM-2026-09-18-DRAFT-3",
   "rateKrwPerAcceptedHour": 11000,
   "identifiableFootageRetentionYears": 3,
-  "applicationRetentionDays": 30
+  "applicationRetentionDays": 30,
+  "draftSetupVerified": true,
+  "questions": 16,
+  "responses": 0,
+  "hasPasswordQuestion": false,
+  "privateSourceSaved": true,
+  "registerRows": 0,
+  "verifiedAt": "2026-09-18T01:01:00+09:00"
 }
