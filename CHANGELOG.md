@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1.1] - 2026-09-17
+
+### Fixed
+
+- Describe Synapse's configured camera fleet reports, their separation from optional analytics, contributor bank fields and commercial footage licensing in its public privacy policy.
+
 ## [0.2.0.0] - 2026-09-16
 
 ### Added
