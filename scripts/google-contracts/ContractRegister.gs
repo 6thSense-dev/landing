@@ -225,9 +225,12 @@ function finishContractRegisterDraft() {
   const p=PropertiesService.getScriptProperties(),form=FormApp.openById(p.getProperty('CONTRACT_FORM_ID'));
   if(form.isPublished()||form.getResponses().length)throw Error('Cannot change a published or signed form');
   const questions=CONTRACT_SPEC.sections.flatMap(s=>s.questions||[]),ids={};
+  const previousIds=JSON.parse(p.getProperty('CONTRACT_ITEM_IDS')||'{}');
   questions.forEach(q=>{
-    const match=form.getItems().filter(i=>i.getTitle()===q.title);
+    const match=form.getItems().filter(i=>String(i.getId())===previousIds[q.id]||i.getTitle()===q.title);
     if(match.length!==1)throw Error('Draft question missing or duplicated: '+q.id);
+    match[0].setTitle(q.title);
+    if(q.help)match[0].setHelpText(q.help);
     ids[q.id]=String(match[0].getId());
   });
   // The source is private; original Form responses stay in their existing linked tab.
@@ -241,12 +244,32 @@ function finishContractRegisterDraft() {
     const cams=book.insertSheet('Camera assignments');
     cams.appendRow(['Assignment ID','Contract ID','Camera ID','Effective start','Effective end','Handover checked by','Return checked by','Permission record','Notes']);cams.setFrozenRows(1);
   }
-  form.setDescription(CONTRACT_SPEC.description).setConfirmationMessage(CONTRACT_SPEC.confirmation);
+  form.setTitle(CONTRACT_SPEC.title).setDescription(CONTRACT_SPEC.description).setConfirmationMessage(CONTRACT_SPEC.confirmation);
+  for(const section of CONTRACT_SPEC.sections){
+    const item=form.getItems().find(i=>i.getTitle()===section.title);
+    if(item)item.setHelpText(section.description||'');
+  }
   for(const section of CONTRACT_SPEC.sections)for(const block of section.blocks||[]){
     const item=form.getItems().find(i=>i.getTitle()===block.title);
     if(!item)throw Error('Draft clause missing: '+block.title);
     item.asSectionHeaderItem().setHelpText(block.text);
   }
   p.setProperty('CONTRACT_DRAFT_COMPLETE','true');
+  importLegacyApplicationsToRegister();
   auditContractDraft();
+}
+
+function importLegacyApplicationsToRegister() {
+  const sheet=contractRegister();
+  const known=new Set(sheet.getDataRange().getValues().slice(1).map(r=>String(r[7])));
+  FormApp.openById(LEGACY_FORM_ID).getResponses().forEach(response=>{
+    if(known.has(response.getId()))return;
+    const answers={};response.getItemResponses().forEach(r=>answers[r.getItem().getTitle()]=r.getResponse());
+    const get=pattern=>{const key=Object.keys(answers).find(k=>pattern.test(k));return key?String(answers[key]):'';};
+    const row=Array(REGISTER_HEADERS.length).fill('');
+    row[0]='APP-'+contractHash(LEGACY_FORM_ID+':'+response.getId()).slice(0,16);
+    row[1]=safeCell(get(/^성명 \/ Full legal name$/));row[2]=safeCell(get(/Mobile number/));row[3]=safeCell(get(/^이메일/));
+    row[4]='Application only — contract not signed';row[5]=response.getTimestamp().toISOString();row[6]='Application-2026-09-17';row[7]=response.getId();row[8]=LEGACY_FORM_ID;row[11]='Not activated';
+    sheet.appendRow(row);
+  });
 }
