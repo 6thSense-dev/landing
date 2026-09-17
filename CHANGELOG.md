@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Keep contributor footage excluded from Sieve when an operator records a delivery restriction, while retaining internal Raw/Clean copies and payments.
 - Describe Synapse's configured camera fleet reports, their separation from optional analytics, contributor bank fields and commercial footage licensing in its public privacy policy.
 
 ## [0.2.1.0] - 2026-09-17
