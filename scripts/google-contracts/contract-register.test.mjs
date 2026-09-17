@@ -160,3 +160,18 @@ test('one malformed missed response cannot block other imports or an existing wi
  assert.deepEqual(imported,['bad-response','good-response']);
  assert.deepEqual(synced,['Withdrawn','Contracted']);assert.equal(unlocked,true);
 });
+
+test('draft refresh distinguishes a consent question from a section with the same title',()=>{
+ for(const savedIds of [{international_transfer:'question'},{}]){
+  const props={CONTRACT_FORM_ID:'form',CONTRACT_ITEM_IDS:JSON.stringify(savedIds),CONTRACT_RECEIPT_FOLDER:'folder'};
+  let questionUpdated=false,reads=0;
+  const heading={getId:()=> 'section',getTitle:()=> 'Transfer consent',getType:()=> 'PAGE_BREAK',setHelpText:()=>{}};
+  const question={getId:()=> 'question',getTitle:()=> 'Transfer consent',getType:()=> 'CHECKBOX',setTitle:()=>{questionUpdated=true;},setHelpText:()=>{}};
+  const form={isPublished:()=>false,getResponses:()=>[],getItems:()=>{reads++;return [heading,question];},setTitle:()=>form,setDescription:()=>form,setConfirmationMessage:()=>form};
+  const c=context({CONTRACT_SPEC:{title:'Contract',version:'v1',sections:[{title:'Transfer consent',questions:[{id:'international_transfer',title:'Transfer consent'}]}]},
+   PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k],setProperty:(k,v)=>{props[k]=v;},setProperties:p=>Object.assign(props,p)})},FormApp:{openById:()=>form},
+   MimeType:{PLAIN_TEXT:'text/plain'},DriveApp:{getFolderById:()=>({createFile:()=>({getId:()=> 'source'})})},SpreadsheetApp:{openById:()=>({getSheetByName:()=>({})})}});
+  c.contractRegister=()=>({});c.importLegacyApplicationsToRegister=()=>{};c.auditContractDraft=()=>{};
+  c.finishContractRegisterDraft();assert.equal(questionUpdated,true);assert.equal(reads,1);assert.equal(JSON.parse(props.CONTRACT_ITEM_IDS).international_transfer,'question');
+ }
+});

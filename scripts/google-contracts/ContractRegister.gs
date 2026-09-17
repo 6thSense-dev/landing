@@ -226,8 +226,11 @@ function finishContractRegisterDraft() {
   if(form.isPublished()||form.getResponses().length)throw Error('Cannot change a published or signed form');
   const questions=CONTRACT_SPEC.sections.flatMap(s=>s.questions||[]),ids={};
   const previousIds=JSON.parse(p.getProperty('CONTRACT_ITEM_IDS')||'{}');
+  const draftItems=form.getItems();
   questions.forEach(q=>{
-    const match=form.getItems().filter(i=>String(i.getId())===previousIds[q.id]||i.getTitle()===q.title);
+    const saved=draftItems.filter(i=>String(i.getId())===previousIds[q.id]);
+    const match=saved.length?saved:draftItems.filter(i=>i.getTitle()===q.title
+      && !['PAGE_BREAK','SECTION_HEADER'].includes(String(i.getType())));
     if(match.length!==1)throw Error('Draft question missing or duplicated: '+q.id);
     match[0].setTitle(q.title);
     if(q.help)match[0].setHelpText(q.help);
@@ -246,11 +249,11 @@ function finishContractRegisterDraft() {
   }
   form.setTitle(CONTRACT_SPEC.title).setDescription(CONTRACT_SPEC.description).setConfirmationMessage(CONTRACT_SPEC.confirmation);
   for(const section of CONTRACT_SPEC.sections){
-    const item=form.getItems().find(i=>i.getTitle()===section.title);
+    const item=draftItems.find(i=>i.getTitle()===section.title && ['PAGE_BREAK','SECTION_HEADER'].includes(String(i.getType())));
     if(item)item.setHelpText(section.description||'');
   }
   for(const section of CONTRACT_SPEC.sections)for(const block of section.blocks||[]){
-    const item=form.getItems().find(i=>i.getTitle()===block.title);
+    const item=draftItems.find(i=>i.getTitle()===block.title && String(i.getType())==='SECTION_HEADER');
     if(!item)throw Error('Draft clause missing: '+block.title);
     item.asSectionHeaderItem().setHelpText(block.text);
   }
