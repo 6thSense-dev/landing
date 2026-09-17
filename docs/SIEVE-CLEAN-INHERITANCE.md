@@ -72,6 +72,36 @@ Raw-fed CodeBuild process. It is retained separately as legacy history and is
 excluded from this active inheritance index and its hour counts. Do not restart
 that old preparation flow for new Sieve data.
 
+## Contributor delivery exclusions
+
+Store Sieve-only contributor exclusions in `OpsSetting.sieve_delivery_exclusions_v1`
+as a JSON object with `schema: "6thsense-sieve-delivery-exclusions/1"` and a
+`wearers` object. Each `wearers` key must be a positive decimal contributor ID
+without leading zeroes; its value must be an object containing a nonblank string
+`reason`. Use IDs and operational reasons, not contributor names or other personal
+information in repository examples. An absent setting or empty `wearers` object
+adds no contributor exclusions; existing country and other eligibility rules still
+apply. Invalid JSON, schema or entries fail closed and hold delivery.
+
+Inventory excludes recordings owned by a listed contributor through either
+`Episode.wearer_id` or `CleanRun.wearer_id`. The exclusion also covers historical
+manifests with the same recording name and aliases sharing an excluded source
+SHA-256, so relabelling a recording or using an older run cannot bypass it.
+Excluded recordings leave Sieve dashboard totals, new delivery candidates and
+the next published receipt index. Internal Raw/Clean records and payment history
+remain unchanged. Previously copied Sieve objects require a separate scoped
+withdrawal; changing this policy does not delete them or rewrite immutable audit
+receipts.
+
+Policy writers **must acquire `SELECT pg_advisory_xact_lock(61306135)` in the same
+database transaction before updating the setting**, then retain the lock through
+commit. This is the same lock key held by the inheritance worker and serializes
+policy changes with active copies. Do not update the policy outside that locking
+protocol. `sync_once` rechecks current inventory and revision before every copy,
+before saving its result, and before publishing `latest.json`; an earlier
+inventory snapshot cannot authorize a newly excluded recording. This policy uses
+the existing settings table and requires no migration.
+
 ## Railway operation
 
 The API's lifespan starts an independent worker when `OPS_SIEVE_ENABLED=true`.
