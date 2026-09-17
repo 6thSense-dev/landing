@@ -150,12 +150,14 @@ async def _state(db: AsyncSession) -> dict:
     inventory, manifests, receipts = await _raw_context(db)
     raw = raw_statuses(inventory, manifests, receipts) if inventory is not None else {}
     jobs = {j.recording: {"state": j.state, "reason": j.reason, "attempts": j.attempts, "updated_at": j.updated_at.isoformat()} for j in (await db.execute(select(ProcessingJob))).scalars()}
+    from app.core.uploads import upload_sources
+    delivered = await upload_sources(db)
     return {
         "contributor_stats": await contributor_summary(db),
         "cameras": [{"device_id": c.device_id, "wearer_id": c.wearer_id} for c in (await db.execute(select(OpsCamera))).scalars()],
         "onboarding": {"account_service_connected": bool(os.getenv("CONTRIBUTOR_COGNITO_POOL") and os.getenv("CONTRIBUTOR_COGNITO_CLIENT")), "terms_status": "configured" if await terms_for({"routing_version": "kr-2026-v1"}, db) else "terms_not_configured", "required_agreements": ["participation", "privacy", "collection", "international_transfer"]},
         "processing": {"automatic_scan": os.getenv("OPS_AUTOMATION_ENABLED") == "true", "worker_access_configured": bool(os.getenv("OPS_PROCESSOR_TOKEN"))},
-        "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
+        "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "uploaded_by": delivered.get(e.recording) if delivered.get(e.recording, {}).get('prefix') == e.prefix else None, "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),
         "last_scan": await _setting(db, SCAN_KEY),
         "wearers": [_wearer_json(w) for w in wearers],

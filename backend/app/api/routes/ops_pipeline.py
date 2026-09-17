@@ -300,6 +300,9 @@ async def import_result(body: ImportIn, db=Depends(get_session)):
     ep = (await db.execute(select(Episode).where(Episode.recording == rec['recording']).with_for_update())).scalar_one_or_none()
     if not ep or ep.deleted_at:
         raise HTTPException(409, 'Source is missing or operator-deleted')
+    source_job = await db.get(ProcessingJob, ep.recording)
+    if source_job and json.loads(source_job.input_json).get('upload_source_conflict'):
+        raise HTTPException(409, 'Resolve conflicting upload locations and rescan before importing Clean.')
     if ep.wearer_id is not None:
         await ensure_wearer_active(db, ep.wearer_id)
     if ep.device_id.strip().upper().removeprefix('EGO-') != doc['device_id']:
@@ -378,6 +381,8 @@ async def update_status(body: StatusIn, db=Depends(get_session)):
         await ensure_wearer_active(db, ep.wearer_id)
     job = await db.get(ProcessingJob, body.recording, with_for_update=True)
     if job:
+        if json.loads(job.input_json).get('upload_source_conflict'):
+            raise HTTPException(409, 'Resolve conflicting upload locations and rescan before updating processing.')
         if job.state == 'clean':
             return {'updated': False}
         job.state, job.reason = body.state, body.reason

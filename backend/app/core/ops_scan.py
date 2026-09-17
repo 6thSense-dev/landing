@@ -108,12 +108,17 @@ def walk_bucket(prefix: str = "sessions/") -> dict[str, dict]:
             if not hit:
                 continue
             session, recording, take_prefix = hit
-            t = takes.setdefault(recording, {
+            # Keep each browser delivery separate until its own completion
+            # receipt is present; a legacy copy must not expose partial files.
+            group_key = take_prefix if session.startswith('web-') else recording
+            t = takes.setdefault(group_key, {
                 "recording": recording, "session": session,
                 "prefix": take_prefix + "/", "bytes": 0, "files": 0,
                 "meta_key": None, "uploaded": None, "meta": {}, "error": "",
                 "prefixes": [], "media": [],
             })
+            if session.startswith('web-') and obj['Key'] == take_prefix + '/_upload_complete.json':
+                t['browser_upload_complete'] = True
             if take_prefix + "/" not in t["prefixes"]:
                 t["prefixes"].append(take_prefix + "/")
             if obj["Key"].lower().endswith(PLAYABLE + (".egoc",)):
@@ -140,6 +145,24 @@ def walk_bucket(prefix: str = "sessions/") -> dict[str, dict]:
             logger.warning("ops_scan_metadata_unreadable",
                            extra={"ops_key": t["meta_key"], "ops_error": t["error"]})
 
+    # Browser parts and files arrive independently. Only a server-written
+    # completion receipt makes the full episode eligible for Raw ingestion.
+    eligible = {}
+    for take in takes.values():
+        if take['session'].startswith('web-') and not take.get('browser_upload_complete'):
+            continue
+        rec = take['recording']
+        previous = eligible.get(rec)
+        if previous is None:
+            eligible[rec] = take
+        else:
+            # A completed browser delivery is immutable. Never silently swap
+            # it for a legacy copy with the same recording name.
+            chosen = previous if previous['session'].startswith('web-') else take
+            chosen['upload_source_conflict'] = True
+            chosen['error'] = 'Conflicting completed upload locations. Operator source review required.'
+            eligible[rec] = chosen
+    takes = eligible
     need = [t for t in takes.values() if t["meta_key"]]
     if need:
         with ThreadPoolExecutor(max_workers=META_WORKERS) as pool:

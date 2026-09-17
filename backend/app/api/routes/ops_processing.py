@@ -53,6 +53,10 @@ async def claim(_=Depends(worker_auth), db=Depends(get_session)):
         )
     ).scalars()
     for j in jobs:
+        if json.loads(j.input_json).get('upload_source_conflict'):
+            j.state, j.reason = 'blocked', 'Conflicting upload locations require source review before processing.'
+            j.lease_token = j.lease_until = None
+            continue
         episode = (
             await db.execute(select(Episode).where(Episode.recording == j.recording))
         ).scalar_one_or_none()
@@ -104,6 +108,7 @@ async def result(body: ResultIn, _=Depends(worker_auth), db=Depends(get_session)
     now = datetime.now(timezone.utc)
     if (
         not j
+        or json.loads(j.input_json).get('upload_source_conflict')
         or j.fingerprint != body.fingerprint
         or j.lease_token != body.lease_token
         or not j.lease_until
@@ -157,6 +162,8 @@ async def retry(recording: str, _=Depends(require_ops), db=Depends(get_session))
     j = await db.get(ProcessingJob, recording, with_for_update=True)
     if not j:
         raise HTTPException(404, "Scan the bucket first.")
+    if json.loads(j.input_json).get('upload_source_conflict'):
+        raise HTTPException(409, 'Resolve conflicting upload locations and rescan before retrying.')
     episode = (
         await db.execute(select(Episode).where(Episode.recording == recording))
     ).scalar_one_or_none()
