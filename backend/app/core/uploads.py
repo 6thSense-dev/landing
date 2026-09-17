@@ -34,8 +34,10 @@ async def authenticate(identity, db):
     from app.api.routes.contributor import account_for, has_consent
     enabled()
     account = await account_for(identity, db)
-    if not await has_consent(account, identity['region'], db):
+    if not await has_consent(account, identity['region'], db, verified_phone=identity.get('verified_phone')):
         raise HTTPException(403, 'consent_required')
+    # A returned camera may still have undelivered SD-card footage. Historical
+    # claims allow delivery; complete_batch enforces its capture-time ownership.
     claims = (await db.execute(select(ContributorCameraClaim).where(
         ContributorCameraClaim.subject == account.subject,
         ContributorCameraClaim.status == 'approved',
@@ -94,6 +96,8 @@ async def create_batch(db, account, body):
     if (await db.execute(select(Episode.id).where(Episode.recording == body.recording))).scalar_one_or_none():
         raise HTTPException(409, 'This episode is already in the ledger. Existing or deleted episodes cannot be uploaded again.')
     device = body.recording.split('_')[3].upper()
+    # This reserves transport, not attribution. An ended claim must later pass
+    # the full historical capture-interval check before Raw receives the episode.
     claim = (await db.execute(select(ContributorCameraClaim.id).where(
         ContributorCameraClaim.subject == account.subject,
         ContributorCameraClaim.status == 'approved',

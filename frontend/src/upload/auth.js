@@ -26,7 +26,7 @@ export async function cognito(operation, payload) {
   if (!response.ok) {
     // Provider bodies may contain personal information. Only expose a known code.
     const code = String(data.__type || "").split("#").pop();
-    const known = ["NotAuthorizedException", "UserNotFoundException", "UserNotConfirmedException", "PasswordResetRequiredException", "TooManyRequestsException", "LimitExceededException", "CodeMismatchException", "ExpiredCodeException", "InvalidPasswordException"];
+    const known = ["NotAuthorizedException", "UserNotFoundException", "UserNotConfirmedException", "PasswordResetRequiredException", "TooManyRequestsException", "LimitExceededException", "CodeMismatchException", "ExpiredCodeException", "InvalidPasswordException", "UsernameExistsException"];
     throw Error(known.includes(code) ? code : "sign_in_unavailable");
   }
   return data;

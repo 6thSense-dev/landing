@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0.0] - 2026-09-18
+
+### Added
+
+- Link signed Google Form contracts to verified contributor phone accounts, with secure password creation and SMS recovery on the upload website.
+- Reserve a physically handed-over camera before signup, then activate it against the verified signed account while preserving contributor IDs, payment history and capture-time ownership.
+- Preserve the exact released Form and signed receipt, authenticate register synchronization, and retry missed submissions independently.
+
+### Fixed
+
+- Block uploads after contract withdrawal even before first account linking, while preserving valid legacy contributor access.
+- Keep camera returns and reassignments from reactivating an old handover, while allowing verified recordings made during an earlier assignment to arrive later by SD card.
+
 ## [0.3.0.0] - 2026-09-17
 
 ### Added

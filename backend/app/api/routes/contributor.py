@@ -59,7 +59,11 @@ async def terms_for(region, db):
             complete.extend(localized)
     return complete
 
-async def has_consent(account, region, db, locale=None):
+async def has_consent(account, region, db, locale=None, verified_phone=None):
+    from app.api.routes.form_contracts import has_form_consent
+    form_consent = await has_form_consent(account, db, verified_phone=verified_phone)
+    if form_consent is not None:
+        return form_consent
     terms = await terms_for(region, db)
     if locale is not None:
         terms = [d for d in terms if d["locale"] == locale]
@@ -121,7 +125,7 @@ async def consent(body: ConsentIn, identity=Depends(contributor_identity), db: A
             or {d["agreement"]: d["sha256"] for d in docs} != body.documents
             or {d["agreement"]: d["version"] for d in docs} != body.versions):
         raise HTTPException(409, "terms_changed_or_unavailable")
-    if not await has_consent(account, identity["region"], db, locale=body.locale):
+    if not await has_consent(account, identity["region"], db, locale=body.locale, verified_phone=identity.get("verified_phone")):
         receipt_id = str(uuid4())
         snapshot = {"id": receipt_id, "subject": account.subject, "wearer_id": account.wearer_id, "routing_version": account.routing_version, "accepted_at": now().isoformat(), "locale": body.locale, "documents": docs}
         db.add(ContributorConsent(id=receipt_id, subject=account.subject, snapshot=json.dumps(snapshot)))
@@ -134,7 +138,7 @@ class ClaimIn(BaseModel):
 @router.post("/cameras")
 async def claim_camera(body: ClaimIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
     account = await account_for(identity, db)
-    if not await has_consent(account, identity["region"], db):
+    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
         raise HTTPException(409, "consent_required")
     device = body.device_id.strip().upper().removeprefix("EGO-")
     if not re.fullmatch("[A-F0-9]{6}", device):
@@ -163,7 +167,7 @@ async def dashboard(identity=Depends(contributor_identity), db: AsyncSession = D
     attempts = (await db.execute(select(ContributorRecipientAttempt).where(ContributorRecipientAttempt.subject == account.subject, ContributorRecipientAttempt.status != "retry_allowed").order_by(ContributorRecipientAttempt.created_at.desc()))).scalars().all()
     linked = await db.get(PayoutRecipient, account.wearer_id)
     bank = next((a for a in attempts if linked and a.recipient_id == linked.wise_recipient_id), attempts[0] if attempts else None)
-    return {"name": wearer.name, "country": identity["region"]["country"], "consent_current": await has_consent(account, identity["region"], db), "rate": wearer.rate_krw_hour, "currency": identity["region"]["currency"], "recorded_seconds": sum(e.duration_s or 0 for e in raw), "unknown_duration_count": sum(not e.duration_s for e in raw), "approved_seconds": sum(r["retained_seconds"] for r in approved), "cameras": [{"id": c.id, "device_id": c.device_id, "status": "ended" if c.ended_at else c.status} for c in claims], "recordings": [{"recording": e.recording, "duration_seconds": e.duration_s or None, "uploaded_at": e.uploaded_at, "approved_seconds": by_recording[e.recording]["retained_seconds"] if e.recording in by_recording and by_recording[e.recording]["review_status"] == "reviewed" else None, "review_status": by_recording[e.recording]["review_status"] if e.recording in by_recording else "awaiting_qc"} for e in raw], "payouts": [{"id": p.id, "amount": p.amount_krw, "currency": "KRW", "status": p.status, "scheduled_for": p.scheduled_for} for p in payouts], "bank": {**json.loads(bank.summary), "status": "ready" if linked and bank.recipient_id == linked.wise_recipient_id else bank.status} if bank else None, "updated_at": now().isoformat()}
+    return {"name": wearer.name, "country": identity["region"]["country"], "consent_current": await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")), "rate": wearer.rate_krw_hour, "currency": identity["region"]["currency"], "recorded_seconds": sum(e.duration_s or 0 for e in raw), "unknown_duration_count": sum(not e.duration_s for e in raw), "approved_seconds": sum(r["retained_seconds"] for r in approved), "cameras": [{"id": c.id, "device_id": c.device_id, "status": "ended" if c.ended_at else c.status} for c in claims], "recordings": [{"recording": e.recording, "duration_seconds": e.duration_s or None, "uploaded_at": e.uploaded_at, "approved_seconds": by_recording[e.recording]["retained_seconds"] if e.recording in by_recording and by_recording[e.recording]["review_status"] == "reviewed" else None, "review_status": by_recording[e.recording]["review_status"] if e.recording in by_recording else "awaiting_qc"} for e in raw], "payouts": [{"id": p.id, "amount": p.amount_krw, "currency": "KRW", "status": p.status, "scheduled_for": p.scheduled_for} for p in payouts], "bank": {**json.loads(bank.summary), "status": "ready" if linked and bank.recipient_id == linked.wise_recipient_id else bank.status} if bank else None, "updated_at": now().isoformat()}
 
 class BankIn(BaseModel):
     values: dict[str, str] = Field(default_factory=dict, max_length=20)
@@ -180,7 +184,7 @@ class BankIn(BaseModel):
 @router.post("/bank/requirements")
 async def bank_requirements(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
     account = await account_for(identity, db)
-    if not await has_consent(account, identity["region"], db):
+    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
         raise HTTPException(409, "consent_required")
     from app.core.contributor_wise import RecipientClient, ROUTES
     country = identity["region"]["country"]
@@ -195,7 +199,7 @@ async def bank_requirements(body: BankIn, identity=Depends(contributor_identity)
 @router.post("/bank")
 async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
     account = await account_for(identity, db)
-    if not await has_consent(account, identity["region"], db):
+    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
         raise HTTPException(409, "consent_required")
     from app.core.contributor_wise import RecipientClient, ROUTES, validate
     country = identity["region"]["country"]

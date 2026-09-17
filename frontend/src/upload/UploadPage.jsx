@@ -3,6 +3,7 @@ import { ArrowUpRight, Check, CheckCircle2, FolderUp, LockKeyhole, Pause, Upload
 import { bytes, droppedFiles, groupEpisodes } from "./files.js";
 import { transferEpisode, uploadApi } from "./transfer.js";
 import SignIn from "./SignIn.jsx";
+import Activate, { linkFormContract } from "./Activate.jsx";
 import { contributorSession as session } from "./auth.js";
 import { copy } from "./copy.js";
 import "./upload.css";
@@ -12,6 +13,9 @@ export default function UploadPage() {
   const t = copy[locale];
   const [signedIn, setSignedIn] = useState(session.signedIn);
   const [info, setInfo] = useState(null);
+  const [formConfig, setFormConfig] = useState(undefined);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [activation, setActivation] = useState(new URLSearchParams(location.search).get('activate') === '1');
   const [error, setError] = useState("");
   const [queue, setQueue] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -35,12 +39,19 @@ export default function UploadPage() {
 
   useEffect(() => {
     const abort = new AbortController();
+    fetch(`${import.meta.env.VITE_API_URL ?? ''}/api/form-contracts/configuration`, {credentials:'omit',signal:abort.signal})
+      .then(r=>r.ok?r.json():null).then(setFormConfig).catch(()=>{if(!abort.signal.aborted)setFormConfig(null);});
+    return ()=>abort.abort();
+  }, []);
+
+  useEffect(() => {
+    const abort = new AbortController();
     setInfo(null); setError(""); setQueue([]);
-    if (signedIn) uploadApi(session, "/info", undefined, abort.signal).then(setInfo).catch(e => {
+    if (signedIn && formConfig !== undefined) (formConfig ? linkFormContract(abort.signal).catch(e=>{if(!['contract_not_found','contract_region_mismatch'].includes(e.message))throw e;}) : Promise.resolve()).then(()=>uploadApi(session, "/info", undefined, abort.signal)).then(setInfo).catch(e => {
       if (!abort.signal.aborted) setError(e.message);
     });
     return () => abort.abort();
-  }, [signedIn]);
+  }, [signedIn, formConfig]);
 
   const signOut = async () => {
     controller.current?.abort();
@@ -107,7 +118,7 @@ export default function UploadPage() {
             <p className="upload-eyebrow"><span />{t.eyebrow}</p>
             <h1>{t.title}</h1><p>{t.intro}</p>
           </section>
-          {!signedIn ? <><SignIn t={t} />{error && <p className="upload-error" role="alert">{t.errors[error] || error}</p>}</> : !info ? (
+          {!signedIn ? <>{activation && formConfig ? <Activate locale={locale} back={verified=>{setPhoneVerified(verified);setActivation(false);}}/> : <>{phoneVerified && <p role="status">{t.phoneVerified}</p>}<SignIn t={t} />{formConfig && <div className="upload-signin"><button className="upload-button" onClick={()=>setActivation(true)}>{locale==='ko'?'계약 서명 후 로그인 만들기':'Signed the form? Set up your login'}</button><p><a href={formConfig.url} target="_blank" rel="noreferrer">{locale==='ko'?'참여 계약 양식':'Contributor contract form'}</a></p></div>}</>}{error && <p className="upload-error" role="alert">{t.errors[error] || error}</p>}</> : !info ? (
             <section className="upload-access" role={error ? "alert" : "status"}><LockKeyhole size={28} /><h2>{error ? (t.errors[error] || error) : t.loading}</h2>{error && <p><a href="mailto:alex@6thsense.dev">alex@6thsense.dev <ArrowUpRight size={16} /></a></p>}<button className="upload-text-button" onClick={signOut}>{t.signOut}</button></section>
           ) : <>
             <section className="upload-identity" aria-label={t.for}>

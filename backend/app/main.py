@@ -19,6 +19,7 @@ from app.core.middleware import MaxBodySizeMiddleware
 from app.core.slack import SLACK_ENV_VAR, slack_configured
 from app.core.csrf import OriginCheckMiddleware
 from app.api.routes import uploads
+from app.api.routes import form_contracts
 
 
 logger = logging.getLogger(__name__)
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     application.include_router(contributor.router)
     application.include_router(contributor_ops.router)
     application.include_router(uploads.router)
+    application.include_router(form_contracts.router)
     application.include_router(health.router)
     application.include_router(leads.router)
     application.include_router(auth.router)

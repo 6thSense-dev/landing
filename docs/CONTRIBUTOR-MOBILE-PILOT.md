@@ -1,5 +1,7 @@
 # Contributor mobile pilot
 
+This page retains the original mobile-pilot procedure and dated verification results. The Korean website now also implements the [Google Form contract workflow](contributors/google-form-register.md), including secure password setup and supervised camera preapproval. Its release guide is the source for that workflow's current rollout checks; historical sandbox and unpublished-terms observations below are not fresh production measurements.
+
 The mobile API connects verified Cognito subjects to new Ops wearer records. It never infers an account from an existing name or a camera. Existing business-source attribution, raw/clean ledgers and payout approval remain authoritative.
 
 ## Trial flow
@@ -15,7 +17,7 @@ The mobile API connects verified Cognito subjects to new Ops wearer records. It 
 
 ## Browser upload from an SD card
 
-Open `https://6thsense.dev/upload` on the computer with the SD card. Use the existing contributor account created during onboarding; the Google Form application acknowledgment is separate from account enrollment, agreement consent and camera approval. The page supports Korean and English, and requires an active enrolled account with current published agreements accepted and an approved camera assignment.
+Open `https://6thsense.dev/upload` on the computer with the SD card. Existing contributors use their established account. New Korean contributors follow the [final Form contract and website activation flow](contributors/google-form-register.md#participant-and-operator-flow) once released. The older application acknowledgment does not constitute that contract. The page supports Korean and English, and requires an active enrolled account with current consent and an approved camera assignment.
 
 1. Sign in with the verified phone number including its country code and the account password. For a Korean number, use `+82` and omit the leading `0`. **Forgot password?** sends a reset code to the registered phone. The page refreshes access tokens during long uploads; if the session ends, sign in again.
 2. Stop recording before removing the SD card. Drop a complete `ego_YYYYMMDD_HHMMSS_CAMERA` folder onto the page or use **Choose folders**; a parent folder containing several episodes also works. Keep original folder and file names, `metadata.json`, video or `.egoc` recordings, and sensor sidecars together.

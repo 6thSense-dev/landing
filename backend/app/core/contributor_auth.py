@@ -47,4 +47,6 @@ async def contributor_identity(authorization: str | None = Header(default=None))
     matches = [r for r in REGIONS if r["routing_version"] == attrs.get("custom:routing_version")]
     if attrs.get("sub") != claims["sub"] or attrs.get("phone_number_verified") != "true" or len(matches) != 1 or not re.fullmatch(matches[0]["phone_pattern"], attrs.get("phone_number", "")):
         raise HTTPException(403, "verified_account_required")
-    return {"subject": attrs["sub"], "region": matches[0]}
+    # Request-local only: consent matching needs this verified attribute before
+    # a Form signature is linked. It is never persisted or returned to clients.
+    return {"subject": attrs["sub"], "region": matches[0], "verified_phone": attrs["phone_number"]}

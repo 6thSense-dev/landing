@@ -11,6 +11,7 @@ async function mock(page, { approved = true, signedIn = false } = {}) {
   if (signedIn) await page.addInitScript(() => sessionStorage.setItem('6thsense-contributor-session', JSON.stringify({ access: 'test-access', refresh: 'test-refresh', expires: Date.now() + 900000 })));
   await page.route('**/api/contributor/configuration', r => r.fulfill({ json: { identity: { region: 'us-west-2', clientId: 'testclient1234' } } }));
   await page.route('https://cognito-idp.us-west-2.amazonaws.com/**', r => r.fulfill({ json: r.request().postDataJSON().Token ? {} : { AuthenticationResult: { AccessToken: 'test-access', RefreshToken: 'test-refresh', ExpiresIn: 900 } } }));
+  await page.route('**/api/form-contracts/configuration', r => r.fulfill({ status: 503, json: { detail: 'contract_setup_pending' } }));
   const files = [], received = new Map();
   let complete = false, partCount = 0;
   await page.route('**/api/uploads/**', async route => {

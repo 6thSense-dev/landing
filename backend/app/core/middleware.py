@@ -21,8 +21,9 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         upload_manifest = request.url.path.startswith('/api/uploads/')
-        max_bytes = 1024 * 1024 if upload_manifest else self.max_bytes
-        if request.url.path in GUARDED_PATHS or upload_manifest:
+        form_contract = request.url.path.startswith('/api/form-contracts/')
+        max_bytes = 1024 * 1024 if upload_manifest else 8192 if form_contract else self.max_bytes
+        if request.url.path in GUARDED_PATHS or upload_manifest or form_contract:
             cl = request.headers.get("content-length")
             if cl is not None:
                 try:
