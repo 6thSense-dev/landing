@@ -158,7 +158,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
                         EGO-{e.device_id} · {regionOfEpisode(e)}
                       </div>
                     </td>
-                    <td>{e.counterparty?.name || people.get(e.wearer_id)?.name || "Unassigned"}{e.counterparty && <> <span className="ops-chip">B2B</span></>}</td>
+                    <td>{e.counterparty?.name || people.get(e.wearer_id)?.name || "Unassigned"}{e.counterparty && <> <span className="ops-chip">B2B</span></>}{e.uploaded_by && <div className="ops-muted">Uploaded by {e.uploaded_by.name}</div>}</td>
                     <td className="mono">
                       {e.uploaded_at
                         ? new Date(e.uploaded_at).toLocaleString()
