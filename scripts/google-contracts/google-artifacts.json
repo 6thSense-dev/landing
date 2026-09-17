@@ -41,5 +41,24 @@
     "Retention expiry and minimization",
     "Small-balance and termination payment exceptions"
   ],
-  "verifiedAt": "2026-09-18T01:36:34+09:00"
+  "verifiedAt": "2026-09-18T01:40:54+09:00",
+  "identityPreflight": {
+    "region": "us-west-2",
+    "smsSandbox": false,
+    "monthlySmsSpendLimitUsd": 50,
+    "koreanSignupEnabled": true,
+    "passwordAuthEnabled": true,
+    "stack": "sixthsense-contributor-identity",
+    "changeSet": "signup-cold-start-readiness-20260918",
+    "stackStatus": "UPDATE_COMPLETE",
+    "signupMemoryMb": 512,
+    "signupTimeoutSeconds": 5,
+    "signupCodeSha256": "eDMhpVH1F56Z6417TDgT95V9W7oPWGbYaIOn2cyqC4s=",
+    "coldHandlerMs": 1364.35,
+    "coldInitMs": 96.77,
+    "warmHandlerMs": 85.91,
+    "autoConfirmOrVerifyEnabled": false,
+    "probeCreatesAccountOrSendsSms": false,
+    "realParticipantSmsStillPending": true
+  }
 }
