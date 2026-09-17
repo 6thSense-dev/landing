@@ -106,9 +106,7 @@ def _metadata_evidence(s3, doc):
                       'version_id': provenance_version, 'sha256': hashlib.sha256(raw).hexdigest(),
                       'bytes': len(raw)}
     provenance = json.loads(raw)
-    if (provenance.get('schema') != '6thsense-clean-source-metadata/1'
-            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
-            or provenance.get('run_id') != doc['run_id']
+    if (provenance.get('run_id') != doc['run_id']
             or provenance.get('recording') != rec['recording']):
         raise ValueError('Original metadata provenance identity mismatch')
     expected = [(s['bucket'], s['key'], s['version_id']) for s in rec['sources']]
@@ -131,6 +129,15 @@ def _metadata_evidence(s3, doc):
         raise ValueError('Original metadata is not JSON') from exc
     if not isinstance(metadata, dict):
         raise ValueError('Original metadata must be an object')
+    if provenance.get('schema') == '6thsense-clean-source-metadata/2':
+        from app.core.ops_reconstructed_metadata import validate_reconstructed
+        validate_reconstructed(metadata,provenance,rec,ref)
+        return metadata,provenance,body,provenance_ref
+    if (provenance.get('schema') != '6thsense-clean-source-metadata/1'
+            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
+            or metadata.get('metadata_origin') == 'reconstructed'
+            or rec.get('source_provenance',{}).get('metadata_recovery') is not None):
+        raise ValueError('Original metadata provenance identity mismatch')
     originals = provenance.get('source_metadata')
     if not isinstance(originals, list) or not originals:
         raise ValueError('Original metadata source references are missing')
@@ -139,6 +146,52 @@ def _metadata_evidence(s3, doc):
                 or source.get('bytes') != ref.get('bytes')):
             raise ValueError('Original metadata was modified or conflicting')
     return metadata, provenance, body, provenance_ref
+
+
+def _validate_recovery_source(s3, rec, metadata, metadata_body, provenance, report, take):
+    """Read the immutable authorization and conversion evidence before import."""
+    recovery = provenance['reconstruction']
+    auth = json.loads(_read(s3,recovery['authorization']))
+    if (take.get('meta_key') or auth.get('schema')!='6thsense-source-metadata-recovery/1'
+            or auth.get('recording')!=rec['recording'] or auth.get('device_id')!=metadata['device_id']
+            or auth.get('scope')!='available_source_only' or auth.get('capture_completeness')!='unknown'
+            or not auth.get('basis') or auth.get('calibration')!=rec['calibration_source']
+            or not auth.get('calibration_applicability',{}).get('basis')
+            or auth['calibration_applicability']!=metadata['calibration_provenance'].get('applicability')):
+        raise ValueError('Reconstruction authorization or original-metadata availability changed')
+    expected = {(r['bucket'],r['key'],r['version_id']):(r['size_bytes'],r['sha256']) for r in rec['sources']}
+    sources = auth.get('sources',[])
+    if len(sources)!=len(expected):
+        raise ValueError('Reconstruction authorization source count differs')
+    seen = set()
+    for source in sources:
+        key = tuple(source.get(k) for k in ('bucket','key','version_id'))
+        if (key in seen or key not in expected or source.get('bytes')!=expected[key][0]
+                or source.get('sha256') not in (None,expected[key][1])):
+            raise ValueError('Reconstruction authorization source identity differs')
+        seen.add(key)
+    ref = recovery['metadata']
+    if (report.get('metadata_recovery_ref')!=recovery['authorization']
+            or report.get('reconstructed_metadata')!=ref
+            or [r for r in report.get('outputs',[]) if r.get('key','').endswith('/metadata.json')]!=[ref]
+            or report.get('calibration_source')!=rec['calibration_source']
+            or report.get('source_complete_flag') is not None
+            or report.get('metadata_frame_count') is not None
+            or report.get('frames_absent_against_capture_metadata') is not None
+            or report.get('decoded_frame_count')!=metadata['frame_count']
+            or report.get('sensor_decoder')!='native_luma/1'
+            or _read(s3,ref)!=metadata_body):
+        raise ValueError('Reconstructed metadata differs from the conversion evidence')
+    timeline = report['timeline']
+    sensor_fields = ('sensor_clock','imu_samples','imu_units','unreadable_sensor_frames',
+                     'imu_conflicting_measurements','sensor_discontinuities','maximum_imu_gap_us')
+    duration_fields = ('video_clock','chunk_join','recovered_chunk_display_clock')
+    layout = rec['media']['layout']
+    if (metadata.get('available_video_duration_us')!=timeline.get('duration_us')
+            or metadata.get('sensor_observations')!={k:timeline[k] for k in sensor_fields}
+            or metadata.get('duration_basis')!={k:timeline[k] for k in duration_fields}
+            or metadata.get('image_size')!=[layout['width'],layout['height']]):
+        raise ValueError('Reconstructed observations differ from conversion measurements')
 
 
 def _validate_country(doc, party):
@@ -173,11 +226,14 @@ def _validate_new_source(doc, episode):
             or not str(receipt_ref.get('key', '')).endswith(expected_suffix)):
         raise ValueError('Pinned conversion receipt is required')
     report = json.loads(_read(s3, receipt_ref))
+    reconstructed = provenance.get('schema') == '6thsense-clean-source-metadata/2'
     if (report.get('schema') != '6thsense-raw-conversion-result/1'
             or report.get('recording') != episode.recording
             or report.get('status') != 'converted_staging'
-            or report.get('source_complete_flag') is not True):
+            or (not reconstructed and report.get('source_complete_flag') is not True)):
         raise ValueError('Conversion receipt identity mismatch')
+    if reconstructed:
+        _validate_recovery_source(s3,rec,metadata,metadata_body,provenance,report,take)
     trusted = {}
     for source in report.get('sources', []):
         try:

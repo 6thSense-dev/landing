@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Accept explicitly authorized reconstructed source metadata at Clean import and preserve its unknown capture fields and calibration provenance in Sieve copies.
+- Align the Raw upload wait message and intake check with the cloud pipeline's 10-minute quiet period.
 - Keep contributor footage excluded from Sieve when an operator records a delivery restriction, while retaining internal Raw/Clean copies and payments.
 - Describe Synapse's configured camera fleet reports, their separation from optional analytics, contributor bank fields and commercial footage licensing in its public privacy policy.
 

@@ -241,14 +241,24 @@ def source_files(s3, row):
                       'source': {'bucket': clean_bucket(), **{k: output[k] for k in ('key', 'version_id', 'sha256', 'bytes')}}})
     provenance, provenance_ref = read_json(s3, base + 'metadata-provenance.json')
     identities = [dict(zip(('bucket', 'key', 'version_id'), s)) for s in sorted({(s['bucket'], s['key'], s['version_id']) for s in row['rec']['sources']})]
-    if (provenance.get('schema') != '6thsense-clean-source-metadata/1' or provenance.get('run_id') != run or provenance.get('recording') != name
-            or provenance.get('source_media') != identities or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'):
-        raise ValueError('Original metadata provenance does not match Clean')
+    if (provenance.get('run_id') != run or provenance.get('recording') != name
+            or provenance.get('source_media') != identities):
+        raise ValueError('Metadata provenance does not match Clean')
     meta_ref = provenance['metadata']
     if meta_ref['bucket'] != clean_bucket() or meta_ref['key'] != base + 'metadata.json':
         raise ValueError('Metadata must be inherited from Clean')
     metadata, actual = read_json(s3, meta_ref['key'], version=meta_ref['version_id'])
-    if actual != meta_ref or not isinstance(metadata, dict) or not provenance['source_metadata'] or any(s['sha256'] != meta_ref['sha256'] for s in provenance['source_metadata']):
+    if actual != meta_ref or not isinstance(metadata, dict):
+        raise ValueError('Metadata digest does not match Clean')
+    if provenance.get('schema') == '6thsense-clean-source-metadata/2':
+        from app.core.ops_reconstructed_metadata import validate_reconstructed
+        validate_reconstructed(metadata,provenance,row['rec'],meta_ref)
+    elif (provenance.get('schema') != '6thsense-clean-source-metadata/1'
+            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
+            or metadata.get('metadata_origin') == 'reconstructed'
+            or row['rec'].get('source_provenance',{}).get('metadata_recovery') is not None
+            or not provenance.get('source_metadata')
+            or any(s['sha256'] != meta_ref['sha256'] for s in provenance['source_metadata'])):
         raise ValueError('Original metadata digest does not match Clean')
     files.extend([{'name': 'metadata.json', 'source': meta_ref}, {'name': 'metadata-provenance.json', 'source': provenance_ref}])
     calibrations = [o for o in outputs if o.get('role') == 'calibration']
