@@ -60,6 +60,10 @@ async def terms_for(region, db):
     return complete
 
 async def has_consent(account, region, db, locale=None):
+    from app.api.routes.form_contracts import has_form_consent
+    form_consent = await has_form_consent(account, db)
+    if form_consent is not None:
+        return form_consent
     terms = await terms_for(region, db)
     if locale is not None:
         terms = [d for d in terms if d["locale"] == locale]

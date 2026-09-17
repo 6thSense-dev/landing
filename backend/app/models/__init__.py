@@ -12,3 +12,4 @@ from app.models.contributor import ContributorAccount, ContributorConsent, Contr
 
 from app.models.contributor import ContributorDeletion, ContributorDeletionReceipt
 from app.models.uploads import UploadBatch, UploadFile, UploadPart
+from app.models.form_contract import FormContract

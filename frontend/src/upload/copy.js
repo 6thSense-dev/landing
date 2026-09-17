@@ -1,10 +1,15 @@
 export const copy = {
   en: {
+    phoneVerified: "Phone verified. You can now sign in with your password.",
     signIn: "Sign in to upload", signOut: "Sign out", accountIntro: "Use your 6thSense contributor account.", phone: "Phone number", phoneHint: "Include your country code. For Korea, use +82 and omit the first 0.", password: "Password", working: "Please wait…", forgotPassword: "Forgot password?", resetPassword: "Reset password", backToSignIn: "Back to sign in", newPassword: "New password", passwordHint: "At least 12 characters, including uppercase, lowercase and a number.", code: "Verification code", sendCode: "Send reset code", codeSent: "Enter the verification code sent to your registered phone.", passwordChanged: "Password updated. You can now sign in.", noAccount: "New contributor? Complete onboarding with 6thSense to activate your account and camera.",
     errors: {
+      contract_region_mismatch: "This contract is for Korea. Contact alex@6thsense.dev to check your account region.",
+      contract_setup_pending: "Contract linking is temporarily unavailable. Please try again shortly.",
+      contract_not_found: "Your signed form has not synced yet. Wait a few minutes and sign in again, or contact alex@6thsense.dev.",
+      contract_identity_review_required: "We need to confirm your contributor record. Contact alex@6thsense.dev; your existing footage and payments are preserved.",
       phone_format: "Enter a phone number with its country code, for example +821012345678.",
       NotAuthorizedException: "Check your phone number and password, then sign in again.", UserNotFoundException: "Check your phone number and password, then sign in again.",
-      UserNotConfirmedException: "Your phone verification is not complete. Contact 6thSense to finish onboarding.", PasswordResetRequiredException: "Please reset your password before signing in.",
+      UserNotConfirmedException: "Your phone verification is not complete. Choose Set up your login, then Finish phone verification.", PasswordResetRequiredException: "Please reset your password before signing in.",
       TooManyRequestsException: "Too many attempts. Please wait a moment and try again.", LimitExceededException: "Too many attempts. Please wait and try again later.",
       CodeMismatchException: "The verification code does not match. Try again.", ExpiredCodeException: "The code expired. Request a new reset code.", InvalidPasswordException: "Use at least 12 characters with uppercase, lowercase and a number.",
       sign_in_unavailable: "Sign-in is temporarily unavailable. Please retry or contact 6thSense.", account_setup_required: "Contact 6thSense to finish setting up your contributor account.", authentication_required: "Your session ended. Sign in again to resume.",
@@ -24,11 +29,16 @@ export const copy = {
     remove: "Remove", allowance: "Available within 24 hours", noData: "Only original recording folders are accepted.",
   },
   ko: {
+    phoneVerified: "전화번호가 인증되었습니다. 설정한 비밀번호로 로그인해 주세요.",
     signIn: "로그인하고 업로드", signOut: "로그아웃", accountIntro: "6thSense 참여자 계정으로 로그인해 주세요.", phone: "전화번호", phoneHint: "국가번호를 포함해 주세요. 한국 번호는 맨 앞 0을 빼고 +82로 시작합니다.", password: "비밀번호", working: "잠시만 기다려 주세요…", forgotPassword: "비밀번호를 잊으셨나요?", resetPassword: "비밀번호 재설정", backToSignIn: "로그인으로 돌아가기", newPassword: "새 비밀번호", passwordHint: "대문자, 소문자, 숫자를 포함하여 12자 이상 입력해 주세요.", code: "인증번호", sendCode: "재설정 인증번호 받기", codeSent: "등록한 전화번호로 받은 인증번호를 입력해 주세요.", passwordChanged: "비밀번호가 변경되었습니다. 다시 로그인해 주세요.", noAccount: "처음 참여하시나요? 6thSense와 온보딩을 완료한 뒤 계정과 카메라를 활성화할 수 있습니다.",
     errors: {
+      contract_region_mismatch: "대한민국 프로그램 계약입니다. 계정 지역을 확인하려면 alex@6thsense.dev로 문의해 주세요.",
+      contract_setup_pending: "현재 계약을 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      contract_not_found: "서명한 계약이 아직 동기화되지 않았습니다. 잠시 후 다시 로그인하거나 alex@6thsense.dev로 문의해 주세요.",
+      contract_identity_review_required: "참여자 기록 확인이 필요합니다. 기존 영상과 지급 기록은 보존됩니다. alex@6thsense.dev로 문의해 주세요.",
       phone_format: "국가번호를 포함한 전화번호를 입력해 주세요. 예: +821012345678",
       NotAuthorizedException: "전화번호와 비밀번호를 확인한 뒤 다시 로그인해 주세요.", UserNotFoundException: "전화번호와 비밀번호를 확인한 뒤 다시 로그인해 주세요.",
-      UserNotConfirmedException: "전화번호 인증이 완료되지 않았습니다. 6thSense에 문의해 주세요.", PasswordResetRequiredException: "로그인 전에 비밀번호를 재설정해 주세요.",
+      UserNotConfirmedException: "전화번호 인증이 완료되지 않았습니다. 로그인 만들기에서 전화번호 인증 완료하기를 선택해 주세요.", PasswordResetRequiredException: "로그인 전에 비밀번호를 재설정해 주세요.",
       TooManyRequestsException: "시도 횟수가 많습니다. 잠시 후 다시 시도해 주세요.", LimitExceededException: "시도 횟수가 많습니다. 나중에 다시 시도해 주세요.",
       CodeMismatchException: "인증번호가 일치하지 않습니다. 다시 확인해 주세요.", ExpiredCodeException: "인증번호가 만료되었습니다. 새 인증번호를 요청해 주세요.", InvalidPasswordException: "대문자, 소문자, 숫자를 포함하여 12자 이상 입력해 주세요.",
       sign_in_unavailable: "현재 로그인할 수 없습니다. 다시 시도하거나 6thSense에 문의해 주세요.", account_setup_required: "참여자 계정 설정을 완료하려면 6thSense에 문의해 주세요.", authentication_required: "로그인이 만료되었습니다. 다시 로그인하면 이어서 업로드할 수 있습니다.",
