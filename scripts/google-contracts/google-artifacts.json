@@ -2,17 +2,44 @@
   "contractFormEditUrl": "https://docs.google.com/forms/d/1I5L9JSi4IgRLN_AqtJNaqO7bc7LjDuCeueePVdAEm6g/edit",
   "sheetUrl": "https://docs.google.com/spreadsheets/d/1ZJZ_H4ZIWRl_c6QngmsDTfcAhQnbN6vrLbUnpPd_CPg/edit",
   "appsScriptUrl": "https://script.google.com/home/projects/1VxvnIq02VKmRhqENhv3sejahCX2Wjg-Zpbx4mR5pVUwniSvYfyifu8Ol/edit",
-  "published": false,
-  "websiteDeployed": false,
-  "version": "KR-FORM-2026-09-18-DRAFT-3",
+  "contractFormPublicUrl": "https://docs.google.com/forms/d/e/1FAIpQLSeampbT4_nIhAdxxiIt145QRSqHWLGAoY-hVuGXgkr1aX3Fzw/viewform",
+  "published": true,
+  "websiteDeployed": true,
+  "version": "KR-FORM-2026-09-18-1",
+  "termsSha256": "556d32d8d0dd07f1e75f32530ad0b473103ac16371db6d5a4406e74cfca5e15e",
+  "releasedFormShapeSha256": "0572c20f4e2690c6b9dcd922e550e8bc50e66eb012371cff41bdc8bb46bb2588",
   "rateKrwPerAcceptedHour": 11000,
   "identifiableFootageRetentionYears": 3,
   "applicationRetentionDays": 30,
-  "draftSetupVerified": true,
+  "releasedSetupVerified": true,
+  "legalSections": 17,
   "questions": 16,
   "responses": 0,
   "hasPasswordQuestion": false,
   "privateSourceSaved": true,
-  "registerRows": 0,
-  "verifiedAt": "2026-09-18T01:01:00+09:00"
+  "applicationRegisterRows": 1,
+  "anonymousResponderHttpStatus": 200,
+  "publicSourceTextMatches": true,
+  "installedTriggers": [
+    "receiveContractSubmission",
+    "retryContractSync"
+  ],
+  "authenticatedBridgeProbe": "422 invalid_form_submission for deliberately empty authenticated payload; no contract created",
+  "apiCommit": "f42f0d3768ceedf4e267522c0690d4c3e8b9cebb",
+  "apiDeployment": "66c67311-a480-46f6-9983-912910415a74",
+  "apiDeploymentStatus": "SUCCESS",
+  "frontendCommit": "48c27db4ee56ec42daaebd38b24ddabee211aff3",
+  "frontendDeployment": "d84aef2f-d69e-4477-9bee-7001f2ec6182",
+  "frontendDeploymentStatus": "SUCCESS",
+  "participantAcceptancePending": [
+    "Final Form signature",
+    "Own phone verification and activation",
+    "Real short recording upload and ownership check",
+    "Private payment details"
+  ],
+  "manualOperations": [
+    "Retention expiry and minimization",
+    "Small-balance and termination payment exceptions"
+  ],
+  "verifiedAt": "2026-09-18T01:36:34+09:00"
 }
