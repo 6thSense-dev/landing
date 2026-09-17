@@ -138,3 +138,16 @@ test('a stale diagnostic cannot relabel an active or completed processing state 
     assert.equal(display.label, processingLabels[state]);
   }
 });
+
+for (const [reason, label] of [
+  ["QA review required: no frames retained (uncertain_scene).", "Scene review required"],
+  ["QA rejected: no frames retained (phone_use).", "Rejected by scene QA"],
+  ["Clean extraction failed: Inference reservation contention", "Budget update interrupted"],
+  ["Source conversion failed: Host EC2 (instance) terminated.", "Cloud worker interrupted"],
+  ["Clean extraction failed: HTTP Error 500", "Model service interrupted"],
+  ["Clean extraction failed: Unexpected or duplicate scene sample", "Scene response invalid"],
+]) {
+  test(`specific recovery cause: ${label}`, () => {
+    assert.equal(processingPresentation({ processing: { state: "blocked", reason } }).label, label);
+  });
+}

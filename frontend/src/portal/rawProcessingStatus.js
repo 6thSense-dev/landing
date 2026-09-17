@@ -24,6 +24,18 @@ export function processingState(episode) {
 }
 
 const causes = [
+  [/^QA review required:/i, "Scene review required",
+    "Scene screening could not confidently retain footage. Review the saved evidence before deciding."],
+  [/^QA rejected:/i, "Rejected by scene QA",
+    "No footage passed the current scene rules. Review the recorded reason; processing completed without a Clean export."],
+  [/inference reservation contention|budget ledger contention/i, "Budget update interrupted",
+    "Parallel workers could not record a model reservation. Recovery reuses completed calls under the same budget."],
+  [/Host EC2.*terminated|Spot.*interrupt/i, "Cloud worker interrupted",
+    "AWS reclaimed the conversion worker. Recovery preserves source files and checks earlier outputs before retrying."],
+  [/HTTP (?:Error )?(?:429|500|502|503|504)|model service/i, "Model service interrupted",
+    "Recovery retries the failed request within the shared budget and reuses stored successful responses."],
+  [/unexpected or duplicate scene sample|invalid.*scene.*response/i, "Scene response invalid",
+    "The model response failed sample validation. Recovery requests a separately checked response."],
   [/original metadata missing|source metadata missing/i, "Metadata missing",
     "Recover the original metadata for this recording, then revalidate it."],
   [/metadata could not be read|malformed metadata/i, "Metadata unreadable",

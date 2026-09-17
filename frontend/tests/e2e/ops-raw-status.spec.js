@@ -12,6 +12,10 @@ test('Raw explains blocked causes and requires matched receipts before displayin
       wearers: [{ id: 1, name: 'Example contributor' }], cameras: [], tasks: [], contributor_stats: [],
       episodes: [
         episode('metadata-source', 'blocked', 'Original metadata missing'),
+        episode('qa-review', 'blocked', 'QA review required: no frames retained (uncertain_scene).'),
+        episode('qa-rejected', 'blocked', 'QA rejected: no frames retained (phone_use).'),
+        episode('budget-collision', 'blocked', 'Clean extraction failed: Inference reservation contention'),
+        episode('spot-interrupted', 'blocked', 'Source conversion failed: Host EC2 (instance) terminated.'),
         episode('changed-source', 'blocked', 'New source versions arrived during processing; review before supersession'),
         episode('pending-source', 'awaiting_verification', 'QC output imported; awaiting exact source receipt reconciliation.', { status: 'partial', pending_files: 2 }),
         episode('matched-source', 'awaiting_verification', 'Cloud pipeline imported verified Clean; source receipts awaiting reconciliation.', { status: 'processed', pending_files: 0 }),
@@ -21,6 +25,10 @@ test('Raw explains blocked causes and requires matched receipts before displayin
   });
   await page.goto('/portal/ops');
   const row = name => page.getByRole('row').filter({ hasText: name });
+  await expect(row('qa-review').locator('.ops-chip')).toHaveText('Scene review required');
+  await expect(row('qa-rejected').locator('.ops-chip')).toHaveText('Rejected by scene QA');
+  await expect(row('budget-collision').locator('.ops-chip')).toHaveText('Budget update interrupted');
+  await expect(row('spot-interrupted').locator('.ops-chip')).toHaveText('Cloud worker interrupted');
   await expect(row('metadata-source')).toContainText('Metadata missing');
   await expect(row('metadata-source')).toContainText('Recover the original metadata');
   await expect(row('changed-source')).toContainText('Source files changed');

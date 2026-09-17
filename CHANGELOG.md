@@ -6,6 +6,7 @@
 
 - Show specific Raw processing causes and recovery guidance, while preserving the original diagnostic message.
 - Explain imported results as “Checking source match” until verified receipts cover the current Raw files. Keep status badges, filters and completed-history visibility consistent after reconciliation.
+- Distinguish scene review/rejection from cloud worker interruptions, model service failures, invalid scene responses and interrupted budget updates.
 
 ## [0.2.0.0] - 2026-09-16
 
