@@ -9,13 +9,15 @@ Company: 6thSense AI, Inc., Delaware file 10635916. Registered office: c/o Corpo
 ## Artifacts and release evidence
 
 - Contract editor: https://docs.google.com/forms/d/1I5L9JSi4IgRLN_AqtJNaqO7bc7LjDuCeueePVdAEm6g/edit
-- Respondent URL, available after publication: https://docs.google.com/forms/d/e/1FAIpQLSeampbT4_nIhAdxxiIt145QRSqHWLGAoY-hVuGXgkr1aX3Fzw/viewform
+- Published respondent URL: https://docs.google.com/forms/d/e/1FAIpQLSeampbT4_nIhAdxxiIt145QRSqHWLGAoY-hVuGXgkr1aX3Fzw/viewform
 - Register workbook: https://docs.google.com/spreadsheets/d/1ZJZ_H4ZIWRl_c6QngmsDTfcAhQnbN6vrLbUnpPd_CPg/edit
 - Apps Script: https://script.google.com/home/projects/1VxvnIq02VKmRhqENhv3sejahCX2Wjg-Zpbx4mR5pVUwniSvYfyifu8Ol/edit
 - Final source: [`contract-spec.review.json`](../../scripts/google-contracts/contract-spec.review.json), version `KR-FORM-2026-09-18-1`, terms SHA-256 `556d32d8d0dd07f1e75f32530ad0b473103ac16371db6d5a4406e74cfca5e15e`. The matching generated Apps Script source is [`ContractSpec.gs`](../../scripts/google-contracts/ContractSpec.gs). The filename does not establish publication or external legal review.
 - The older application form already has a response. Its acknowledgments do not constitute the new contract. Preserve its original purpose, timestamps and 30-day retention rule.
 - [`google-artifacts.json`](../../scripts/google-contracts/google-artifacts.json) records the latest timestamped live read-back. Final source and passing local tests alone do not establish publication, deployment, a real signed contract, SMS verification or a completed upload. Update that record only from observed production evidence.
 - The earlier Google Admin sign-in blocker was resolved. The Workspace Cloud Data Processing Addendum was accepted and the covered-data storage policy was saved as United States. Saving that policy does not prove completed migration or US-only processing.
+- On 2026-09-18, the published respondent page returned HTTP 200 anonymously. Parsed public HTML exactly matched the final source's 17 legal text sections, 16 questions and contract metadata. This verifies the public offer; participant signing, SMS verification and a real upload remain separate acceptance steps.
+- Railway verified the API follow-up at commit `f42f0d3` as deployed successfully; live `/api/form-contracts/configuration` returned HTTP 200 with the final Form URL, version and rate. The frontend remains at `48c27db`, with no subsequent frontend source changes. Commit-specific deployment evidence belongs in `google-artifacts.json`.
 
 ## Participant and operator flow
 
@@ -26,6 +28,7 @@ Company: 6thSense AI, Inc., Delaware file 10635916. Registered office: c/o Corpo
 5. Upload complete original episode folders from the SD card. Follow the [browser upload instructions](../CONTRIBUTOR-MOBILE-PILOT.md#browser-upload-from-an-sd-card). Server receipt, QC acceptance and payment remain separate stages. Do not delete originals on a spinner or merely after files appear in the bucket.
 
 The Sheet tracks contractors, signed evidence and staff fields. Ops remains the source for approved capture intervals, accepted seconds, reserved amounts and payments. A `Login linked` sync status confirms account linking; it is not evidence that filming, a bank recipient or a payout was approved. Keep payout details in the approved private collection channel, not a broadly shared register or this public repository.
+After linking, sync returns the authoritative Ops `wearer_id`. Apps Script fills a blank `Existing Ops contributor ID` only when the returned contract ID matches that row's receipt, `linked` is true and the ID is a positive integer. Existing staff-entered IDs are preserved; names and camera IDs do not select the account.
 
 ## Identity and evidence
 
@@ -69,9 +72,9 @@ The sync payload includes immutable `response_id`, `form_id`, `version`, `terms_
 
 1. Confirm the final spec and exact provider disclosures still match the operating setup. The current source identifies 6thSense, Google Workspace storage/maintenance, AWS hosting and SMS delivery, and Railway hosting. Identifiable customer disclosure requires a specific recipient notice and lawful basis; the general robotics license does not supply blanket consent for unnamed customers.
 2. Check the offered payment deadlines and minimal five-year contract/payment evidence schedule against the operating process. The final source also covers payment of small balances and termination. The existing four-hour payment eligibility automation does not implement those exceptions; an operator must track and fulfill them.
-3. Save the final `ContractSpec.gs` and `ContractRegister.gs` in Apps Script, run `finishContractRegisterDraft`, then `auditContractDraft`. Verify the respondent flow without creating a false signature or contractor. The finisher refuses released/responded Forms. Never alter an already released source/version to change a signed agreement.
+3. Save the final `ContractSpec.gs` and `ContractRegister.gs` in Apps Script, run `finishContractRegisterDraft`, then `auditContractDraft`. Verify the respondent flow without creating a false signature or contractor. The finisher resolves saved question IDs before title fallback and distinguishes questions from section headings; it refuses released/responded Forms. Never alter an already released source/version to change a signed agreement.
 4. Configure matching `CONTRIBUTOR_FORM_BUNDLE` (form_id, version, terms_sha256, effective_at, URL, rate_krw_hour=11000), `CONTRIBUTOR_FORM_PHONE_KEY`, `CONTRIBUTOR_FORM_SYNC_SECRET`, and `CONTRIBUTOR_FORM_ENABLED`. Keys must be separate random secrets, at least 32 characters, stored in Railway and Apps Script properties only. Set `CONTRACT_SYNC_URL=https://api.6thsense.dev/api/form-contracts/sync` and the matching secret in Script Properties. Never commit keys.
-5. Deploy migration `0020` and API first, frontend next; verify rollout before opening the Form. Run `releaseReviewedContractForm` only with zero review issues. This freezes the source and Form shape, installs submit/retry triggers and publishes the final Form. Read back the public configuration, respondent view and installed triggers, and record their timestamps in `google-artifacts.json`.
+5. Deploy migration `0020` and API first, frontend next; verify rollout before opening the Form. Run `releaseReviewedContractForm` only with zero review issues. This freezes the source and Form shape, installs submit/retry triggers and publishes the final Form. `ensureContractResponderAccess` verifies or creates the Drive permission `{type: "anyone", view: "published", role: "reader"}` without notification emails; it grants the published respondent view, not editable-file or response access. Read back the public configuration, anonymous respondent view and installed triggers, and record their timestamps in `google-artifacts.json`.
 6. Monitor the register's `Last sync` and `Sync issue` columns and recover missed submissions. Preserve `contributor_form_contracts` and preapproval/consumption audits during an application rollback. Migration `0020` refuses downgrade while any contract evidence exists. Disabling the feature flag restores the existing consent path; use a synchronized withdrawal to revoke a Form contract instead.
 
 ## Retention operations and provider limits
@@ -82,10 +85,11 @@ The final source sets accepted identifiable footage to three years from recordin
 
 ## Validation
 
-- 63 targeted backend tests passed, covering signed evidence, verified phone, legacy accounts, withdrawal, immutable handovers, delayed uploads and contributor regressions.
+- 63 targeted backend tests passed, covering signed evidence, verified phone, legacy accounts, withdrawal, immutable handovers, delayed uploads and contributor regressions. The linked-ID follow-up passed 32 related backend tests.
 - 15 Form activation Playwright cases passed across mobile/tablet/desktop; the prior upload suite passed 12 cases. Provider calls in these browser tests are controlled fixtures.
-- 11 Apps Script Node tests passed, including frozen release evidence, receipt binding and retry isolation.
-- Frontend production build passed; migration `0020` upgrade, empty downgrade and re-upgrade passed on isolated Postgres.
+- 14 Apps Script Node tests passed, including frozen release evidence, receipt binding, retry isolation, published responder access and guarded Ops-ID reconciliation.
+- Frontend production build passed. On isolated Postgres, migration `0020` refused downgrade to `0019` with a populated contract table and preserved both the evidence and schema version; empty downgrade and re-upgrade passed.
+- A live Apps Script → API HMAC probe authenticated an empty JSON payload and received the expected HTTP 422 `invalid_form_submission`. This verifies bridge authentication without creating a false contract.
 - A real participant still needs to sign, complete their own SMS/password steps, and upload actual footage. Local tests and a staff reservation are not substitutes for those actions or evidence of a completed payout.
 
 ## Primary references checked
