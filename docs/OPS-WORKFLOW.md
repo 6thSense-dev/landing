@@ -10,6 +10,35 @@ Workflow foundation: `feat/ops-workflow-ledgers`; mobile extension: `feat/contri
 - **Payment** shows exclusion reasons, review status, eligibility, the latest weekly calculation and import-error count, exact payout approval and transfer history. Approval reserves the displayed recordings and rate snapshots in one transaction. New footage is never added to an existing approval. Unique payout items prevent a recording from being reserved twice.
 - **Users** manages contributor contact/workplace/location/rate, supervised camera assignments and time totals derived from decoded Clean intervals. Its **Mobile contributor requests** panel approves pending camera requests after physical verification and current consent, reviews masked bank submissions, and exposes audited recipient recovery. Each recipient link requires a separate ownership confirmation; payment approval stays in Payment. Manual roster entries do not establish app identity or consent.
 
+## Raw status and recovery guidance
+
+For **Blocked**, **Retry pending**, and **Recovery needed** rows, Raw shows a specific cause badge when the recorded diagnostic supports one, followed by the underlying processing state. The **Reason / next step** column preserves the original diagnostic and adds recovery guidance. Search by the cause label, source, camera, episode or diagnostic text; the **Processing status** filter still selects the underlying state, not the cause badge.
+
+| Cause badge | Next step |
+| --- | --- |
+| Metadata missing | Recover the recording's original metadata, then revalidate it. |
+| Metadata unreadable | Check metadata access and recover a readable original. |
+| Recording incomplete | Confirm completion and upload the final files and metadata. |
+| Source files changed | Compare the new upload with the earlier processing attempt before retrying. |
+| Job status uncertain | Confirm whether the cloud job exists or is running before submitting another. |
+| IMU data conflict | Recover a consistent source sensor timeline. |
+| Calibration missing | Recover calibration for the recording's camera. |
+| Calibration mismatch | Verify that the calibration belongs to the camera and matches the recording. |
+| Source attribution needed | Confirm the contributor or business and capture country. |
+| Account deletion pending | Resolve the contributor deletion request before processing. |
+| Retry limit reached | Inspect the recorded failure and fix its cause before retrying. |
+| No valid segments | Review timing and quality exclusions to assess source recovery. |
+| Model budget reached | Review remaining work and the processing budget before resuming. |
+| Run window ended | Review remaining work and renew the cloud run window to resume. |
+| Conversion failed | Inspect the conversion job's error before retrying. |
+| Clean processing failed | Inspect the Clean job's error before retrying. |
+
+An unknown cause retains the generic state label and asks the operator to review the recorded reason; the UI does not invent a metadata, sensor or scene diagnosis. Specific evidence takes precedence over a generic failed-job wrapper. An old failure message does not relabel an active or completed job. These labels and instructions do not themselves retry work or change backend state.
+
+**Checking source match** means a Clean result has been imported and automatic scans are verifying that it covers the exact current Raw files. A result run ID alone is insufficient. An `awaiting_verification` row displays **In Clean** only when `raw.status` is `processed` and `raw.pending_files` is the number `0`; missing counts, additional files or unmatched receipts leave it checking. Other explicit processing states and holds remain unchanged, and deleted recordings stay **Rejected**. See the [receipt-matching contract](../backend/README.md#raw-processing-queue).
+
+**In Clean** confirms coverage of the current Raw source files. Its original diagnostic remains available under **Recorded status message**. Completed and rejected rows are hidden by default; select **Show completed / rejected** to include them. A Clean result's source coverage does not establish human quality approval, customer acceptance or payment.
+
 ## Payment policy and operation
 
 Registered [business sources](OPS-BUSINESS-SOURCES.md) keep quality reviews and regional hours but have no individual owner, rate or payout eligibility. Their source-country collection dates and `b2b_contract` ledger status do not establish contract settlement. Operators configure dedicated upload channels through controlled maintenance; Raw scans then preserve per-recording business attribution before filling individual owners, so PSDN uploads display under PSDN. Attribution survives Raw retirement. Invoice handling and self-service onboarding are outside this release.
