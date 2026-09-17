@@ -16,6 +16,12 @@ For **Blocked**, **Retry pending**, and **Recovery needed** rows, Raw shows a sp
 
 | Cause badge | Next step |
 | --- | --- |
+| Scene review required | Screening could not confidently retain footage; review the saved evidence before deciding. |
+| Rejected by scene QA | No footage passed the current scene rules; inspect the reason. Processing ended without a Clean export. |
+| Budget update interrupted | Parallel reservation updates conflicted; recovery retains the shared cap and reuses completed calls. |
+| Cloud worker interrupted | AWS reclaimed the worker; preserve sources and check earlier outputs before retrying. |
+| Model service interrupted | Recovery retries eligible failed requests within the shared budget and reuses valid saved responses. |
+| Scene response invalid | Sample validation failed; recovery requests a separately validated response. |
 | Metadata missing | Recover the recording's original metadata, then revalidate it. |
 | Metadata unreadable | Check metadata access and recover a readable original. |
 | Recording incomplete | Confirm completion and upload the final files and metadata. |
@@ -34,6 +40,8 @@ For **Blocked**, **Retry pending**, and **Recovery needed** rows, Raw shows a sp
 | Clean processing failed | Inspect the Clean job's error before retrying. |
 
 An unknown cause retains the generic state label and asks the operator to review the recorded reason; the UI does not invent a metadata, sensor or scene diagnosis. Specific evidence takes precedence over a generic failed-job wrapper. An old failure message does not relabel an active or completed job. These labels and instructions do not themselves retry work or change backend state.
+
+**Scene review required** and **Rejected by scene QA** distinguish a completed screening disposition with no retained output from a technical worker failure. They are cause badges on the underlying held state, not **In Clean**, customer acceptance or a deletion instruction. Model-service failures, invalid responses, interrupted workers and budget-update conflicts remain technical recovery causes. The displayed guidance describes the configured recovery path; a frontend deployment alone does not activate that worker or prove a retry succeeded.
 
 **Checking source match** means a Clean result has been imported and automatic scans are verifying that it covers the exact current Raw files. A result run ID alone is insufficient. An `awaiting_verification` row displays **In Clean** only when `raw.status` is `processed` and `raw.pending_files` is the number `0`; missing counts, additional files or unmatched receipts leave it checking. Other explicit processing states and holds remain unchanged, and deleted recordings stay **Rejected**. See the [receipt-matching contract](../backend/README.md#raw-processing-queue).
 
