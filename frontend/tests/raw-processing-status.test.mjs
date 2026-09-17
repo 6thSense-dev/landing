@@ -122,6 +122,7 @@ test('specific evidence takes priority over the generic failed-job wrapper', () 
     ['Clean extraction failed: Authorized cloud processing window ended; originals preserved', 'Run window ended', /renew.*window/i],
     ['Clean extraction failed: Shared inference budget reached', 'Model budget reached', /review.*budget/i],
     ['Source conversion failed: Authorized cloud processing window ended; originals preserved', 'Run window ended', /renew.*window/i],
+    ['Source conversion failed: Initial authorized compute window ended; archived originals preserved', 'Run window ended', /renew.*window/i],
   ];
   for (const [reason, label, nextStep] of cases) {
     const display = processingPresentation(episode('blocked', reason));

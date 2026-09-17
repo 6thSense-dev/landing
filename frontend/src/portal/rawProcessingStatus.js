@@ -62,7 +62,7 @@ const causes = [
     "Review the timing and quality exclusions to see whether source recovery is possible."],
   [/shared inference budget reached/i, "Model budget reached",
     "Review the remaining work and processing budget before resuming."],
-  [/authorized (?:inference|cloud processing) window ended/i, "Run window ended",
+  [/authorized (?:inference|cloud processing|compute) window ended/i, "Run window ended",
     "Review the remaining work and renew the cloud run window to resume."],
   [/source conversion failed/i, "Conversion failed",
     "Inspect the conversion job's error before retrying."],
