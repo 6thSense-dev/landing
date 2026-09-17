@@ -47,7 +47,7 @@ export default function UploadPage() {
   useEffect(() => {
     const abort = new AbortController();
     setInfo(null); setError(""); setQueue([]);
-    if (signedIn && formConfig !== undefined) (formConfig ? linkFormContract(abort.signal).catch(e=>{if(e.message!=='contract_not_found')throw e;}) : Promise.resolve()).then(()=>uploadApi(session, "/info", undefined, abort.signal)).then(setInfo).catch(e => {
+    if (signedIn && formConfig !== undefined) (formConfig ? linkFormContract(abort.signal).catch(e=>{if(!['contract_not_found','contract_region_mismatch'].includes(e.message))throw e;}) : Promise.resolve()).then(()=>uploadApi(session, "/info", undefined, abort.signal)).then(setInfo).catch(e => {
       if (!abort.signal.aborted) setError(e.message);
     });
     return () => abort.abort();

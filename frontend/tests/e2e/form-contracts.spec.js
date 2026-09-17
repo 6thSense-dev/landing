@@ -55,3 +55,48 @@ test('unfinished phone verification resumes after reload without password collec
   expect(calls.map(c=>c.action)).toEqual(['SignUp','ResendConfirmationCode']);
   expect(calls[1].body).not.toHaveProperty('Password');
 });
+
+for (const detail of ['contract_not_found', 'contract_region_mismatch']) {
+  test(`existing contributor keeps upload access when form activation reports ${detail}`, async ({page}) => {
+    await mock(page);
+    await page.addInitScript(() => sessionStorage.setItem('6thsense-contributor-session', JSON.stringify({
+      access: 'access', refresh: 'refresh', expires: Date.now() + 900000,
+    })));
+    await page.route('**/api/form-contracts/activate', r => r.fulfill({status: detail === 'contract_region_mismatch' ? 403 : 409, json: {detail}}));
+    await page.route('**/api/uploads/info', r => r.fulfill({json: {name: 'Existing contributor', remaining_bytes: 1000, batches: []}}));
+    await page.goto('/upload');
+    await expect(page.getByText('Existing contributor', {exact: true})).toBeVisible();
+    await expect(page.locator('input[type=file]')).toHaveCount(1);
+  });
+}
+
+test('identity conflicts stop before upload access and show a recovery contact', async ({page}) => {
+  await mock(page);
+  await page.addInitScript(() => sessionStorage.setItem('6thsense-contributor-session', JSON.stringify({
+    access: 'access', refresh: 'refresh', expires: Date.now() + 900000,
+  })));
+  let infoCalls = 0;
+  await page.route('**/api/form-contracts/activate', r => r.fulfill({status: 409, json: {detail: 'contract_identity_review_required'}}));
+  await page.route('**/api/uploads/info', r => {infoCalls++;return r.fulfill({json: {name: 'Should not load'}});});
+  await page.goto('/upload');
+  await expect(page.getByRole('alert')).toContainText('confirm your contributor record');
+  await expect(page.getByRole('alert').getByRole('link', {name: /alex@6thsense.dev/})).toBeVisible();
+  expect(infoCalls).toBe(0);
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
+});
+
+test('withdrawn contract blocks upload before legacy access in both languages', async ({page}) => {
+  await mock(page);
+  await page.addInitScript(() => sessionStorage.setItem('6thsense-contributor-session', JSON.stringify({
+    access: 'access', refresh: 'refresh', expires: Date.now() + 900000,
+  })));
+  let infoCalls = 0;
+  await page.route('**/api/form-contracts/activate', r => r.fulfill({status: 409, json: {detail: 'contract_withdrawn'}}));
+  await page.route('**/api/uploads/info', r => {infoCalls++;return r.fulfill({json: {name: 'Should not load'}});});
+  await page.goto('/upload');
+  await expect(page.getByRole('alert')).toContainText('Your contract was withdrawn.');
+  await page.getByRole('button', {name: '한국어', exact: true}).click();
+  await expect(page.getByRole('alert')).toContainText('계약이 철회되었습니다.');
+  expect(infoCalls).toBe(0);
+  await expect(page.locator('input[type=file]')).toHaveCount(0);
+});

@@ -28,6 +28,23 @@ function formShape(form) {
     return {id:String(raw.getId()),type:type,title:raw.getTitle(),help:raw.getHelpText(),required:item.isRequired?item.isRequired():false,choices:item.getChoices?item.getChoices().map(c=>c.getValue()):[]};
   })};
 }
+function readContractRelease(fileId,expectedHash) {
+  const raw=DriveApp.getFileById(fileId).getBlob().getDataAsString();
+  if(!expectedHash||contractHash(raw)!==expectedHash)throw Error('Released contract source integrity failure');
+  const source=JSON.parse(raw);
+  if(source.format!=='6thsense-contract-release-v1'||!source.form_id||!source.item_ids
+      ||source.version!==source.spec.version||source.terms_sha256!==source.spec.termsSha256
+      ||source.shape_sha256!==contractHash(JSON.stringify(source.form_shape)))throw Error('Released contract source mismatch');
+  return source;
+}
+function activeContractRelease() {
+  const p=PropertiesService.getScriptProperties(),metadata=JSON.parse(p.getProperty('CONTRACT_RELEASE_METADATA')||'null');
+  if(!metadata)throw Error('Released contract evidence is missing');
+  const source=readContractRelease(metadata.source_file_id,metadata.source_sha256);
+  if(source.form_id!==metadata.form_id||source.version!==metadata.version
+      ||source.terms_sha256!==metadata.terms_sha256||source.shape_sha256!==metadata.shape_sha256)throw Error('Released contract metadata mismatch');
+  return {metadata:metadata,source:source};
+}
 function prepareContractRegisterDraft() {
   const p=PropertiesService.getScriptProperties();
   if(p.getProperty('CONTRACT_DRAFT_COMPLETE')==='true'){
@@ -92,15 +109,16 @@ function receiveContractSubmission(event) {
 function recordContractSubmission(event) {
     const p=PropertiesService.getScriptProperties();
     if(p.getProperty('CONTRACT_RELEASED')!=='true')throw Error('Contract is not released');
-    if(!event||!event.response||event.source.getId()!==p.getProperty('CONTRACT_FORM_ID'))throw Error('Unexpected form event');
+    const release=activeContractRelease(),source=release.source;
+    if(!event||!event.response||event.source.getId()!==source.form_id)throw Error('Unexpected form event');
     const shapeHash=contractHash(JSON.stringify(formShape(event.source)));
-    if(shapeHash!==p.getProperty('CONTRACT_FORM_SHAPE_SHA256'))throw Error('Signed form changed; preserve responses and review');
-    const ids=JSON.parse(p.getProperty('CONTRACT_ITEM_IDS')),answer={};
+    if(shapeHash!==source.shape_sha256)throw Error('Signed form changed; preserve responses and review');
+    const ids=source.item_ids,answer={};
     event.response.getItemResponses().forEach(r=>answer[String(r.getItem().getId())]=r.getResponse());
     const value=id=>answer[ids[id]];
     const accepted={};
     for(const id of ['participation','collection','privacy','international_transfer','adult']){
-      const expected=CONTRACT_SPEC.sections.flatMap(s=>s.questions||[]).find(q=>q.id===id).options[0];
+      const expected=source.spec.sections.flatMap(s=>s.questions||[]).find(q=>q.id===id).options[0];
       accepted[id]=Array.isArray(value(id))&&value(id).length===1&&value(id)[0]===expected;
       if(!accepted[id])throw Error('Required acceptance missing');
     }
@@ -111,12 +129,12 @@ function recordContractSubmission(event) {
     const contractId=contractHash(formId+':'+responseId);
     const sheet=contractRegister(),rows=sheet.getDataRange().getValues();
     if(rows.slice(1).some(r=>r[0]===contractId))return; // idempotent duplicate event
-    const receipt={contract_id:contractId,form_id:formId,response_id:responseId,signed_at:event.response.getTimestamp().toISOString(),version:CONTRACT_SPEC.version,terms_sha256:CONTRACT_SPEC.termsSha256,signature:name,accepted:accepted,answers:answer,source_file_id:p.getProperty('CONTRACT_SOURCE_FILE'),shape_sha256:shapeHash};
+    const receipt={contract_id:contractId,form_id:formId,response_id:responseId,signed_at:event.response.getTimestamp().toISOString(),version:source.version,terms_sha256:source.terms_sha256,signature:name,accepted:accepted,answers:answer,source_file_id:release.metadata.source_file_id,source_sha256:release.metadata.source_sha256,shape_sha256:shapeHash};
     const receiptText=JSON.stringify(receipt),digest=contractHash(receiptText);
     const folder=DriveApp.getFolderById(p.getProperty('CONTRACT_RECEIPT_FOLDER'));
     const file=folder.createFile(contractId+'.json',receiptText,MimeType.PLAIN_TEXT);
     const row=Array(REGISTER_HEADERS.length).fill('');
-    row[0]=contractId;row[1]=safeCell(name);row[2]=safeCell(phone);row[3]=safeCell(value('email'));row[4]='Contracted';row[5]=receipt.signed_at;row[6]=CONTRACT_SPEC.version;row[7]=responseId;row[8]=formId;row[9]=file.getId();row[10]=digest;row[11]='Password and phone verification pending';row[16]='Needs physical handover and permission check';
+    row[0]=contractId;row[1]=safeCell(name);row[2]=safeCell(phone);row[3]=safeCell(value('email'));row[4]='Contracted';row[5]=receipt.signed_at;row[6]=receipt.version;row[7]=responseId;row[8]=formId;row[9]=file.getId();row[10]=digest;row[11]='Password and phone verification pending';row[16]='Needs physical handover and permission check';
     sheet.appendRow(row);
     // Network failure does not undo the contract: the retry task catches up.
     syncContractRow(sheet,sheet.getLastRow());
@@ -127,9 +145,16 @@ function syncContractRow(sheet,rowNumber) {
   if(row[4]!=='Contracted'&&row[4]!=='Withdrawn')return;
   const secret=p.getProperty('CONTRACT_SYNC_SECRET'),endpoint=p.getProperty('CONTRACT_SYNC_URL');
   if(!secret||!endpoint){sheet.getRange(rowNumber,19).setValue('Website bridge not configured');return;}
-  const receipt=JSON.parse(DriveApp.getFileById(row[9]).getBlob().getDataAsString());
-  if(contractHash(JSON.stringify(receipt))!==row[10])throw Error('Receipt integrity failure');
-  const payload={response_id:receipt.response_id,form_id:receipt.form_id,version:receipt.version,terms_sha256:receipt.terms_sha256,receipt_sha256:row[10],phone:String(receipt.answers[JSON.parse(p.getProperty('CONTRACT_ITEM_IDS')).phone]).replace(/[\s()-]/g,''),name:receipt.signature,signature:receipt.signature,signed_at:receipt.signed_at,accepted:receipt.accepted,wearer_id:row[12]?Number(row[12]):null,state:row[4]==='Withdrawn'?'withdrawn':'signed'};
+  const raw=DriveApp.getFileById(row[9]).getBlob().getDataAsString();
+  if(contractHash(raw)!==row[10])throw Error('Receipt integrity failure');
+  const receipt=JSON.parse(raw),signedAt=new Date(row[5]);
+  if(receipt.contract_id!==String(row[0])||receipt.contract_id!==contractHash(receipt.form_id+':'+receipt.response_id)
+      ||receipt.response_id!==String(row[7])||receipt.form_id!==String(row[8])||receipt.version!==String(row[6])
+      ||isNaN(signedAt.getTime())||signedAt.toISOString()!==new Date(receipt.signed_at).toISOString())throw Error('Receipt does not belong to this register row');
+  const source=readContractRelease(receipt.source_file_id,receipt.source_sha256);
+  if(receipt.form_id!==source.form_id||receipt.version!==source.version
+      ||receipt.terms_sha256!==source.terms_sha256||receipt.shape_sha256!==source.shape_sha256)throw Error('Receipt does not match its released contract');
+  const payload={response_id:receipt.response_id,form_id:receipt.form_id,version:receipt.version,terms_sha256:receipt.terms_sha256,receipt_sha256:row[10],phone:String(receipt.answers[source.item_ids.phone]).replace(/[\s()-]/g,''),name:receipt.signature,signature:receipt.signature,signed_at:receipt.signed_at,accepted:receipt.accepted,wearer_id:row[12]?Number(row[12]):null,state:row[4]==='Withdrawn'?'withdrawn':'signed'};
   const body=JSON.stringify(payload),timestamp=String(Math.floor(Date.now()/1000));
   const signature=Utilities.computeHmacSha256Signature(timestamp+'.'+body,secret,Utilities.Charset.UTF_8).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('');
   try{
@@ -146,10 +171,16 @@ function retryContractSync() {
     const form=FormApp.openById(p.getProperty('CONTRACT_FORM_ID'));
     // Recover missed triggers as well as failed network calls. Each response is idempotent.
     const sheet=contractRegister(),known=new Set(sheet.getDataRange().getValues().slice(1).map(r=>String(r[7])));
-    form.getResponses().forEach(response=>{if(!known.has(response.getId()))recordContractSubmission({source:form,response:response});});
+    let failedImports=0;
+    form.getResponses().forEach(response=>{
+      if(known.has(response.getId()))return;
+      try{recordContractSubmission({source:form,response:response});}
+      catch(e){failedImports++;} // Keep processing withdrawals and other valid evidence.
+    });
     for(let r=2;r<=sheet.getLastRow();r++){
       try{syncContractRow(sheet,r);}catch(e){sheet.getRange(r,19).setValue('Receipt needs staff review');}
     }
+    if(failedImports)console.warn('Contract responses need staff review: '+failedImports);
   }finally{lock.releaseLock();}
 }
 
@@ -164,7 +195,23 @@ function releaseReviewedContractForm() {
   const p=PropertiesService.getScriptProperties(),f=FormApp.openById(p.getProperty('CONTRACT_FORM_ID'));
   if(!p.getProperty('CONTRACT_SYNC_SECRET')||!p.getProperty('CONTRACT_SYNC_URL'))throw Error('Website bridge is not ready');
   if(f.getResponses().length)throw Error('New version required after responses');
-  p.setProperty('CONTRACT_FORM_SHAPE_SHA256',contractHash(JSON.stringify(formShape(f))));
+  const shape=formShape(f),shapeHash=contractHash(JSON.stringify(shape));
+  if(p.getProperty('CONTRACT_RELEASE_METADATA')){
+    // Resume an interrupted publication without replacing the frozen evidence.
+    const release=activeContractRelease();
+    if(release.source.form_id!==f.getId()||release.source.shape_sha256!==shapeHash
+        ||JSON.stringify(release.source.spec)!==JSON.stringify(CONTRACT_SPEC))throw Error('Released contract metadata cannot be replaced');
+  }else{
+    if(f.isPublished()||p.getProperty('CONTRACT_RELEASED')==='true')throw Error('Released contract evidence is missing');
+    const source={format:'6thsense-contract-release-v1',form_id:f.getId(),version:CONTRACT_SPEC.version,
+      terms_sha256:CONTRACT_SPEC.termsSha256,shape_sha256:shapeHash,form_shape:shape,spec:CONTRACT_SPEC,
+      item_ids:JSON.parse(p.getProperty('CONTRACT_ITEM_IDS')),released_at:new Date().toISOString()};
+    const sourceText=JSON.stringify(source),sourceFile=DriveApp.getFolderById(p.getProperty('CONTRACT_RECEIPT_FOLDER'))
+      .createFile('contract-released-'+source.version+'.json',sourceText,MimeType.PLAIN_TEXT);
+    p.setProperties({CONTRACT_FORM_SHAPE_SHA256:shapeHash,CONTRACT_SOURCE_FILE:sourceFile.getId(),
+      CONTRACT_RELEASE_METADATA:JSON.stringify({form_id:source.form_id,version:source.version,terms_sha256:source.terms_sha256,
+        shape_sha256:shapeHash,source_file_id:sourceFile.getId(),source_sha256:contractHash(sourceText)})});
+  }
   const handlers=ScriptApp.getProjectTriggers().map(t=>t.getHandlerFunction());
   if(!handlers.includes('receiveContractSubmission'))ScriptApp.newTrigger('receiveContractSubmission').forForm(f).onFormSubmit().create();
   if(!handlers.includes('retryContractSync'))ScriptApp.newTrigger('retryContractSync').timeBased().everyMinutes(5).create();

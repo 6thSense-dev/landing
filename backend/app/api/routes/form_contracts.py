@@ -9,7 +9,7 @@ import re
 import time
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.contributor_auth import contributor_identity, cognito_user
 from app.core import contributor_deletion
@@ -56,12 +56,18 @@ def valid_row(row, bundle):
             and row.version == bundle['version'] and row.terms_sha256 == bundle['terms_sha256'])
 
 
-async def has_form_consent(account, db):
-    if os.getenv('CONTRIBUTOR_FORM_ENABLED') != 'true':
+async def has_form_consent(account, db, verified_phone=None):
+    if os.getenv('CONTRIBUTOR_FORM_ENABLED') != 'true' or account.routing_version != 'kr-2026-v1':
         return None
     bundle = config()
-    rows = list((await db.execute(select(FormContract).where(FormContract.subject == account.subject))).scalars())
-    return any(valid_row(row, bundle) for row in rows) if rows else None
+    matches = [FormContract.subject == account.subject, FormContract.wearer_id == account.wearer_id]
+    if verified_phone is not None:
+        # Only the auth dependency's provider-verified attribute may enter here.
+        # A withdrawal before first activation must not revive legacy consent.
+        matches.append(FormContract.phone_digest == phone_digest(verified_phone))
+    rows = list((await db.execute(select(FormContract).where(or_(*matches)))).scalars())
+    return any(valid_row(row, bundle) and (row.subject == account.subject or row.wearer_id == account.wearer_id)
+               for row in rows) if rows else None
 
 
 class Submission(BaseModel):
@@ -139,8 +145,9 @@ async def sync(request: Request, db: AsyncSession = Depends(get_session)):
             wearer_id=item.wearer_id, state=item.state, source_json=encoded)
         db.add(row)
     if row.wearer_id is not None:
-        wearer = await db.get(Wearer, row.wearer_id)
-        if not wearer or not wearer.is_active:
+        with db.no_autoflush:
+            wearer = await db.get(Wearer, row.wearer_id)
+        if not wearer or (not wearer.is_active and item.state != 'withdrawn'):
             raise HTTPException(409, 'existing_contributor_unavailable')
     await db.commit()
     return {'recorded': True, 'contract_id': identity, 'linked': bool(row.subject), 'state': row.state}
@@ -169,10 +176,18 @@ async def activate(request: Request, identity=Depends(contributor_identity), db:
     matches = list((await db.execute(select(FormContract).where(FormContract.phone_digest == digest))).scalars())
     eligible = [row for row in matches if valid_row(row, bundle)]
     if len(eligible) != 1:
-        raise HTTPException(409, 'contract_not_found' if not eligible else 'contract_identity_review_required')
+        detail = 'contract_identity_review_required' if eligible else (
+            'contract_withdrawn' if any(row.state == 'withdrawn' for row in matches) else 'contract_not_found')
+        raise HTTPException(409, detail)
     row = eligible[0]
     if row.subject not in (None, identity['subject']):
         raise HTTPException(409, 'contract_identity_review_required')
+    from app.core import contributor_preapproval
+    preapproval = await contributor_preapproval.for_phone(db, digest)
+    if preapproval:
+        if row.wearer_id not in (None, preapproval['wearer_id']):
+            raise HTTPException(409, 'contract_identity_review_required')
+        row.wearer_id = preapproval['wearer_id']
     account = await db.get(ContributorAccount, identity['subject'])
     if account:
         if row.wearer_id is not None and row.wearer_id != account.wearer_id:
@@ -201,5 +216,6 @@ async def activate(request: Request, identity=Depends(contributor_identity), db:
         db.add(account)
         await db.flush()
     row.subject, row.wearer_id = account.subject, account.wearer_id
+    await contributor_preapproval.consume(db, preapproval, account, row.signed_at)
     await db.commit()
     return {'activated': True, 'contract_id': row.id, 'name': row.name}
