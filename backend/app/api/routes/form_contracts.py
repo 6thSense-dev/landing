@@ -150,7 +150,8 @@ async def sync(request: Request, db: AsyncSession = Depends(get_session)):
         if not wearer or (not wearer.is_active and item.state != 'withdrawn'):
             raise HTTPException(409, 'existing_contributor_unavailable')
     await db.commit()
-    return {'recorded': True, 'contract_id': identity, 'linked': bool(row.subject), 'state': row.state}
+    return {'recorded': True, 'contract_id': identity, 'linked': bool(row.subject),
+            'wearer_id': row.wearer_id, 'state': row.state}
 
 
 @router.post('/activate')

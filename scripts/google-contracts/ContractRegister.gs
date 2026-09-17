@@ -159,7 +159,13 @@ function syncContractRow(sheet,rowNumber) {
   const signature=Utilities.computeHmacSha256Signature(timestamp+'.'+body,secret,Utilities.Charset.UTF_8).map(b=>('0'+((b+256)%256).toString(16)).slice(-2)).join('');
   try{
     const response=UrlFetchApp.fetch(endpoint,{method:'post',contentType:'application/json',payload:body,headers:{'X-Form-Timestamp':timestamp,'X-Form-Signature':signature},muteHttpExceptions:true});
-    if(response.getResponseCode()===200){const result=JSON.parse(response.getContentText());sheet.getRange(rowNumber,12).setValue(result.linked?'Login linked':'Ready for secure password setup');sheet.getRange(rowNumber,18,1,2).setValues([[new Date().toISOString(),'']]);}
+    if(response.getResponseCode()===200){
+      const result=JSON.parse(response.getContentText());
+      if(result.linked&&!row[12]&&result.contract_id===receipt.contract_id&&Number.isInteger(result.wearer_id)&&result.wearer_id>0)
+        sheet.getRange(rowNumber,13).setValue(result.wearer_id);
+      sheet.getRange(rowNumber,12).setValue(result.linked?'Login linked':'Ready for secure password setup');
+      sheet.getRange(rowNumber,18,1,2).setValues([[new Date().toISOString(),'']]);
+    }
     else sheet.getRange(rowNumber,19).setValue('Sync needs review (HTTP '+response.getResponseCode()+')');
   }catch(e){sheet.getRange(rowNumber,19).setValue('Sync pending; automatic retry');}
 }
@@ -195,6 +201,7 @@ function releaseReviewedContractForm() {
   const p=PropertiesService.getScriptProperties(),f=FormApp.openById(p.getProperty('CONTRACT_FORM_ID'));
   if(!p.getProperty('CONTRACT_SYNC_SECRET')||!p.getProperty('CONTRACT_SYNC_URL'))throw Error('Website bridge is not ready');
   if(f.getResponses().length)throw Error('New version required after responses');
+  ensureContractResponderAccess(f.getId());
   const shape=formShape(f),shapeHash=contractHash(JSON.stringify(shape));
   if(p.getProperty('CONTRACT_RELEASE_METADATA')){
     // Resume an interrupted publication without replacing the frozen evidence.
@@ -218,6 +225,21 @@ function releaseReviewedContractForm() {
   p.setProperty('CONTRACT_RELEASED','true');
   f.setPublished(true);f.setAcceptingResponses(true);
   console.log(JSON.stringify({published:f.isPublished(),form:f.getPublishedUrl(),version:CONTRACT_SPEC.version}));
+}
+
+// A published Form can still be restricted to Workspace users. Grant only the
+// published responder view; never grant access to the editable file or answers.
+function ensureContractResponderAccess(formId) {
+  const root='https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(formId)+'/permissions';
+  const headers={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
+  const current=UrlFetchApp.fetch(root+'?includePermissionsForView=published&fields=permissions(id,type,role,view)',{headers:headers,muteHttpExceptions:true});
+  if(current.getResponseCode()!==200)throw Error('Cannot verify published responder access; Drive API status='+current.getResponseCode());
+  const permissions=JSON.parse(current.getContentText()).permissions||[];
+  if(!permissions.some(p=>p.type==='anyone'&&p.role==='reader'&&p.view==='published')){
+    const added=UrlFetchApp.fetch(root+'?sendNotificationEmail=false',{method:'post',contentType:'application/json',headers:headers,
+      payload:JSON.stringify({type:'anyone',view:'published',role:'reader'}),muteHttpExceptions:true});
+    if(added.getResponseCode()!==200)throw Error('Cannot enable published responder access; Drive API status='+added.getResponseCode());
+  }
 }
 
 // Repairs an interrupted draft using its existing questions; never changes a signed form.

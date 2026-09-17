@@ -82,7 +82,8 @@ async def test_idempotent_activation_and_withdrawal(app,db_session):
         account=await db_session.get(ContributorAccount,SUBJECT)
         wearer=await db_session.get(Wearer,account.wearer_id)
         assert wearer.rate_krw_hour==11000 and await m.has_form_consent(account,db_session)
-        assert (await send(c)).json()['linked']
+        linked=(await send(c)).json()
+        assert linked['linked'] and linked['wearer_id']==wearer.id and linked['contract_id']==rows[0].id
         assert (await send(c,evidence(name='Altered',signature='Altered'))).status_code==409
         await accept(db_session)
         assert (await send(c,evidence(state='withdrawn'))).status_code==200

@@ -137,6 +137,7 @@ test('publication persists full participant-visible form before enabling respons
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k],setProperty:(k,v)=>{props[k]=v;},setProperties:p=>Object.assign(props,p)})},
   FormApp:{openById:()=>form},DriveApp:{getFolderById:()=>({createFile:(name,text)=>{saved.push({name,text});return {getId:()=> 'released-source'};}}),getFileById:()=>({getBlob:()=>({getDataAsString:()=>saved[0].text})})},
   ScriptApp:{getProjectTriggers:()=>['receiveContractSubmission','retryContractSync'].map(name=>({getHandlerFunction:()=>name}))}});
+ c.ensureContractResponderAccess=()=>{};
  c.releaseReviewedContractForm();
  assert.equal(published,true);assert.equal(accepting,true);assert.equal(props.CONTRACT_RELEASED,'true');
  const stored=JSON.parse(saved[0].text),metadata=JSON.parse(props.CONTRACT_RELEASE_METADATA);
@@ -174,4 +175,34 @@ test('draft refresh distinguishes a consent question from a section with the sam
   c.contractRegister=()=>({});c.importLegacyApplicationsToRegister=()=>{};c.auditContractDraft=()=>{};
   c.finishContractRegisterDraft();assert.equal(questionUpdated,true);assert.equal(reads,1);assert.equal(JSON.parse(props.CONTRACT_ITEM_IDS).international_transfer,'question');
  }
+});
+
+test('public responder access grants only the published view and never emails a recipient',()=>{
+ const requests=[];let permissions=[];
+ const c=context({ScriptApp:{getOAuthToken:()=> 'synthetic-test-token'},UrlFetchApp:{fetch:(url,options)=>{
+  requests.push({url,options});
+  if(options.method==='post'){permissions=[JSON.parse(options.payload)];return {getResponseCode:()=>200};}
+  return {getResponseCode:()=>200,getContentText:()=>JSON.stringify({permissions})};
+ }}});
+ c.ensureContractResponderAccess('form');
+ assert.equal(requests.length,2);assert.deepEqual(JSON.parse(requests[1].options.payload),{type:'anyone',view:'published',role:'reader'});
+ assert.match(requests[1].url,/sendNotificationEmail=false/);
+ c.ensureContractResponderAccess('form');assert.equal(requests.length,3);
+ const denied=context({ScriptApp:{getOAuthToken:()=> 'synthetic-test-token'},UrlFetchApp:{fetch:()=>({getResponseCode:()=>403})}});
+ assert.throws(()=>denied.ensureContractResponderAccess('form'),/Cannot verify/);
+});
+
+test('linked Ops contributor ID returns to its own signed Sheet row without overwriting staff fields',()=>{
+ const {row,drive}=releaseFixture(),writes=[];
+ let result={linked:true,contract_id:row[0],wearer_id:42};
+ const props={CONTRACT_SYNC_SECRET:'secret',CONTRACT_SYNC_URL:'https://example.invalid/sync'};
+ const c=context({PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]})},DriveApp:drive,
+  UrlFetchApp:{fetch:()=>({getResponseCode:()=>200,getContentText:()=>JSON.stringify(result)})}});
+ const sheet={getRange:(r,col)=>({getValues:()=>[row],setValue:value=>writes.push({col,value}),setValues:()=>{}})};
+ c.syncContractRow(sheet,2);assert.deepEqual(writes.find(x=>x.col===13),{col:13,value:42});
+ for(const invalid of [{...result,contract_id:'other-contract'},{...result,wearer_id:'42'},{...result,linked:false}]){
+  writes.length=0;result=invalid;c.syncContractRow(sheet,2);assert.equal(writes.some(x=>x.col===13),false);
+ }
+ result={linked:true,contract_id:row[0],wearer_id:42};row[12]=17;writes.length=0;
+ c.syncContractRow(sheet,2);assert.equal(writes.some(x=>x.col===13),false);
 });
