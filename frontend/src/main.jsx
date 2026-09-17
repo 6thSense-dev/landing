@@ -53,6 +53,7 @@ const GloveTune = lazy(() => import("./pages/GloveTune.jsx"));
 // Legal pages — data-driven from src/seo/legal.js with build-time crawlable
 // HTML variants (see scripts/seoPrerenderPlugin.js), same as the product pages.
 const LegalPage = lazy(() => import("./pages/LegalPage.jsx"));
+const UploadPage = lazy(() => import("./upload/UploadPage.jsx"));
 
 /**
  * `/catalog` is the URL people guess and paste; the real one is
@@ -85,6 +86,7 @@ function AnimatedRoutes() {
           <Route path="/portal/*" element={<PageTransition><PortalApp /></PageTransition>} />
         </Route>
         <Route path="/catalog" element={<CatalogRedirect />} />
+        <Route path="/upload" element={<UploadPage />} />
         <Route path="/product" element={<PageTransition><ProductPage slug="/product" /></PageTransition>} />
         <Route path="/product/gloves" element={<PageTransition><ProductPage slug="/product/gloves" /></PageTransition>} />
         <Route path="/product/skin" element={<PageTransition><ProductPage slug="/product/skin" /></PageTransition>} />

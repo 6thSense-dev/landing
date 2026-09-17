@@ -20,11 +20,13 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
         self.max_bytes = max_bytes
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in GUARDED_PATHS:
+        upload_manifest = request.url.path.startswith('/api/uploads/')
+        max_bytes = 1024 * 1024 if upload_manifest else self.max_bytes
+        if request.url.path in GUARDED_PATHS or upload_manifest:
             cl = request.headers.get("content-length")
             if cl is not None:
                 try:
-                    if int(cl) > self.max_bytes:
+                    if int(cl) < 0 or int(cl) > max_bytes:
                         return JSONResponse(
                             status_code=413,
                             content={"ok": False, "error": "Request too large."},
@@ -39,16 +41,15 @@ class MaxBodySizeMiddleware(BaseHTTPMiddleware):
                 body = b""
                 async for chunk in request.stream():
                     body += chunk
-                    if len(body) > self.max_bytes:
+                    if len(body) > max_bytes:
                         return JSONResponse(
                             status_code=413,
                             content={"ok": False, "error": "Request too large."},
                         )
 
-                async def _replay():
-                    yield {"type": "http.request", "body": body, "more_body": False}
-
-                request._receive = _replay().__anext__  # type: ignore[attr-defined]
+                # BaseHTTPMiddleware's cached request replays _body downstream.
+                # Replacing _receive alone loses an already-consumed stream.
+                request._body = body
         return await call_next(request)
 
 

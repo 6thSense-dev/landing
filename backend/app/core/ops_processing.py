@@ -10,6 +10,8 @@ from app.core.ops_sources import source_registry, business_source
 
 
 def diagnose(take, now):
+    if take.get('upload_source_conflict'):
+        return 'blocked', 'Conflicting completed upload locations. Operator source review required.'
     media = [o for o in take.get("media", []) if o.get("bytes", 0) > 0]
     updated = take.get("uploaded")
     if isinstance(updated, str):
@@ -72,6 +74,8 @@ async def reconcile(db, takes, manifests, receipts):
         snapshot = {
             k: t.get(k) for k in ("prefixes", "media", "meta", "error", "uploaded")
         }
+        if t.get('upload_source_conflict'):
+            snapshot['upload_source_conflict'] = True
         encoded = json.dumps(snapshot, sort_keys=True, default=str)
         digest = hashlib.sha256(encoded.encode()).hexdigest()
         j = jobs.get(rec)
@@ -100,6 +104,19 @@ async def reconcile(db, takes, manifests, receipts):
             j.lease_token = None
             j.lease_until = None
             continue
+        if t.get('upload_source_conflict'):
+            if not j:
+                j = ProcessingJob(recording=rec, attempts=0)
+                db.add(j)
+                jobs[rec] = j
+            j.fingerprint, j.input_json = digest, encoded
+            j.state, j.reason = diagnose(t, now)
+            j.lease_token = j.lease_until = None
+            continue
+        if j and json.loads(j.input_json).get('upload_source_conflict'):
+            # A rescan after source resolution must clear the hold even when
+            # existing Clean receipts take the fast path below.
+            j.fingerprint, j.input_json = digest, encoded
         if j and statuses.get(rec, {}).get("status") == "processed":
             j.state = "clean"
             j.reason = "Committed clean outputs and exact source receipts verified."

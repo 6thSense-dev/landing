@@ -53,6 +53,18 @@ Rows displayed as **In Clean** or **Rejected** are hidden by default; enable **S
 
 Sieve inherits versioned MP4, validated metadata with its provenance, and calibration from imported Clean recordings through a separate worker. Metadata may be an original or an explicitly disclosed reconstruction; [the validation contract](../docs/SIEVE-CLEAN-INHERITANCE.md#metadata-validation) distinguishes their evidence and unknown capture fields. The [Sieve operations guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) covers enabling it, retry behavior and the temporary Ops dashboard. The contract ends September 22, 2026; the dashboard remains visible through September 25 in Los Angeles time.
 
+## Contributor browser uploads
+
+`/upload` accepts original episode folders from existing contributor Cognito accounts. Users sign in with their verified international phone number and password; password reset and token refresh use the same contributor app client. Upload access requires an enrolled, active account, consent to the current published agreements and an approved assignment for the episode's camera. See the [participant instructions](../docs/CONTRIBUTOR-MOBILE-PILOT.md#browser-upload-from-an-sd-card) for folder selection and recovery.
+
+The authenticated `/api/uploads` control plane provides `GET /info`, `POST /batches`, `POST /batches/{batch_id}/files/{file_id}/{start|parts|complete}` and `POST /batches/{batch_id}/complete`. Files go directly to private S3 through 15-minute, SHA-256-bound multipart grants: 16 MiB parts, up to three concurrent transfers. Limits are 100 GiB per file, 2,000 files per episode and 500 GiB / 500 new episode batches per account per rolling 24 hours; registering a batch reserves its declared bytes. Resuming the same manifest reuses that reservation.
+
+Migration `0019` adds `upload_batches`, `upload_files` and `upload_parts` for durable uploader attribution and resumable receipts. It refuses downgrade once any upload batch exists. Keep these tables during an application rollback. The uploader is recorded separately from capture-time ownership, QC approval and payment eligibility; an ended camera assignment permits completion only when verified capture time attributes the recording to that contributor.
+
+The server stores originals under `s3://6thsense-raw/sessions/web-{batch_id}/{recording}/` and verifies stored object versions before writing `_upload_complete.json`. Raw ignores browser delivery prefixes without that server-written receipt. After completion, **Scan bucket** refreshes Raw. Conflicting completed delivery locations for the same recording block worker claims, results, retries and Clean import; an operator must resolve the source locations and rescan before processing continues. Keep originals when a delivery needs attention.
+
+Keep bucket versioning enabled; the default accelerated upload path also requires S3 Transfer Acceleration. In addition to existing Ops read permissions, the configured Ops AWS identity needs `s3:PutObject`, `s3:AbortMultipartUpload` and `s3:ListMultipartUploadParts` scoped to `arn:aws:s3:::6thsense-raw/sessions/web-*`. The bucket CORS rule must allow `PUT` from `https://6thsense.dev`, allow `content-type` and `x-amz-checksum-sha256`, and expose `ETag`. Retain the existing seven-day abort-incomplete-multipart lifecycle rule; after it expires an unfinished file, selecting the same originals restarts that file while preserving completed files. Browser clients receive short-lived part grants; AWS credentials stay on the backend.
+
 ## Environment
 
 | name | required | purpose |
@@ -66,7 +78,9 @@ Sieve inherits versioned MP4, validated metadata with its provenance, and calibr
 | `OPS_PAYOUT_AUTOMATION_ENABLED` / `OPS_WISE_AUTO_FUND` | no | Keep both `false` for calculation-only operation. Payout execution and funding remain separately gated. |
 | `OPS_SIEVE_ENABLED` | no | Defaults to `false`; `true` starts the independent five-minute Clean → Sieve inheritance loop. |
 | `OPS_SIEVE_ROLE_ARN` | for Sieve inheritance | Dedicated scoped AWS role assumed by the worker. See the [Sieve guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) and checked-in `infra/sieve/` policies. |
-| `CONTRIBUTOR_COGNITO_POOL` / `CONTRIBUTOR_COGNITO_CLIENT` | for mobile accounts | Separate contributor pool and public app-client identifiers; both are required for token acceptance. |
+| `OPS_BROWSER_UPLOAD_ENABLED` | for browser uploads | Set to `true` to enable authenticated upload APIs after migration `0019` and storage setup. Defaults to disabled. |
+| `OPS_UPLOAD_ACCELERATE` | no | Defaults to `true`; uses the S3 Transfer Acceleration endpoint for browser multipart uploads. Set to `false` to use the regional endpoint. |
+| `CONTRIBUTOR_COGNITO_POOL` / `CONTRIBUTOR_COGNITO_CLIENT` | for contributor accounts | Separate contributor pool and public app-client identifiers; both are required for mobile and browser-upload token acceptance. |
 | `CONTRIBUTOR_COGNITO_REGION` | no | Contributor Cognito region; defaults to `us-west-2`. |
 | `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` | for terms publication | Comma-separated exact authenticated staff emails authorized by company founders; whitespace/case normalized. Empty or absent denies publication, including staff with the `founder` role. Do not infer identities or configure without founder direction. |
 | `CONTRIBUTOR_SIGNUP_MODE` | no | Public configuration label; defaults to `closed`. The Cognito signup gate remains the authority for who can register. |
