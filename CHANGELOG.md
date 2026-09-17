@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0.0] - 2026-09-17
+
+### Added
+
+- Sign in with a contributor account and upload original episode folders with drag and drop, transfer progress, pause/resume, password recovery, and Korean or English instructions.
+- Record who submitted each delivery in Operations while preserving capture-time ownership and the existing footage review and payment workflow.
+
+### Fixed
+
+- Keep unfinished browser deliveries out of Raw and hold conflicting upload locations for source review before processing.
+
 ## [0.2.1.1] - 2026-09-17
 
 ### Fixed
