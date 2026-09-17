@@ -128,12 +128,15 @@ disclosed reconstruction against committed Clean evidence before copying; see
 [its metadata validation contract](SIEVE-CLEAN-INHERITANCE.md#metadata-validation).
 Neither stage establishes complete capture or customer acceptance.
 
-At the September 17 implementation checkpoint, 91 focused backend tests and
+At the initial September 17 implementation checkpoint, 91 focused backend tests and
 123 catalog tests passed, including 20 new recovery cases. Backend validation and
-the 10-minute quiet-period check are deployed. A 900-frame conversion cloud canary
-passed; Clean canary completion and cloud worker promotion remain pending.
-Pipeline holds remain in place until promotion; this API update does not establish
-a completed recording recovery.
+the 10-minute quiet-period check are deployed. Conversion and metadata Clean
+canaries have since passed; the Clean canary retained 568 of 900 frames, rejected
+203 and held 129 for review while preserving unknown capture fields. Clean
+definition 16 and conversion definition 12 were promoted on September 17 at
+07:56 UTC. Five recording states are authorized; job submissions remain in
+progress at that checkpoint. Deployment does not establish completed recording
+recovery, verified Clean import or Sieve acceptance.
 
 ## Rollout dependencies
 

@@ -97,10 +97,12 @@ copies the generated artifact and provenance without changing their disclosures.
 Original files remain preserved, and neither successful validation nor inheritance
 establishes complete capture or customer acceptance.
 
-As of the September 17 metadata-recovery implementation checkpoint, backend
-validation is deployed and the conversion cloud canary passed 900 frames. Clean
-canary completion and cloud worker promotion remain pending. This contract does
-not establish completed recovery or delivery.
+At the September 17 07:56 UTC metadata-recovery promotion checkpoint, backend
+validation and cloud workers are deployed. Conversion and metadata Clean canaries
+passed; the 900-frame Clean canary retained 568 frames, rejected 203 and held 129
+for review, preserving unknown capture fields. Recovery job submissions remain
+in progress. Canary success and deployment do not establish completed recovery,
+verified Clean import, Sieve delivery or customer acceptance.
 
 ## Contributor delivery exclusions
 
