@@ -51,7 +51,7 @@ The Raw UI labels `awaiting_verification` as **Checking source match**: Clean ha
 
 Rows displayed as **In Clean** or **Rejected** are hidden by default; enable **Show completed / rejected** to include them. Completed rows preserve their earlier diagnostic under **Recorded status message**. Playback re-lists all known delivery prefixes and omits verified processed copies and empty files. Raw displays pending-file counts and uploaded megabytes; **Pending sources** counts non-deleted recordings with outstanding files. Accepted hours and hourly estimates are in [Clean](../docs/OPS-CLEAN.md). Queue classification does not delete episodes or alter ownership, approvals, or payment history.
 
-Sieve inherits versioned MP4, original metadata and calibration from imported Clean recordings through a separate worker. The [Sieve operations guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) covers enabling it, retry behavior and the temporary Ops dashboard. The contract ends September 22, 2026; the dashboard remains visible through September 25 in Los Angeles time.
+Sieve inherits versioned MP4, validated metadata with its provenance, and calibration from imported Clean recordings through a separate worker. Metadata may be an original or an explicitly disclosed reconstruction; [the validation contract](../docs/SIEVE-CLEAN-INHERITANCE.md#metadata-validation) distinguishes their evidence and unknown capture fields. The [Sieve operations guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) covers enabling it, retry behavior and the temporary Ops dashboard. The contract ends September 22, 2026; the dashboard remains visible through September 25 in Los Angeles time.
 
 ## Environment
 

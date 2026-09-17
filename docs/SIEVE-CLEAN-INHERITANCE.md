@@ -31,8 +31,8 @@ inherited/v1/
   <clean-run>/<recording>/<fingerprint>/
     left.mp4 + right.mp4                    # split stereo, existing codec
     # or native.mp4 for historical native-stereo Clean recordings
-    metadata.json                          # byte-exact original capture metadata
-    metadata-provenance.json                # original → Clean provenance
+    metadata.json                          # original or disclosed reconstructed metadata
+    metadata-provenance.json                # source → Clean metadata evidence
     calibration.json                       # validated camera-specific calibration
     manifest.json                          # pinned Clean → Sieve handoff receipt
 ```
@@ -46,9 +46,9 @@ such, rather than claiming split-eye delivery.
 
 Each source and destination file has a bucket, key, VersionId, SHA-256 and byte
 count in the receipt. The Clean completion marker must still agree with the DB's
-pinned manifest. Original metadata must match the Clean metadata-provenance
-supplement and source identities. Calibration is read and validated against the
-recording camera and, when available, the output layout. Canonical supplements
+pinned manifest. Metadata must match the Clean metadata-provenance supplement
+and source identities under the validation rules below. Calibration is read and
+validated against the recording camera and, when available, the output layout. Canonical supplements
 are supported alongside revised MP4 prefixes within the same Clean run.
 
 S3 performs version-pinned server-side copies, including multipart copy for large
@@ -71,6 +71,36 @@ Legacy `prepared/`, `sources/`, and `reports/` content was produced by the old
 Raw-fed CodeBuild process. It is retained separately as legacy history and is
 excluded from this active inheritance index and its hour counts. Do not restart
 that old preparation flow for new Sieve data.
+
+## Metadata validation
+
+Original capture metadata uses `6thsense-clean-source-metadata/1` provenance
+with `copy_mode: byte_exact_from_versioned_source`. Its bytes must match the
+pinned original references. Reconstructed metadata cannot pass as an original.
+
+The recovery path uses `6thsense-clean-source-metadata/2` with
+`copy_mode: reconstructed_from_verified_sources` and an empty `source_metadata`
+list. Its `6thsense-reconstructed-source-metadata/1` artifact must disclose
+`metadata_origin: reconstructed`, `capture_completeness: unknown` and inspection
+of `all_available_sources`. The measured frame count covers available source
+frames only. Completeness, wall-clock time and original capture totals remain
+unknown: `complete`, `start_time`, `clock_synced`, `stop_reason`,
+`received_frames`, `written_frames`, `dropped_frames`, `fw`, `lossless` and
+`truncated` must all be explicitly `null`.
+
+Sieve checks those disclosures, source versions/sizes/SHA-256, the pinned recovery
+authorization reference, and calibration provenance against the committed Clean
+recording. Clean import separately reads the explicit authorization and conversion
+evidence and validates their measured observations. The Sieve worker reads Clean;
+it does not inspect Raw or independently approve the recovery authorization. It
+copies the generated artifact and provenance without changing their disclosures.
+Original files remain preserved, and neither successful validation nor inheritance
+establishes complete capture or customer acceptance.
+
+As of the September 17 metadata-recovery implementation checkpoint, backend
+validation is deployed and the conversion cloud canary passed 900 frames. Clean
+canary completion and cloud worker promotion remain pending. This contract does
+not establish completed recovery or delivery.
 
 ## Contributor delivery exclusions
 
