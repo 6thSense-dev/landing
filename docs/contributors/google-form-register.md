@@ -19,6 +19,14 @@ Company: 6thSense AI, Inc., Delaware file 10635916. Registered office: c/o Corpo
 - On 2026-09-18, the published respondent page returned HTTP 200 anonymously. Parsed public HTML exactly matched the final source's 17 legal text sections, 16 questions and contract metadata. This verifies the public offer; participant signing, SMS verification and a real upload remain separate acceptance steps.
 - Railway verified the API follow-up at commit `f42f0d3` as deployed successfully; live `/api/form-contracts/configuration` returned HTTP 200 with the final Form URL, version and rate. The frontend remains at `48c27db`, with no subsequent frontend source changes. Commit-specific deployment evidence belongs in `google-artifacts.json`.
 
+## Signup infrastructure verified 2026-09-18
+
+Production SMS in `us-west-2` reports `IsInSandbox=false` and `MonthlySpendLimit=50` USD. The contributor signup gate has `SIGNUP_ENABLED=true`, `SIGNUP_MODE=aws_sms` and the Korean route open. The public app client supports `USER_PASSWORD_AUTH` and the required signup attributes. These live observations supersede the older closed-signup and sandbox checkpoints in the [registration guide](../CONTRIBUTOR-REGISTRATION.md).
+
+A direct Lambda probe exposed a cold invocation timing out at 5,000 ms with 128 MB memory; later invocations took 4,319.71 ms and 258.83 ms. CloudFormation change set `signup-cold-start-readiness-20260918` preserved the deployed template and changed only `SignupGate.MemorySize` from 128 to 512 MB. The stack reached `UPDATE_COMPLETE` and the function code hash remained unchanged. After the change, the cold probe took 1,364.35 ms plus 96.77 ms initialization (1,461.12 ms total), and a warm probe took 85.91 ms. Both successful responses left `autoConfirmUser`, `autoVerifyPhone` and `autoVerifyEmail` false.
+
+Cognito's synchronous trigger response limit is five seconds; increasing a function timeout cannot extend it. Lambda allocates more CPU with higher configured memory. Future identity-infrastructure deployments must preserve at least 512 MB for this gate and verify cold invocation latency within that response budget; the deployed CloudFormation template already includes the correction. These synthetic invocations created no Cognito account and sent no SMS. They verify the gate's behavior and measured latency, not real participant signup or message delivery. See [Cognito trigger constraints](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-working-with-lambda-triggers.html) and [Lambda memory configuration](https://docs.aws.amazon.com/lambda/latest/dg/configuration-memory.html).
+
 ## Participant and operator flow
 
 1. Keep the original application as an application. `finishContractRegisterDraft` imports legacy applications into the register without manufacturing a contract or signature.

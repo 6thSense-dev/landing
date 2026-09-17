@@ -2,6 +2,8 @@
 
 For the 2026-09-18 Korean website and interim contract register, use the [Google Form release guide](contributors/google-form-register.md). The closed-signup and sandbox results below are dated infrastructure observations from the original mobile pilot; recheck live Cognito/SMS configuration before applying them to a later release.
 
+**2026-09-18 supersession:** live `us-west-2` SMS is outside the sandbox with a USD 50 monthly spend limit; the signup gate is enabled in `aws_sms` mode with the Korean route open. The app client supports password authentication and the required signup attributes. A CloudFormation update raised only the signup gate's memory from 128 to 512 MB, resolving the observed cold-start timeout without changing function code or auto-verifying accounts. Preserve at least 512 MB and test cold latency on future deployments. The [verified infrastructure record](contributors/google-form-register.md#signup-infrastructure-verified-2026-09-18) includes measurements and scope: direct Lambda probes created no account or SMS, and real participant SMS confirmation and upload remain pending.
+
 Identity infrastructure pass: 2026-09-14; mobile pilot status updated 2026-09-15. Firebase is not required. Cognito manages phone
 verification and credentials; contributor documents remain in the private
 `6thsense-contributor-records` bucket. No password, OTP, or session token belongs
