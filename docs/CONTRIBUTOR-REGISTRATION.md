@@ -1,5 +1,7 @@
 # Contributor region enrollment and SMS verification
 
+For the 2026-09-18 Korean website and interim contract register, use the [Google Form release guide](contributors/google-form-register.md). The closed-signup and sandbox results below are dated infrastructure observations from the original mobile pilot; recheck live Cognito/SMS configuration before applying them to a later release.
+
 Identity infrastructure pass: 2026-09-14; mobile pilot status updated 2026-09-15. Firebase is not required. Cognito manages phone
 verification and credentials; contributor documents remain in the private
 `6thsense-contributor-records` bucket. No password, OTP, or session token belongs

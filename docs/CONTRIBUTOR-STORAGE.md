@@ -18,6 +18,7 @@ Seven initial objects were written and read back: `_meta/README.md`, `_meta/layo
 | Approved agreement documents | S3 `terms/<region>/<agreement>/<version>/<locale>.<ext>` |
 | Founder publication approval | Insert-only application `OpsSetting` records at `contributor_terms_audit_<publication-id>`, preserving authenticated founder identity, time, routing and exact document versions/hashes. An upload alone does not publish terms. |
 | Durable consent evidence | Original immutable snapshot in `contributor_consents`; staff export writes S3 `consent-receipts/<account-subject>/<receipt-id>.json` without replacing an existing object. |
+| Interim Korean Google Form contracts | Linked Google Sheet is the contractor register; restricted Drive stores frozen source/Form shape and signed receipts; `contributor_form_contracts` mirrors the authenticated evidence and verified account link. See the [Form register guide](contributors/google-form-register.md). This does not move existing app consent receipts out of S3. |
 | Contributor/account metadata exports | S3 `profile-exports/<contributor-id>/<export-id>.json` |
 | Camera details and assignment-history exports | S3 `camera-exports/<device-id>/<assignment-id>/<export-id>.json` |
 | Payout approval and provider reconciliation evidence | S3 `payment-receipts/<contributor-id>/<payout-id>/<event-id>.json` |
