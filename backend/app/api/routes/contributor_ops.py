@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone, timedelta
 from typing import Literal
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.routes.ops import require_ops
@@ -18,6 +18,82 @@ from app.core.db import get_session
 from app.models import ContributorAccount, ContributorCameraClaim, ContributorConsent, ContributorRecipientAttempt, OpsCamera, OpsSetting, User, Wearer
 
 router = APIRouter(prefix="/api/ops/contributors", tags=["ops"])
+
+
+class CameraPreapprovalIn(BaseModel):
+    preapproval_id: str = Field(pattern='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+    phone: str = Field(pattern=r'^\+8210[0-9]{8}$')
+    wearer_id: int = Field(gt=0)
+    device_id: str = Field(pattern='^[A-F0-9]{6}$')
+    physically_verified: StrictBool
+    camera_owner_verified: StrictBool
+    permissions_verified: StrictBool
+    note: str = Field(min_length=10, max_length=500)
+
+
+@router.post('/camera-preapprovals')
+async def preapprove_camera(body: CameraPreapprovalIn, operator: User = Depends(require_ops),
+                            db: AsyncSession = Depends(get_session)):
+    from app.api.routes.form_contracts import phone_digest
+    from app.core import contributor_preapproval as pre
+    from app.core.contributor_deletion import ensure_wearer_active
+    if not all((body.physically_verified, body.camera_owner_verified, body.permissions_verified)) or len(body.note.strip()) < 10:
+        raise HTTPException(422, 'camera_handover_verification_required')
+    await ensure_wearer_active(db, body.wearer_id)
+    await db.execute(text('SELECT pg_advisory_xact_lock(61306130)'))
+    digest = phone_digest(body.phone)
+    payload = {**body.model_dump(exclude={'phone'}), 'phone_digest': digest}
+    fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    prior = await db.get(OpsSetting, pre.approval_key(body.preapproval_id))
+    if prior:
+        saved = json.loads(prior.value)
+        if saved['fingerprint'] != fingerprint:
+            raise HTTPException(409, 'camera_preapproval_immutable_conflict')
+        return {key: saved[key] for key in ('id', 'device_id', 'wearer_id', 'approved_at', 'expires_at')}
+    wearer = await db.get(Wearer, body.wearer_id)
+    if not wearer or not wearer.is_active:
+        raise HTTPException(409, 'existing_contributor_unavailable')
+    account = (await db.execute(select(ContributorAccount).where(ContributorAccount.wearer_id == wearer.id))).scalar_one_or_none()
+    if account and account.routing_version != 'kr-2026-v1':
+        raise HTTPException(409, 'contract_region_mismatch')
+    previous = await pre.for_phone(db, digest)
+    current = datetime.now(timezone.utc)
+    if previous and not await db.get(OpsSetting, pre.consumption_key(previous['id'])) and datetime.fromisoformat(previous['expires_at']) > current:
+        raise HTTPException(409, 'camera_preapproval_already_pending')
+    device_index = await db.get(OpsSetting, 'form_pre_device_' + body.device_id)
+    if device_index:
+        prior_device = await db.get(OpsSetting, pre.approval_key(json.loads(device_index.value)))
+        reserved = json.loads(prior_device.value) if prior_device else None
+        if reserved and not await db.get(OpsSetting, pre.consumption_key(reserved['id'])) and datetime.fromisoformat(reserved['expires_at']) > current:
+            raise HTTPException(409, 'camera_preapproval_already_pending')
+    camera = await db.get(OpsCamera, body.device_id)
+    active = (await db.execute(select(ContributorCameraClaim.id).where(
+        ContributorCameraClaim.device_id == body.device_id,
+        ContributorCameraClaim.status == 'approved', ContributorCameraClaim.ended_at.is_(None)))).scalars().all()
+    if active or (camera and camera.wearer_id not in (None, wearer.id)):
+        raise HTTPException(409, 'camera_assignment_conflict')
+    if camera is None:
+        camera = OpsCamera(device_id=body.device_id, wearer_id=wearer.id)
+        db.add(camera)
+    else:
+        camera.wearer_id = wearer.id
+    await db.flush()
+    await db.refresh(camera)
+    saved = {**payload, 'id': body.preapproval_id, 'fingerprint': fingerprint,
+        'operator': operator.email, 'approved_at': current.isoformat(),
+        'expires_at': (current + timedelta(days=7)).isoformat(), 'camera_updated_at': camera.updated_at.isoformat()}
+    db.add(OpsSetting(key=pre.approval_key(body.preapproval_id), value=json.dumps(saved)))
+    index = await db.get(OpsSetting, pre.phone_key(digest))
+    if index:
+        index.value = json.dumps(body.preapproval_id)
+    else:
+        db.add(OpsSetting(key=pre.phone_key(digest), value=json.dumps(body.preapproval_id)))
+    if device_index:
+        device_index.value = json.dumps(body.preapproval_id)
+    else:
+        db.add(OpsSetting(key='form_pre_device_' + body.device_id, value=json.dumps(body.preapproval_id)))
+    await db.commit()
+    return {key: saved[key] for key in ('id', 'device_id', 'wearer_id', 'approved_at', 'expires_at')}
 
 
 async def require_terms_founder(user: User = Depends(require_ops)) -> User:

@@ -116,6 +116,23 @@ test('episode retry, unavailable annotations, expired links and close during loa
   await expect(page.locator('.sieve-inspector')).toHaveCount(0);
 });
 
+test('recurring verified uploads add once and explain held recordings', async ({page}) => {
+  const state=await setup(page);
+  state.pipeline.delivery.uploaded_hours=7.38;
+  state.pipeline.customer_delivery={available:true,enabled:true,uploaded_hours:1.25,running:2,max_parallel:4,
+    queued:3,held:1,uploaded_assets:10,uploaded_files:70,uploaded_bytes:1e9,updated_at:new Date().toISOString(),
+    recordings:[{recording:'ego_20260901_120000_ABC123',status:'held',reason:'missing_absolute_capture_time'}]};
+  await page.goto('/portal/ops?tab=sieve');
+  await expect(metric(page,'Uploaded to Sieve')).toContainText('8.63 h');
+  await summary(page,'Processing details').click();
+  const recurring=page.getByRole('region',{name:'Recurring customer delivery',exact:true});
+  await expect(recurring).toContainText('Automatic delivery enabled');
+  await expect(recurring).toContainText('2 running / 4 slots');
+  await recurring.getByText('Recording hold reasons').click();
+  await expect(recurring).toContainText('Original absolute capture timestamp is missing.');
+  await expectNoHorizontalOverflow(page);
+});
+
 test('delivery overview is compact and keeps totals separate', async ({page}, info) => {
   const state = await setup(page);
   await page.goto('/portal/ops?tab=sieve');

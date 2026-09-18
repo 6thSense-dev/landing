@@ -71,6 +71,9 @@ def test_missing_metadata_recovers_and_transient_failure_never_rejects():
     assert diagnose({**base, "error": "AccessDenied"}, now)[0] == "retry"
     assert diagnose({**base, "media": []}, now)[0] == "recovering"
     assert diagnose({**base, "media": [], "uploaded": now}, now)[0] == "uploading"
+    assert diagnose({**base, "uploaded": now - timedelta(minutes=9)}, now)[0] == "uploading"
+    assert diagnose({**base, "uploaded": now - timedelta(minutes=10)}, now)[0] == "recovering"
+    assert "latest source file" in diagnose({**base, "uploaded": None}, now)[1]
 
 
 @pytest.mark.asyncio

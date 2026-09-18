@@ -93,7 +93,7 @@ def test_fully_rejected_recording_does_not_require_invented_media():
 async def test_worker_cannot_complete_with_video_only_evidence(legacy):
     from app.api.routes.ops_processing import result, ResultIn
     doc = manifest() if legacy else multimodal_manifest()
-    job = SimpleNamespace(fingerprint="fp",lease_token="lease",lease_until=datetime.now(timezone.utc)+timedelta(minutes=5), state="running")
+    job = SimpleNamespace(fingerprint="fp",lease_token="lease",lease_until=datetime.now(timezone.utc)+timedelta(minutes=5), state="running", input_json="{}")
     run = SimpleNamespace(manifest_json=json.dumps(doc),run_id=doc["run_id"])
     class DB:
         committed = False

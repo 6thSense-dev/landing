@@ -60,6 +60,42 @@ async def inventory(db=Depends(get_session)):
     return {'episodes': rows}
 
 
+@router.get('/sieve-customer-inventory', dependencies=[Depends(authorize)])
+async def sieve_customer_inventory(recording: str | None = None, db=Depends(get_session)):
+    """Current Clean eligibility, checked again by cloud workers before upload.
+
+    Uses the same source-alias and residential exclusion rules as inheritance.
+    No bearer, personal names, payment state or customer acceptance is returned.
+    """
+    from app.core import ops_sieve
+    from app.core.contributor_deletion import pending_wearers
+    held = await pending_wearers(db)
+    episodes = {e.recording: e for e in (await db.execute(select(Episode))).scalars()}
+    runs = {r.run_id: r for r in (await db.execute(select(CleanRun))).scalars()}
+    saved = await ops_sieve.saved_state(db)
+    rows = []
+    for row in await ops_sieve.inventory(db):
+        if recording is not None and row['recording'] != recording:
+            continue
+        episode, run = episodes.get(row['recording']), runs[row['run_id']]
+        if ((episode and (episode.deleted_at or episode.wearer_id in held))
+                or run.wearer_id in held):
+            continue
+        inherited = saved.get('recordings', {}).get(row['recording'], {})
+        if inherited.get('status') != 'inherited' or inherited.get('revision') != row['revision']:
+            continue
+        operator = episode.wearer_id if episode and episode.wearer_id else run.wearer_id
+        rows.append({k: row[k] for k in ('recording', 'run_id', 'revision', 'manifest_sha256',
+                    'manifest_key', 'manifest_version', 'camera', 'country', 'retained_seconds')} | {
+            'entity_id': row['entity']['id'],
+            'operator_key': f'wearer:{operator}' if operator else None,
+            'inheritance_receipt': inherited['receipt'],
+            'source_sha256': sorted(s['sha256'] for s in row['rec']['sources']),
+        })
+    return {'schema': '6thsense-sieve-customer-inventory/1',
+            'checked_at': datetime.now(timezone.utc).isoformat(), 'recordings': rows}
+
+
 def verified_result(run_id):
     s3 = _client(get_settings())
     doc, key, version, digest = _committed_result(s3, f'qc-results/{run_id}/_SUCCESS.json')
@@ -106,9 +142,7 @@ def _metadata_evidence(s3, doc):
                       'version_id': provenance_version, 'sha256': hashlib.sha256(raw).hexdigest(),
                       'bytes': len(raw)}
     provenance = json.loads(raw)
-    if (provenance.get('schema') != '6thsense-clean-source-metadata/1'
-            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
-            or provenance.get('run_id') != doc['run_id']
+    if (provenance.get('run_id') != doc['run_id']
             or provenance.get('recording') != rec['recording']):
         raise ValueError('Original metadata provenance identity mismatch')
     expected = [(s['bucket'], s['key'], s['version_id']) for s in rec['sources']]
@@ -131,6 +165,15 @@ def _metadata_evidence(s3, doc):
         raise ValueError('Original metadata is not JSON') from exc
     if not isinstance(metadata, dict):
         raise ValueError('Original metadata must be an object')
+    if provenance.get('schema') == '6thsense-clean-source-metadata/2':
+        from app.core.ops_reconstructed_metadata import validate_reconstructed
+        validate_reconstructed(metadata,provenance,rec,ref)
+        return metadata,provenance,body,provenance_ref
+    if (provenance.get('schema') != '6thsense-clean-source-metadata/1'
+            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
+            or metadata.get('metadata_origin') == 'reconstructed'
+            or rec.get('source_provenance',{}).get('metadata_recovery') is not None):
+        raise ValueError('Original metadata provenance identity mismatch')
     originals = provenance.get('source_metadata')
     if not isinstance(originals, list) or not originals:
         raise ValueError('Original metadata source references are missing')
@@ -139,6 +182,52 @@ def _metadata_evidence(s3, doc):
                 or source.get('bytes') != ref.get('bytes')):
             raise ValueError('Original metadata was modified or conflicting')
     return metadata, provenance, body, provenance_ref
+
+
+def _validate_recovery_source(s3, rec, metadata, metadata_body, provenance, report, take):
+    """Read the immutable authorization and conversion evidence before import."""
+    recovery = provenance['reconstruction']
+    auth = json.loads(_read(s3,recovery['authorization']))
+    if (take.get('meta_key') or auth.get('schema')!='6thsense-source-metadata-recovery/1'
+            or auth.get('recording')!=rec['recording'] or auth.get('device_id')!=metadata['device_id']
+            or auth.get('scope')!='available_source_only' or auth.get('capture_completeness')!='unknown'
+            or not auth.get('basis') or auth.get('calibration')!=rec['calibration_source']
+            or not auth.get('calibration_applicability',{}).get('basis')
+            or auth['calibration_applicability']!=metadata['calibration_provenance'].get('applicability')):
+        raise ValueError('Reconstruction authorization or original-metadata availability changed')
+    expected = {(r['bucket'],r['key'],r['version_id']):(r['size_bytes'],r['sha256']) for r in rec['sources']}
+    sources = auth.get('sources',[])
+    if len(sources)!=len(expected):
+        raise ValueError('Reconstruction authorization source count differs')
+    seen = set()
+    for source in sources:
+        key = tuple(source.get(k) for k in ('bucket','key','version_id'))
+        if (key in seen or key not in expected or source.get('bytes')!=expected[key][0]
+                or source.get('sha256') not in (None,expected[key][1])):
+            raise ValueError('Reconstruction authorization source identity differs')
+        seen.add(key)
+    ref = recovery['metadata']
+    if (report.get('metadata_recovery_ref')!=recovery['authorization']
+            or report.get('reconstructed_metadata')!=ref
+            or [r for r in report.get('outputs',[]) if r.get('key','').endswith('/metadata.json')]!=[ref]
+            or report.get('calibration_source')!=rec['calibration_source']
+            or report.get('source_complete_flag') is not None
+            or report.get('metadata_frame_count') is not None
+            or report.get('frames_absent_against_capture_metadata') is not None
+            or report.get('decoded_frame_count')!=metadata['frame_count']
+            or report.get('sensor_decoder')!='native_luma/1'
+            or _read(s3,ref)!=metadata_body):
+        raise ValueError('Reconstructed metadata differs from the conversion evidence')
+    timeline = report['timeline']
+    sensor_fields = ('sensor_clock','imu_samples','imu_units','unreadable_sensor_frames',
+                     'imu_conflicting_measurements','sensor_discontinuities','maximum_imu_gap_us')
+    duration_fields = ('video_clock','chunk_join','recovered_chunk_display_clock')
+    layout = rec['media']['layout']
+    if (metadata.get('available_video_duration_us')!=timeline.get('duration_us')
+            or metadata.get('sensor_observations')!={k:timeline[k] for k in sensor_fields}
+            or metadata.get('duration_basis')!={k:timeline[k] for k in duration_fields}
+            or metadata.get('image_size')!=[layout['width'],layout['height']]):
+        raise ValueError('Reconstructed observations differ from conversion measurements')
 
 
 def _validate_country(doc, party):
@@ -173,11 +262,14 @@ def _validate_new_source(doc, episode):
             or not str(receipt_ref.get('key', '')).endswith(expected_suffix)):
         raise ValueError('Pinned conversion receipt is required')
     report = json.loads(_read(s3, receipt_ref))
+    reconstructed = provenance.get('schema') == '6thsense-clean-source-metadata/2'
     if (report.get('schema') != '6thsense-raw-conversion-result/1'
             or report.get('recording') != episode.recording
             or report.get('status') != 'converted_staging'
-            or report.get('source_complete_flag') is not True):
+            or (not reconstructed and report.get('source_complete_flag') is not True)):
         raise ValueError('Conversion receipt identity mismatch')
+    if reconstructed:
+        _validate_recovery_source(s3,rec,metadata,metadata_body,provenance,report,take)
     trusted = {}
     for source in report.get('sources', []):
         try:
@@ -244,6 +336,9 @@ async def import_result(body: ImportIn, db=Depends(get_session)):
     ep = (await db.execute(select(Episode).where(Episode.recording == rec['recording']).with_for_update())).scalar_one_or_none()
     if not ep or ep.deleted_at:
         raise HTTPException(409, 'Source is missing or operator-deleted')
+    source_job = await db.get(ProcessingJob, ep.recording)
+    if source_job and json.loads(source_job.input_json).get('upload_source_conflict'):
+        raise HTTPException(409, 'Resolve conflicting upload locations and rescan before importing Clean.')
     if ep.wearer_id is not None:
         await ensure_wearer_active(db, ep.wearer_id)
     if ep.device_id.strip().upper().removeprefix('EGO-') != doc['device_id']:
@@ -322,6 +417,8 @@ async def update_status(body: StatusIn, db=Depends(get_session)):
         await ensure_wearer_active(db, ep.wearer_id)
     job = await db.get(ProcessingJob, body.recording, with_for_update=True)
     if job:
+        if json.loads(job.input_json).get('upload_source_conflict'):
+            raise HTTPException(409, 'Resolve conflicting upload locations and rescan before updating processing.')
         if job.state == 'clean':
             return {'updated': False}
         job.state, job.reason = body.state, body.reason

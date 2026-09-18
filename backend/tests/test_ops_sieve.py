@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import pytest
 from botocore.exceptions import ClientError
 from app.core import ops_sieve as sieve
-from app.models import CleanRun, Episode, Wearer
+from app.models import CleanRun, Episode, Wearer, OpsSetting
 from tests.test_ops_routes import app, _sid, _client
 from tests.test_ops_artifacts import multimodal_manifest, calibration_fixture
 
@@ -201,6 +201,56 @@ async def test_inventory_excludes_deleted_and_deduplicates_sources(db_session):
     rows = await sieve.inventory(db_session)
     assert len(rows) == 1
     assert rows[0]['retained_seconds'] == 60 and rows[0]['activity'] == 'Unclassified'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('owner', ['run', 'episode'])
+async def test_sieve_wearer_exclusion_blocks_historical_aliases_without_removing_clean(db_session, owner):
+    _, row = fixture()
+    person = Wearer(name='Residential contributor'); db_session.add(person); await db_session.flush()
+    db_session.add(OpsSetting(key=sieve.EXCLUSIONS_KEY, value=json.dumps({
+        'schema':'6thsense-sieve-delivery-exclusions/1',
+        'wearers':{str(person.id):{'reason':'Residential footage; excluded by user'}}})))
+    for index in range(3):
+        doc = copy.deepcopy(row['doc']); doc['run_id'] = f'exclusion-{index}'
+        doc['counterparty'] = {'id':'business','name':'Business','country':'korea'}
+        rec = doc['recordings'][0]; rec['recording'] += f'_s{index+1:02d}'
+        if index == 2: rec['sources'][0]['sha256'] = 'e'*64
+        run = CleanRun(run_id=doc['run_id'], device_id='ABC123',
+            wearer_id=person.id if index == 0 and owner == 'run' else None,
+            manifest_key='key', manifest_version='v', manifest_sha256='a'*64,
+            manifest_json=json.dumps(doc), retained_seconds=60, rejected_seconds=0, rate_krw_hour=11000)
+        db_session.add(run)
+        db_session.add(Episode(recording=rec['recording'],
+            wearer_id=person.id if index == 0 and owner == 'episode' else None))
+    await db_session.commit()
+    rows = await sieve.inventory(db_session)
+    assert [row['run_id'] for row in rows] == ['exclusion-2']
+    for index in range(3): assert await db_session.get(CleanRun, f'exclusion-{index}') is not None
+
+
+@pytest.mark.asyncio
+async def test_invalid_sieve_exclusion_policy_holds_delivery(db_session):
+    db_session.add(OpsSetting(key=sieve.EXCLUSIONS_KEY, value='{"wearers": []}'))
+    await db_session.commit()
+    with pytest.raises(ValueError, match='exclusion policy is invalid'):
+        await sieve.inventory(db_session)
+
+
+@pytest.mark.asyncio
+async def test_new_exclusion_prevents_copy_from_an_earlier_inventory(db_session, monkeypatch):
+    storage, row = fixture()
+    calls = 0
+    async def changed_inventory(db):
+        nonlocal calls
+        calls += 1
+        return [row] if calls == 1 else []
+    monkeypatch.setattr(sieve, 'inventory', changed_inventory)
+    monkeypatch.setattr(sieve, 'storage_client', lambda: storage)
+    await sieve.sync_once()
+    assert calls >= 2 and storage.copies == []
+    index = json.loads(storage.objects[sieve.BUCKET, sieve.PREFIX+'latest.json'][0])
+    assert index['recordings'] == []
 
 
 @pytest.mark.parametrize('nested', [False, True])

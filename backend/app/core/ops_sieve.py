@@ -20,6 +20,7 @@ from app.models import CleanRun, Episode, OpsSetting, Task, Wearer
 BUCKET = '6thsense-sieve'
 PREFIX = 'inherited/v1/'
 STATE_KEY = 'sieve_clean_sync_v1'
+EXCLUSIONS_KEY = 'sieve_delivery_exclusions_v1'
 SCHEMA = '6thsense-sieve-clean-inheritance/1'
 ELIGIBLE_COUNTRIES = frozenset({'India', 'Korea'})
 MISSING = {'NoSuchKey', 'NoSuchVersion', '404', 'NotFound'}
@@ -69,9 +70,29 @@ async def inventory(db):
     people = {p.id: p for p in (await db.execute(select(Wearer))).scalars()}
     episodes = {e.recording: e for e in (await db.execute(select(Episode))).scalars()}
     tasks = {t.id: t.name for t in (await db.execute(select(Task))).scalars()}
+    setting = await db.get(OpsSetting, EXCLUSIONS_KEY)
+    excluded_wearers = set()
+    if setting:
+        policy = json.loads(setting.value)
+        if (not isinstance(policy, dict) or policy.get('schema') != '6thsense-sieve-delivery-exclusions/1'
+                or not isinstance(policy.get('wearers'), dict)):
+            raise ValueError('Sieve exclusion policy is invalid; delivery held')
+        for key, exclusion in policy['wearers'].items():
+            if (not key.isdecimal() or int(key) <= 0 or str(int(key)) != key
+                    or not isinstance(exclusion, dict) or not isinstance(exclusion.get('reason'), str)
+                    or not exclusion['reason'].strip()):
+                raise ValueError('Sieve wearer exclusion is invalid; delivery held')
+            excluded_wearers.add(int(key))
+    # A prior manifest or source alias must not bypass a contributor exclusion.
+    excluded_recordings = {e.recording for e in episodes.values() if e.wearer_id in excluded_wearers}
+    documents = [(run, json.loads(run.manifest_json)) for run in runs]
+    for run, doc in documents:
+        if run.wearer_id in excluded_wearers:
+            excluded_recordings.update(rec['recording'] for rec in doc['recordings'])
+    excluded_sources = {source['sha256'] for _, doc in documents for rec in doc['recordings']
+                        if rec['recording'] in excluded_recordings for source in rec.get('sources', [])}
     rows, seen_names, seen_sources = [], set(), set()
-    for run in runs:
-        doc = json.loads(run.manifest_json)
+    for run, doc in documents:
         party, person = doc.get('counterparty'), people.get(run.wearer_id)
         for rec in doc['recordings']:
             name = rec['recording']
@@ -80,6 +101,8 @@ async def inventory(db):
                 continue
             # Source aliases and historical run revisions cannot multiply hours.
             sources = {s['sha256'] for s in rec.get('sources', [])}
+            if name in excluded_recordings or sources & excluded_sources:
+                continue
             if name in seen_names or sources & seen_sources:
                 continue
             seen_names.add(name)
@@ -223,14 +246,24 @@ def source_files(s3, row):
                       'source': {'bucket': clean_bucket(), **{k: output[k] for k in ('key', 'version_id', 'sha256', 'bytes')}}})
     provenance, provenance_ref = read_json(s3, base + 'metadata-provenance.json')
     identities = [dict(zip(('bucket', 'key', 'version_id'), s)) for s in sorted({(s['bucket'], s['key'], s['version_id']) for s in row['rec']['sources']})]
-    if (provenance.get('schema') != '6thsense-clean-source-metadata/1' or provenance.get('run_id') != run or provenance.get('recording') != name
-            or provenance.get('source_media') != identities or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'):
-        raise ValueError('Original metadata provenance does not match Clean')
+    if (provenance.get('run_id') != run or provenance.get('recording') != name
+            or provenance.get('source_media') != identities):
+        raise ValueError('Metadata provenance does not match Clean')
     meta_ref = provenance['metadata']
     if meta_ref['bucket'] != clean_bucket() or meta_ref['key'] != base + 'metadata.json':
         raise ValueError('Metadata must be inherited from Clean')
     metadata, actual = read_json(s3, meta_ref['key'], version=meta_ref['version_id'])
-    if actual != meta_ref or not isinstance(metadata, dict) or not provenance['source_metadata'] or any(s['sha256'] != meta_ref['sha256'] for s in provenance['source_metadata']):
+    if actual != meta_ref or not isinstance(metadata, dict):
+        raise ValueError('Metadata digest does not match Clean')
+    if provenance.get('schema') == '6thsense-clean-source-metadata/2':
+        from app.core.ops_reconstructed_metadata import validate_reconstructed
+        validate_reconstructed(metadata,provenance,row['rec'],meta_ref)
+    elif (provenance.get('schema') != '6thsense-clean-source-metadata/1'
+            or provenance.get('copy_mode') != 'byte_exact_from_versioned_source'
+            or metadata.get('metadata_origin') == 'reconstructed'
+            or row['rec'].get('source_provenance',{}).get('metadata_recovery') is not None
+            or not provenance.get('source_metadata')
+            or any(s['sha256'] != meta_ref['sha256'] for s in provenance['source_metadata'])):
         raise ValueError('Original metadata digest does not match Clean')
     files.extend([{'name': 'metadata.json', 'source': meta_ref}, {'name': 'metadata-provenance.json', 'source': provenance_ref}])
     calibrations = [o for o in outputs if o.get('role') == 'calibration']
@@ -327,6 +360,12 @@ async def sync_once():
                 rows = await inventory(db)
             results = {}
             for row in rows:
+                # The initial inventory can wait behind earlier copies. Refresh
+                # exclusions/ownership before sending this recording to Sieve.
+                async with get_sessionmaker()() as db:
+                    current = {r['recording']: r for r in await inventory(db)}
+                    if current.get(row['recording'], {}).get('revision') != row['revision']:
+                        continue
                 try:
                     # Cancellation must not release the leader lock while a
                     # background S3 copy is still running in this process.

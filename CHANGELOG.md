@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.4.0.1] - 2026-09-18
+
+### Changed
+
+- Use familiar “회원가입” / “Sign up” labels and friendlier phone-verification guidance throughout contributor signup.
+
+## [0.4.0.0] - 2026-09-18
+
+### Added
+
+- Link signed Google Form contracts to verified contributor phone accounts, with secure password creation and SMS recovery on the upload website.
+- Reserve a physically handed-over camera before signup, then activate it against the verified signed account while preserving contributor IDs, payment history and capture-time ownership.
+- Preserve the exact released Form and signed receipt, authenticate register synchronization, and retry missed submissions independently.
+
+### Fixed
+
+- Block uploads after contract withdrawal even before first account linking, while preserving valid legacy contributor access.
+- Keep camera returns and reassignments from reactivating an old handover, while allowing verified recordings made during an earlier assignment to arrive later by SD card.
+
+## [0.3.0.0] - 2026-09-17
+
+### Added
+
+- Sign in with a contributor account and upload original episode folders with drag and drop, transfer progress, pause/resume, password recovery, and Korean or English instructions.
+- Record who submitted each delivery in Operations while preserving capture-time ownership and the existing footage review and payment workflow.
+
+### Fixed
+
+- Keep unfinished browser deliveries out of Raw and hold conflicting upload locations for source review before processing.
+
+## [0.2.1.1] - 2026-09-17
+
+### Fixed
+
+- Accept explicitly authorized reconstructed source metadata at Clean import and preserve its unknown capture fields and calibration provenance in Sieve copies.
+- Align the Raw upload wait message and intake check with the cloud pipeline's 10-minute quiet period.
+- Keep contributor footage excluded from Sieve when an operator records a delivery restriction, while retaining internal Raw/Clean copies and payments.
+- Describe Synapse's configured camera fleet reports, their separation from optional analytics, contributor bank fields and commercial footage licensing in its public privacy policy.
+
+## [0.2.1.0] - 2026-09-17
+
+### Fixed
+
+- Show specific Raw processing causes and recovery guidance, while preserving the original diagnostic message.
+- Explain imported results as “Checking source match” until verified receipts cover the current Raw files. Keep status badges, filters and completed-history visibility consistent after reconciliation.
+- Distinguish scene review/rejection from cloud worker interruptions, model service failures, invalid scene responses and interrupted budget updates.
+
 ## [0.2.0.0] - 2026-09-16
 
 ### Added

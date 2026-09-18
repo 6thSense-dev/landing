@@ -13,6 +13,20 @@ const count = value => knownNumber(value) ? value.toLocaleString() : '—';
 const pipelineHours = value => knownNumber(value) ? `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : 'Not reported';
 const bytes = value => knownNumber(value) ? `${(value / 1e9).toLocaleString(undefined, { maximumFractionDigits: 2 })} GB` : 'Not reported';
 const ratio = (value, total) => `${count(value)} / ${count(total)}`;
+const customerHoldReason = reason => ({
+  historical_delivery_overlap_reserved: 'Source already belongs to an earlier delivery; held to prevent duplicate footage.',
+  source_overlap_reserved: 'Source is already reserved by another delivery.',
+  missing_confirmed_capture_site: 'Capture city and province need confirmation.',
+  missing_matched_calibration_solve: 'Matching dated calibration solve record is missing.',
+  missing_stable_operator_mapping: 'Stable anonymous operator mapping is missing.',
+  missing_absolute_capture_time: 'Original absolute capture timestamp is missing.',
+  no_continuous_task_meets_delivery_requirements: 'No continuous task span meets the delivery timing and length requirements.',
+  legacy_clean_requires_scene_review: 'Older Clean footage needs scene and task review.',
+  missing_task_annotations: 'Task annotations are missing.',
+  cloud_worker_retries_exhausted: 'Cloud processing failed after three attempts; technical investigation needed.',
+  eligibility_revoked_or_changed: 'Eligibility or the Clean source changed after queuing.',
+  submission_response_unconfirmed: 'Cloud launch response is uncertain; held to prevent duplicate jobs.',
+}[reason] || reason?.replaceAll('_', ' ') || 'Validation needs attention');
 const pipelineStates = {
   PASS: 'Passed', FAILED: 'Needs attention', FAIL: 'Needs attention', ERROR: 'Needs attention',
   RUNNING: 'In progress', IN_PROGRESS: 'In progress', PREPARING: 'Preparing', PROCESSING: 'Processing',
@@ -30,8 +44,10 @@ function Metric({ title, value, children, accent = false }) {
 }
 
 function DeliveryOverview({ pipeline, collection, error, loading }) {
-  const { company, delivery, validation, supplement, supplement_delivery: originals } = pipeline || {};
-  const formattedHours = delivery?.available && delivery.complete === true && knownNumber(delivery.uploaded_hours) ? delivery.uploaded_hours : null;
+  const { company, delivery, validation, supplement, supplement_delivery: originals, customer_delivery: recurring } = pipeline || {};
+  const initialHours = delivery?.available && delivery.complete === true && knownNumber(delivery.uploaded_hours) ? delivery.uploaded_hours : null;
+  const recurringHours = recurring?.available && knownNumber(recurring.uploaded_hours) ? recurring.uploaded_hours : 0;
+  const formattedHours = initialHours === null ? null : initialHours + recurringHours;
   const originalsComplete = originals?.available === true && originals.complete === true && originals.external_transfer_completed === true
     && originals.state === 'UPLOADED_FOR_CUSTOMER_QC' && originals.total_files === 604 && originals.uploaded_files === originals.total_files
     && knownNumber(originals.total_bytes) && originals.total_bytes > 0 && originals.uploaded_bytes === originals.total_bytes
@@ -45,7 +61,7 @@ function DeliveryOverview({ pipeline, collection, error, loading }) {
   return <section className="sieve-overview" aria-label="Delivery overview">
     {loading && !pipeline && <p className="sieve-notice" role="status">Loading delivery status…</p>}
     {error && <p className="sieve-notice" role="status">{pipeline ? 'Live update failed. Showing the last loaded delivery snapshot.' : 'Delivery status is unavailable. Collection figures are shown separately.'}</p>}
-    {!error && (pipeline?.cache?.stale || pipeline?.errors?.length > 0 || [company, delivery, validation, supplement, originals].some(stage => stage?.stale)) &&
+    {!error && (pipeline?.cache?.stale || pipeline?.errors?.length > 0 || [company, delivery, validation, supplement, originals, recurring].some(stage => stage?.stale)) &&
       <p className="sieve-notice" role="status">Some updates are delayed or unavailable. Last known figures are shown; expand Processing details for update times.</p>}
     <div className="sieve-metrics">
       <Metric title="Uploaded to Sieve" value={pipelineHours(uploaded)} accent>
@@ -77,6 +93,18 @@ function DeliveryOverview({ pipeline, collection, error, loading }) {
     <details className="sieve-disclosure sieve-processing">
       <summary>Processing details <span>Preparation, transfer, checks & storage</span></summary>
       <div className="sieve-detail-grid">
+        <Stage title="Recurring customer delivery" data={recurring}>
+          <p>{recurring?.enabled ? 'Automatic delivery enabled' : 'Automatic delivery paused'} · {count(recurring?.running)} running / {count(recurring?.max_parallel)} slots</p>
+          <p>{pipelineHours(recurring?.uploaded_hours)} uploaded · {count(recurring?.queued)} queued · {count(recurring?.held)} held</p>
+          <p>{count(recurring?.uploaded_assets)} assets · {count(recurring?.uploaded_files)} files · {bytes(recurring?.uploaded_bytes)}</p>
+          <p>Only verified customer uploads count. Human review and customer acceptance remain separate.</p>
+          {recurring?.recordings?.some(row => row.status === 'held') && <details>
+            <summary>Recording hold reasons</summary>
+            <ul>{recurring.recordings.filter(row => row.status === 'held').map(row => <li key={row.recording}>
+              {row.recording}: {customerHoldReason(row.reason)}
+            </li>)}</ul>
+          </details>}
+        </Stage>
         <Stage title="Sieve preparation" data={delivery}>
           <p>{pipelineHours(delivery?.prepared_hours)} prepared · {ratio(delivery?.recordings_processed, delivery?.recordings_expected)} recordings</p>
           <p>{count(delivery?.packaged_assets)} clips packaged</p>

@@ -15,7 +15,11 @@ test.describe("/privacy/synapse", () => {
     const article = page.locator("article");
     await expect(article).toContainText("local network");
     await expect(article).toContainText("PostHog");
-    await expect(article).toContainText("no user account");
+    await expect(article).toContainText("Camera controls work without an account");
+    await expect(article).toContainText("Camera fleet reports");
+    await expect(article).toContainText("Supabase");
+    await expect(article).toContainText("Amazon Cognito");
+    await expect(article).toContainText("commercial AI training and research");
     await expect(article).toContainText("share sheet");
 
     const prerendered = await readFile(

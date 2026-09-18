@@ -15,9 +15,11 @@ from app.core.auth_deps import COOKIE_NAME, _ClearCookieUnauthorized
 from app.core.config import get_settings
 from app.core.limiter import limiter
 from app.core.logging import configure_logging
-from app.core.middleware import MaxBodySizeMiddleware
+from app.core.middleware import MaxBodySizeMiddleware, PrivateBankResponseMiddleware
 from app.core.slack import SLACK_ENV_VAR, slack_configured
 from app.core.csrf import OriginCheckMiddleware
+from app.api.routes import uploads
+from app.api.routes import form_contracts
 
 
 logger = logging.getLogger(__name__)
@@ -82,6 +84,7 @@ def create_app() -> FastAPI:
     )
     application.add_middleware(MaxBodySizeMiddleware)
     application.add_middleware(OriginCheckMiddleware)
+    application.add_middleware(PrivateBankResponseMiddleware)
 
     @application.exception_handler(RequestValidationError)
     async def _validation_handler(_req: Request, exc: RequestValidationError):
@@ -124,6 +127,8 @@ def create_app() -> FastAPI:
 
     application.include_router(contributor.router)
     application.include_router(contributor_ops.router)
+    application.include_router(uploads.router)
+    application.include_router(form_contracts.router)
     application.include_router(health.router)
     application.include_router(leads.router)
     application.include_router(auth.router)

@@ -1,20 +1,7 @@
 import { useMemo, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
 import { fmt, regionOfEpisode, sourceKey } from "./opsShared.js";
-
-const labels = {
-  unknown: "Awaiting scan",
-  unavailable: "Source not listed",
-  uploading: "Uploading",
-  queued: "Queued",
-  recovering: "Recovery needed",
-  running: "Processing",
-  retry: "Retry pending",
-  blocked: "Needs attention",
-  rejected: "Rejected",
-  clean: "In Clean",
-  awaiting_verification: "Verifying output",
-};
+import { processingLabels as labels, processingState, processingPresentation } from "./rawProcessingStatus.js";
 export default function OpsOperations({ state, act, busy, readOnly = false }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -25,20 +12,13 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
   const rows = useMemo(
     () =>
       (state.episodes || []).filter((e) => {
-        const s =
-          e.processing?.state ||
-          (e.raw?.status === "processed"
-            ? "clean"
-            : e.deleted_at
-              ? "rejected"
-              : e.raw?.status === "unavailable"
-                ? "unavailable"
-                : "unknown");
+        const presentation = processingPresentation(e);
+        const s = presentation.state;
         if (!history && ["clean", "rejected"].includes(s)) return false;
         return (
           (!status || s === status) &&
           (!person || sourceKey(e) === person) &&
-          `${e.recording} ${e.device_id} ${e.counterparty?.name || people.get(e.wearer_id)?.name || ""} ${regionOfEpisode(e)} ${e.counterparty ? "B2B" : ""} ${e.processing?.reason || ""}`
+          `${e.recording} ${e.device_id} ${e.counterparty?.name || people.get(e.wearer_id)?.name || ""} ${regionOfEpisode(e)} ${e.counterparty ? "B2B" : ""} ${presentation.label} ${e.processing?.reason || ""}`
             .toLowerCase()
             .includes(q.toLowerCase())
         );
@@ -93,15 +73,15 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             ).length,
           ],
           [
-            "Needs attention",
+            "Blocked / retry pending",
             (state.episodes || []).filter((e) =>
-              ["blocked", "retry"].includes(e.processing?.state),
+              ["blocked", "retry"].includes(processingState(e)),
             ).length,
           ],
           [
             "Recovering / processing",
             (state.episodes || []).filter((e) =>
-              ["recovering", "running"].includes(e.processing?.state),
+              ["recovering", "running"].includes(processingState(e)),
             ).length,
           ],
         ].map(([l, n]) => (
@@ -116,7 +96,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
           <input
             className="ops-q"
             aria-label="Search raw sources"
-            placeholder="Camera, person, business or episode"
+            placeholder="Camera, source, episode or cause"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -168,15 +148,8 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             </thead>
             <tbody>
               {rows.map((e) => {
-                const s =
-                  e.processing?.state ||
-                  (e.raw?.status === "processed"
-                    ? "clean"
-                    : e.deleted_at
-                      ? "rejected"
-                      : e.raw?.status === "unavailable"
-                        ? "unavailable"
-                        : "unknown");
+                const presentation = processingPresentation(e);
+                const s = presentation.state;
                 return (
                   <tr key={e.recording}>
                     <td className="mono">
@@ -185,7 +158,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
                         EGO-{e.device_id} · {regionOfEpisode(e)}
                       </div>
                     </td>
-                    <td>{e.counterparty?.name || people.get(e.wearer_id)?.name || "Unassigned"}{e.counterparty && <> <span className="ops-chip">B2B</span></>}</td>
+                    <td>{e.counterparty?.name || people.get(e.wearer_id)?.name || "Unassigned"}{e.counterparty && <> <span className="ops-chip">B2B</span></>}{e.uploaded_by && <div className="ops-muted">Uploaded by {e.uploaded_by.name}</div>}</td>
                     <td className="mono">
                       {e.uploaded_at
                         ? new Date(e.uploaded_at).toLocaleString()
@@ -195,14 +168,26 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
                       <span
                         className={`ops-chip ${s === "rejected" ? "bad" : ""}`}
                       >
-                        {labels[s]}
+                        {presentation.label}
                       </span>
+                      {presentation.label !== labels[s] && (
+                        <div className="ops-muted">{labels[s]}</div>
+                      )}
                     </td>
                     <td>
-                      {e.processing?.reason ||
+                      {(s === "clean" ? presentation.nextStep : e.processing?.reason) ||
                         (s === "clean"
                           ? "Verified clean output available."
                           : "Awaiting automatic validation.")}
+                      {s !== "clean" && presentation.nextStep && (
+                        <div>{presentation.nextStep}</div>
+                      )}
+                      {s === "clean" && e.processing?.reason && e.processing.reason !== presentation.nextStep && (
+                        <details>
+                          <summary>Recorded status message</summary>
+                          {e.processing.reason}
+                        </details>
+                      )}
                       <div className="ops-muted">
                         {e.raw?.pending_files || 0} pending files ·{" "}
                         {((e.raw?.raw_bytes || 0) / 1e6).toFixed(1)} MB

@@ -2,6 +2,8 @@
 
 Coordinated 2026-09-14; implementation status updated 2026-09-15. This is an integration contract, not approved legal text or evidence of a completed trial. Both repositories carry this document; keep shared requirements aligned. See the [mobile pilot guide](CONTRIBUTOR-MOBILE-PILOT.md) for the implemented flow and remaining acceptance work.
 
+The 2026-09-18 Korean [Google Form register workflow](contributors/google-form-register.md) adds a separate contract/activation path while the app integration below remains available. Its final source, release evidence, verified-phone linking and camera preapproval are documented there. Dated roster, SMS and unpublished-terms statements below describe the original pilot checkpoint, not the current production roster or launch status.
+
 ## Ownership and current implementation
 
 - Synapse's `LiveContributor.tsx`, `registration.ts` and `live-client.ts` connect the pilot UI to Cognito and contributor APIs. The separate `ContributorPreview.tsx` remains a sample-data preview and cannot establish real consent, ownership or earnings.
