@@ -44,6 +44,39 @@ re-encode, split, rotate, or manufacture metadata. Original codecs and pixel
 coordinates stay unchanged. Historical native-stereo recordings are labelled as
 such, rather than claiming split-eye delivery.
 
+## Episode inspection and labels
+
+Open a verified recording in the Sieve tab to inspect its video, IMU, original
+metadata, calibration JSON and pipeline task report together. Video and both
+JSON documents come from the versioned Sieve receipt. IMU and task reports remain
+in Clean and are read through the same pinned Clean manifest; each panel names
+its storage source. A verified browser-compatible Clean preview is offered when
+available, alongside the original Sieve videos. Opening the viewer never copies
+or changes an object.
+
+The IMU chart previews the first 200 samples, with a full CSV link. Task events
+use source timestamps before Clean cuts. The viewer preserves each model's task
+labels, environments, partial coverage and review status. It shows at most 200
+events and links the full report. These annotations are not customer acceptance.
+
+Pipeline annotations are linked by `policy.episode_tasks`, independently of the
+manual `Episode.task_id` assignment. An unassigned operator task does not mean
+pipeline labels are absent. The list reports whether a pipeline report is linked;
+the viewer verifies its contents before showing labels. Read failures say
+unavailable, rather than claiming no labels exist. Collection task-hour breakdowns
+refer only to operator assignments, not model task coverage.
+
+`GET /api/ops/sieve/episodes/{recording}` requires the existing Ops role. Only
+active, currently inherited recordings can issue 15-minute, version-pinned links.
+The endpoint rechecks eligibility after storage reads and returns `no-store`.
+Deleted, stale, pending and blocked recordings cannot issue preview links. The
+browser loads one expanded episode at a time and cancels requests on close.
+
+Clean import and the internal Sieve copy are separate from upload to Sieve's
+customer storage. The internal worker repeats after a five-minute wait following
+each pass; it does not automatically perform customer delivery. Dashboard refresh
+only reads status and does not start processing or copying.
+
 Each source and destination file has a bucket, key, VersionId, SHA-256 and byte
 count in the receipt. The Clean completion marker must still agree with the DB's
 pinned manifest. Original metadata must match the Clean metadata-provenance
@@ -63,8 +96,9 @@ history; explicit media deletions must also purge Sieve versions and caches.
 Hours come from Clean's retained intervals, once per recording. The inventory
 suppresses repeated recording names and overlapping source hashes. Country comes
 from preserved Clean provenance/business attribution, not inferred demographics.
-Entity attribution comes from the Clean ledger; activity uses the existing
-operator task label for that Clean recording. Missing labels stay Unclassified.
+Entity attribution comes from the Clean ledger; the task-hour breakdown uses the
+operator task assignment for that Clean recording. Missing assignments display
+as Not assigned. Pipeline action labels are inspected separately as described above.
 Intake dates are Clean import dates in Los Angeles time, not assumed capture dates.
 
 Legacy `prepared/`, `sources/`, and `reports/` content was produced by the old

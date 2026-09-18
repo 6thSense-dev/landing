@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { portalFetch } from './portalFetch.js';
+import SieveEpisode from './SieveEpisode.jsx';
 import './opsSieve.css';
 
 const hours = seconds => (Number(seconds || 0) / 3600).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -148,6 +149,7 @@ export default function OpsSieve({ onExpired }) {
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
   const [pageIndex, setPageIndex] = useState(0);
+  const [expanded, setExpanded] = useState(null);
   useEffect(() => setPageIndex(0), [country, status, query]);
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,7 +196,8 @@ export default function OpsSieve({ onExpired }) {
     {data && <>
     {(data.sync.error || stale || !data.automatic_sync) && <p className="ops-error" role="status">{data.sync.error || (stale ? 'Internal copy checks are overdue. Counts show the last verified copies.' : 'Automatic internal copying is not running.')}</p>}
     <div className="sieve-section-heading"><h3>Browse footage</h3><p>{rows.length} recordings · {hours(filteredHours)} h</p></div>
-    <p className="sieve-caption">Clean footage for India and Korea. Copy status tracks our internal storage.</p>
+    <p className="sieve-caption">Open an episode to inspect its video, IMU, metadata, calibration and pipeline action labels. Copy status tracks our internal storage.</p>
+    <p className="sieve-caption">{knownNumber(t.task_reports) ? `${t.task_reports} episodes have a linked pipeline task report.` : 'Pipeline task coverage is not reported.'} Operator task assignments are separate from these annotations.</p>
     <div className="sieve-filters">
       <label>Search<input aria-label="Search recordings" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Recording, source, activity or camera" /></label>
       <label>Country<select aria-label="Filter recordings by country" value={country} onChange={e => setCountry(e.target.value)}><option value="">All countries</option>{b.country.map(r => <option key={r.label}>{r.label}</option>)}</select></label>
@@ -202,11 +205,14 @@ export default function OpsSieve({ onExpired }) {
     </div>
     <div className="sieve-recordings">
       {!rows.length && <p className="sieve-empty">{data.recordings.length ? 'No recordings match these filters.' : 'New recordings will appear after they enter Clean.'}</p>}
-      {visibleRows.map(row => <details className="sieve-recording" key={`${row.run_id}/${row.recording}`}>
+      {visibleRows.map(row => <details className="sieve-recording" key={`${row.run_id}/${row.recording}`} open={expanded === row.recording}
+        onToggle={e => { if (e.target !== e.currentTarget) return; if (e.currentTarget.open) setExpanded(row.recording); else setExpanded(current => current === row.recording ? null : current); }}>
         <summary><span className="sieve-recording-name"><strong>{row.recording}</strong><small>{row.entity.name} · {row.country}</small></span><span className="sieve-duration">{hours(row.retained_seconds)} h</span><span className={`sieve-status sieve-status-${row.status}`}>{labels[row.status] || row.status}</span></summary>
-        <dl><div><dt>Activity</dt><dd>{row.activity}</dd></div><div><dt>Camera / format</dt><dd>{row.camera} · {row.format}</dd></div><div><dt>Clean batch</dt><dd>{row.run_id}</dd></div><div><dt>Last verified</dt><dd>{stamp(row.checked_at)}</dd></div></dl>
+        <dl><div><dt>Operator task</dt><dd>{row.activity === 'Unclassified' ? 'Not assigned' : row.activity}</dd></div><div><dt>Pipeline action labels</dt><dd>{row.pipeline_tasks === 'linked' ? 'Task report linked in Clean' : row.pipeline_tasks === 'not_linked' ? 'No task report linked in this Clean manifest' : 'Task report status not reported'}</dd></div><div><dt>Camera / format</dt><dd>{row.camera} · {row.format}</dd></div><div><dt>Last verified</dt><dd>{stamp(row.checked_at)}</dd></div><div><dt>Clean batch</dt><dd>{row.run_id}</dd></div></dl>
         {row.reason && <p className="sieve-reason">{row.reason}</p>}
         {row.status === 'inherited' && <p className="sieve-reason">MP4, original metadata, metadata provenance, and calibration copied from versioned Clean artifacts.</p>}
+        {expanded === row.recording && row.status === 'inherited' && <SieveEpisode row={row} onExpired={onExpired} />}
+        {expanded === row.recording && row.status !== 'inherited' && <p className="sieve-reason">The episode viewer will be available after its Sieve copy is verified.</p>}
       </details>)}
     </div>
     {pageCount > 1 && <nav className="sieve-pagination" aria-label="Recording pages">
@@ -219,10 +225,10 @@ export default function OpsSieve({ onExpired }) {
       <div className="sieve-grid">
         <Distribution title="Country" rows={b.country} total={t.clean_seconds} />
         <Distribution title="Contributor / business" rows={b.entity} total={t.clean_seconds} />
-        <Distribution title="Activity" rows={b.activity} total={t.clean_seconds} />
+        <Distribution title="Operator task" rows={b.activity.map(r => ({ ...r, label: r.label === 'Unclassified' ? 'Not assigned' : r.label }))} total={t.clean_seconds} />
         <Distribution title="Clean intake by day" rows={b.clean_date} total={t.clean_seconds} />
       </div>
-      <p className="sieve-caption">Orange shows internal copies. Each recording counts once across both eyes. Intake dates use Los Angeles time.</p>
+      <p className="sieve-caption">Operator task counts do not measure pipeline action-label coverage. Open an episode for its pipeline annotations. Orange shows internal copies. Each recording counts once across both eyes. Intake dates use Los Angeles time.</p>
     </details>
     <footer className="sieve-footer"><span>Collection updated {stamp(data.updated_at)}</span><span>Delivery checked {stamp(pipeline?.checked_at)} · Refreshes every 30 seconds</span><span>Dashboard available through Sep 25 · Los Angeles time</span></footer>
     </>}
