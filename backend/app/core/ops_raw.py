@@ -76,6 +76,31 @@ def pending_duration(episodes, raw, jobs):
     return summary
 
 
+def pending_duration_by_source(episodes, raw, jobs, counterparties, wearers):
+    """Partition the same backlog by confirmed business or contributor identity."""
+    people = {wearer.id: wearer.name for wearer in wearers}
+    groups = {}
+    for episode in episodes:
+        party = counterparties.get(episode.recording)
+        if party:
+            source = dict(key=f"business:{party['id']}", name=party['name'],
+                          kind='business', country=party['country'])
+        elif episode.wearer_id is not None:
+            source = dict(key=f'wearer:{episode.wearer_id}',
+                          name=people.get(episode.wearer_id, f'Contributor #{episode.wearer_id}'),
+                          kind='contributor', country=None)
+        else:
+            source = dict(key='wearer:null', name='Unassigned', kind='unassigned', country=None)
+        group = groups.setdefault(source['key'], dict(source=source, episodes=[]))
+        group['episodes'].append(episode)
+    result = []
+    for group in groups.values():
+        summary = pending_duration(group['episodes'], raw, jobs)
+        if summary['pending_episodes']:
+            result.append({**group['source'], **summary})
+    return sorted(result, key=lambda source: (-source['known_seconds'], source['name'].casefold(), source['key']))
+
+
 def pending_playback(recording, inventory, manifests, receipts):
     """Re-list all known delivery prefixes so purged originals cannot strand playback."""
     cfg = get_settings()

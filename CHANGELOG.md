@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.3.0] - 2026-09-19
+
+### Added
+
+- Break down Raw footage awaiting processing by business, contributor and unassigned source, with known duration and untimed episode counts for each.
+
+### Fixed
+
+- Return restored operator-removed footage to backlog totals immediately and require a fresh scan before processing resumes.
+
 ## [0.5.2.0] - 2026-09-19
 
 ### Added
