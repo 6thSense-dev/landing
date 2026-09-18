@@ -402,7 +402,7 @@ async def import_result(body: ImportIn, db=Depends(get_session)):
 
 class StatusIn(BaseModel):
     recording: str = Field(max_length=200)
-    state: str = Field(pattern=r'^(queued|running|blocked|awaiting_verification)$')
+    state: str = Field(pattern=r'^(queued|running|blocked|awaiting_verification|waiting_upload)$')
     reason: str = Field(max_length=2000)
 
 

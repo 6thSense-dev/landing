@@ -10,11 +10,15 @@ export const processingLabels = {
   rejected: "Rejected",
   clean: "In Clean",
   awaiting_verification: "Checking source match",
+  waiting_upload: "Waiting for footage",
 };
 
 export function processingState(episode) {
   if (episode.deleted_at) return "rejected";
   const state = episode.processing?.state;
+  if (!["clean", "rejected", "awaiting_verification"].includes(state)
+      && /^(?:Source media (?:is )?missing|Waiting for source footage)/i.test(episode.processing?.reason || "")
+      && episode.raw?.pending_files === 0) return "waiting_upload";
   // Only receipt reconciliation can complete an imported result. A run ID alone
   // says nothing about newly uploaded or replaced Raw files.
   if (state === "awaiting_verification" && episode.raw?.status === "processed"
@@ -75,6 +79,8 @@ export function processingPresentation(episode) {
   const result = { state, label: processingLabels[state] || "Unknown status", nextStep: "" };
   if (state === "awaiting_verification") {
     result.nextStep = "The Clean result is imported. Automatic scans check that it covers the exact Raw files before marking this recording In Clean.";
+  } else if (state === "waiting_upload") {
+    result.nextStep = "No footage is currently listed for this episode. Recovery checks stored copies; newly uploaded footage automatically re-enters validation.";
   } else if (state === "clean") {
     result.nextStep = "Verified Clean output covers the current Raw source files.";
   } else if (["blocked", "retry", "recovering"].includes(state)) {
@@ -83,4 +89,12 @@ export function processingPresentation(episode) {
     else result.nextStep = "Review the reported reason before retrying; the source remains preserved.";
   }
   return result;
+}
+
+export function processingGroup(episode) {
+  const state = processingState(episode);
+  if (["clean", "rejected"].includes(state)) return "history";
+  if (state === "waiting_upload" || state === "uploading") return "upload";
+  if (["blocked", "retry", "unavailable"].includes(state)) return "attention";
+  return "active";
 }

@@ -1,12 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
 import { fmt, regionOfEpisode, sourceKey } from "./opsShared.js";
-import { processingLabels as labels, processingState, processingPresentation } from "./rawProcessingStatus.js";
+import { processingLabels as labels, processingGroup, processingPresentation } from "./rawProcessingStatus.js";
 export default function OpsOperations({ state, act, busy, readOnly = false }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [person, setPerson] = useState("");
-  const [history, setHistory] = useState(false);
+  const [group, setGroup] = useState("active");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [preview, setPreview] = useState(null);
   const people = new Map((state.wearers || []).map((p) => [p.id, p]));
   const rows = useMemo(
@@ -14,7 +16,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
       (state.episodes || []).filter((e) => {
         const presentation = processingPresentation(e);
         const s = presentation.state;
-        if (!history && ["clean", "rejected"].includes(s)) return false;
+        if (processingGroup(e) !== group) return false;
         return (
           (!status || s === status) &&
           (!person || sourceKey(e) === person) &&
@@ -23,8 +25,21 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             .includes(q.toLowerCase())
         );
       }),
-    [state, status, person, q, history],
+    [state, status, person, q, group],
   );
+  useEffect(() => setPage(1), [status, person, q, group, pageSize]);
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, pages);
+  useEffect(() => { if (page > pages) setPage(pages); }, [page, pages]);
+  const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const groups = [
+    ["active", "Processing queue"], ["attention", "Needs action"],
+    ["upload", "Waiting for upload"], ["history", "Completed / rejected"],
+  ];
+  const groupCounts = (state.episodes || []).reduce((counts, e) => {
+    const key = processingGroup(e); counts[key] = (counts[key] || 0) + 1; return counts;
+  }, {});
+  const selectGroup = value => { setGroup(value); setStatus(""); setPage(1); };
   const play = async (e) => {
     setPreview({ recording: e.recording, loading: true, files: [], pick: 0 });
     try {
@@ -59,38 +74,23 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
       <p className="ops-note">
         {state.processing?.automatic_scan
           ? "Automatic bucket scans are enabled."
-          : "Automatic scanning is not enabled yet."}{" "}
-        {state.processing?.worker_access_configured
-          ? "Processing worker access is configured."
-          : "Recovery and QC worker connection is not configured."}
+          : "Automatic scanning is not enabled yet."}
       </p>
       <div className="ops-tiles">
-        {[
-          [
-            "Pending sources",
-            (state.episodes || []).filter(
-              (e) => !e.deleted_at && e.raw?.pending_files > 0,
-            ).length,
-          ],
-          [
-            "Blocked / retry pending",
-            (state.episodes || []).filter((e) =>
-              ["blocked", "retry"].includes(processingState(e)),
-            ).length,
-          ],
-          [
-            "Recovering / processing",
-            (state.episodes || []).filter((e) =>
-              ["recovering", "running"].includes(processingState(e)),
-            ).length,
-          ],
-        ].map(([l, n]) => (
-          <div className="ops-tile" key={l}>
-            <div className="ops-tile-n">{fmt(n)}</div>
-            <div className="ops-tile-l">{l}</div>
-          </div>
+        {groups.map(([key, label]) => (
+          <button type="button" className={`ops-tile ops-queue-group${group === key ? " is-selected" : ""}`} key={key}
+            aria-pressed={group === key} aria-label={label} onClick={() => selectGroup(key)}>
+            <div className="ops-tile-n">{fmt(groupCounts[key] || 0)}</div>
+            <div className="ops-tile-l">{label}</div>
+          </button>
         ))}
       </div>
+      <p className="ops-hint" role="status">
+        {group === "upload" ? "Uploads still arriving or folders with no footage. These are separate from processing failures; available files are checked automatically."
+          : group === "attention" ? "Recordings with a specific issue to resolve. Open Details for the failure and recovery steps."
+          : group === "history" ? "Completed and rejected recordings remain available here for reference."
+          : "Queued jobs, active processing, recovery, and final source checks. New eligible footage enters this queue automatically."}
+      </p>
       <div className="ops-panel">
         <div className="ops-filters">
           <input
@@ -106,7 +106,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             onChange={(e) => setStatus(e.target.value)}
           >
             <option value="">All statuses</option>
-            {Object.entries(labels).map(([k, v]) => (
+            {Object.entries(labels).filter(([key]) => (state.episodes || []).some(e => processingGroup(e) === group && processingPresentation(e).state === key)).map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>
@@ -125,15 +125,16 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
             ))}
             {[...new Map((state.episodes || []).filter(e => e.counterparty).map(e => [e.counterparty.id, e.counterparty])).values()].map(b => <option key={`business:${b.id}`} value={`business:${b.id}`}>{b.name} · B2B</option>)}
           </select>
-          <label className="ops-check">
-            <input
-              type="checkbox"
-              checked={history}
-              onChange={(e) => setHistory(e.target.checked)}
-            />
-            Show completed / rejected
-          </label>
+          <label className="ops-page-size">Rows per page <select aria-label="Rows per page" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>
+            {[25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+          </select></label>
         </div>
+        <nav className="ops-pagination" aria-label="Raw pagination">
+          <span>{rows.length ? `${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, rows.length)} of ${rows.length}` : "0 recordings"}</span>
+          <div><button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button>
+            <span aria-live="polite">Page {currentPage} of {pages}</span>
+            <button disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
+        </nav>
         <div className="ops-tablewrap">
           <table className="ops-table">
             <thead>
@@ -147,7 +148,7 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((e) => {
+              {pageRows.map((e) => {
                 const presentation = processingPresentation(e);
                 const s = presentation.state;
                 return (
@@ -170,31 +171,19 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
                       >
                         {presentation.label}
                       </span>
-                      {presentation.label !== labels[s] && (
-                        <div className="ops-muted">{labels[s]}</div>
-                      )}
                     </td>
                     <td>
-                      {(s === "clean" ? presentation.nextStep : e.processing?.reason) ||
-                        (s === "clean"
-                          ? "Verified clean output available."
-                          : "Awaiting automatic validation.")}
-                      {s !== "clean" && presentation.nextStep && (
-                        <div>{presentation.nextStep}</div>
-                      )}
-                      {s === "clean" && e.processing?.reason && e.processing.reason !== presentation.nextStep && (
+                      {presentation.nextStep || (s === "running" ? "Processing in the cloud." : s === "queued" ? "Waiting for an available worker." : "Awaiting automatic validation.")}
+                      {e.processing?.reason && e.processing.reason !== presentation.nextStep && (
                         <details>
-                          <summary>Recorded status message</summary>
+                          <summary>{s === "clean" ? "Recorded status message" : "Details"}</summary>
                           {e.processing.reason}
+                          <div className="ops-muted">{e.raw?.pending_files || 0} pending files · {((e.raw?.raw_bytes || 0) / 1e6).toFixed(1)} MB</div>
                         </details>
                       )}
-                      <div className="ops-muted">
-                        {e.raw?.pending_files || 0} pending files ·{" "}
-                        {((e.raw?.raw_bytes || 0) / 1e6).toFixed(1)} MB
-                      </div>
                     </td>
                     <td>
-                      <button onClick={() => play(e)}>Preview</button>
+                      <button disabled={s === "waiting_upload"} onClick={() => play(e)}>Preview</button>
                       {["retry", "blocked", "rejected"].includes(s) && (
                         <button
                           disabled={

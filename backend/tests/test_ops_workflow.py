@@ -69,7 +69,7 @@ def test_missing_metadata_recovers_and_transient_failure_never_rejects():
     }
     assert diagnose(base, now)[0] == "recovering"
     assert diagnose({**base, "error": "AccessDenied"}, now)[0] == "retry"
-    assert diagnose({**base, "media": []}, now)[0] == "recovering"
+    assert diagnose({**base, "media": []}, now)[0] == "waiting_upload"
     assert diagnose({**base, "media": [], "uploaded": now}, now)[0] == "uploading"
     assert diagnose({**base, "uploaded": now - timedelta(minutes=9)}, now)[0] == "uploading"
     assert diagnose({**base, "uploaded": now - timedelta(minutes=10)}, now)[0] == "recovering"
@@ -345,6 +345,29 @@ async def test_changed_source_reopens_a_blocked_job_without_changing_contributor
     j.reason = "Still needs human investigation"
     await reconcile(db_session, {"changed": take}, [], [])
     assert j.state == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_missing_footage_waits_without_consuming_retries_then_reenters(db_session):
+    from app.models import Episode
+    from app.core.ops_processing import reconcile
+    person = Wearer(name="Original owner")
+    db_session.add(person)
+    await db_session.flush()
+    episode = Episode(recording="waiting", wearer_id=person.id)
+    db_session.add(episode)
+    await db_session.commit()
+    take = {"prefixes": ["s/"], "uploaded": datetime.now(timezone.utc)-timedelta(hours=1), "media": [], "meta": {}}
+    jobs = await reconcile(db_session, {"waiting": take}, [], [])
+    job = jobs["waiting"]
+    assert job.state == "waiting_upload" and job.attempts == 0
+    await db_session.commit()
+    job.state, job.reason = "blocked", "Source media missing"
+    await reconcile(db_session, {"waiting": take}, [], [])
+    assert job.state == "waiting_upload" and job.attempts == 0
+    take["media"] = [{"key": "s/video.mp4", "bytes": 100}]
+    await reconcile(db_session, {"waiting": take}, [], [])
+    assert job.state == "recovering" and episode.wearer_id == person.id
 
 
 @pytest.mark.asyncio

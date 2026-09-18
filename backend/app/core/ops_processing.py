@@ -22,8 +22,8 @@ def diagnose(take, now):
         return "uploading", "Waiting for 10 minutes without new or updated source files before processing."
     if not media:
         return (
-            "recovering",
-            "Source media is missing. Check alternate delivery paths and recoverable source versions before declaring it irrecoverable.",
+            "waiting_upload",
+            "Waiting for source footage. Recovery checks alternate deliveries and source versions; completed uploads automatically re-enter validation.",
         )
     if take.get("error"):
         return (
@@ -148,6 +148,8 @@ async def reconcile(db, takes, manifests, receipts):
         elif statuses.get(rec, {}).get("status") == "processed":
             j.state = "clean"
             j.reason = "Committed clean outputs and exact source receipts verified."
+        elif not t.get('media') and not t.get('upload_source_conflict'):
+            j.state, j.reason = diagnose(t, now)
         elif (
             j.state == "blocked"
             and same_input
