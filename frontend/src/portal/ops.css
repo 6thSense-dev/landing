@@ -57,6 +57,12 @@
 .ops-tile-l { color: var(--o-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
 .ops-raw-backlog { display: grid; gap: 8px; margin-bottom: 16px; }
 .ops-raw-backlog .ops-tile-n { font-size: 28px; }
+.ops-raw-sources { border-top: 1px solid var(--o-line); margin-top: 8px; padding-top: 16px; }
+.ops-raw-sources h3 { font-family: inherit; font-size: 14px; font-weight: 500; margin: 0 0 12px; }
+.ops-raw-sources ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; list-style: none; margin: 0; padding: 0; }
+.ops-raw-sources li { min-width: 0; overflow-wrap: anywhere; }
+.ops-raw-source-name { font-weight: 500; font-size: 14px; }
+.ops-raw-source-duration { font-family: var(--o-mono); font-size: 20px; margin: 8px 0 4px; }
 
 /* Controls */
 .ops-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }

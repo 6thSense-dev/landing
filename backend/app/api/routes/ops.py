@@ -32,7 +32,7 @@ from app.models import OpsCamera, Episode, OpsSetting, Task, User, Wearer
 from app.models.ops_clean import CleanRun
 from app.models import ProcessingJob
 from app.core.ops_ledger import contributor_summary
-from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_duration, pending_playback, refresh_source_receipts
+from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_duration, pending_duration_by_source, pending_playback, refresh_source_receipts
 from app.core.ops_s3 import get_settings as raw_settings
 
 
@@ -152,15 +152,20 @@ async def _state(db: AsyncSession) -> dict:
     jobs = {j.recording: {"state": j.state, "reason": j.reason, "attempts": j.attempts, "updated_at": j.updated_at.isoformat()} for j in (await db.execute(select(ProcessingJob))).scalars()}
     from app.core.uploads import upload_sources
     delivered = await upload_sources(db)
+    counterparties = {e.recording: business_source(e, registry) for e in eps}
+    backlog = None if inventory is None else {
+        **pending_duration(eps, raw, jobs),
+        "sources": pending_duration_by_source(eps, raw, jobs, counterparties, wearers),
+    }
     return {
         "contributor_stats": await contributor_summary(db),
         "cameras": [{"device_id": c.device_id, "wearer_id": c.wearer_id} for c in (await db.execute(select(OpsCamera))).scalars()],
         "onboarding": {"account_service_connected": bool(os.getenv("CONTRIBUTOR_COGNITO_POOL") and os.getenv("CONTRIBUTOR_COGNITO_CLIENT")), "terms_status": "configured" if await terms_for({"routing_version": "kr-2026-v1"}, db) else "terms_not_configured", "required_agreements": ["participation", "privacy", "collection", "international_transfer"]},
         "processing": {"automatic_scan": os.getenv("OPS_AUTOMATION_ENABLED") == "true", "worker_access_configured": bool(os.getenv("OPS_PROCESSOR_TOKEN"))},
-        "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "uploaded_by": delivered.get(e.recording) if delivered.get(e.recording, {}).get('prefix') == e.prefix else None, "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
+        "episodes": [{**_episode_json(e), "counterparty": counterparties[e.recording], "uploaded_by": delivered.get(e.recording) if delivered.get(e.recording, {}).get('prefix') == e.prefix else None, "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),
         "last_scan": await _setting(db, SCAN_KEY),
-        "raw_backlog": pending_duration(eps, raw, jobs) if inventory is not None else None,
+        "raw_backlog": backlog,
         "wearers": [_wearer_json(w) for w in wearers],
         "tasks": [_task_json(x) for x in tasks],
         "totals": {
@@ -170,7 +175,7 @@ async def _state(db: AsyncSession) -> dict:
             "bytes": sum((e.size_bytes or 0) for e in live),
             "approved": sum(1 for e in live if e.approved),
             "paid": sum(1 for e in live if e.paid),
-            "unassigned": sum(1 for e in live if e.wearer_id is None and not business_source(e, registry)),
+            "unassigned": sum(1 for e in live if e.wearer_id is None and not counterparties[e.recording]),
             "unlabelled": sum(1 for e in live if e.task_id is None),
             "clock_flagged": sum(1 for e in live if e.clock_source != "ntp"),
         },
@@ -528,12 +533,21 @@ async def delete_episode(recording: str, body: DeleteIn,
 async def restore_episode(recording: str, _: User = Depends(require_ops),
                           db: AsyncSession = Depends(get_session)) -> dict:
     """Undo a delete. Only honest for `soft` — a hard delete's bytes are gone."""
+    from app.core.contributor_deletion import lock as deletion_lock
+    await deletion_lock(db)
+    await db.execute(text("SELECT pg_advisory_xact_lock(61306130)"))
     e = await _episode_or_404(db, recording)
     if e.delete_kind == "hard":
         raise HTTPException(
             status_code=409,
             detail="This episode was hard-deleted; its objects are gone from the "
                    "bucket and cannot be restored by clearing the flag.")
+    if e.deleted_at is not None and e.delete_kind == "soft":
+        job = await db.get(ProcessingJob, recording, with_for_update=True)
+        if job and job.state == "rejected" and job.reason.startswith("Previously removed by an operator: "):
+            # A fresh scan must diagnose the restored files before worker claims.
+            job.state, job.reason = "uploading", "Episode restored; awaiting automatic revalidation."
+            job.lease_token = job.lease_until = None
     e.deleted_at = e.delete_kind = None
     e.deleted_by = e.delete_reason = ""
     await db.commit()

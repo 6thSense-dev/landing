@@ -14,6 +14,8 @@ Workflow foundation: `feat/ops-workflow-ledgers`; mobile extension: `feat/contri
 
 **Footage awaiting processing** shows the known duration of pending Raw footage across all sources, regardless of the selected group, filters or page. It estimates time from recorded episode lengths and counts an episode once across its stereo files and repeated deliveries. Fully processed, rejected and deleted episodes are excluded. Episodes with missing/invalid durations or partially processed sources appear in the separate awaiting-duration count; their unknown time is not added to the hours. A partial episode's original length cannot establish how much footage remains. The card shows **Awaiting bucket scan** without a usable inventory, **Awaiting duration** when no pending episodes can be timed, and zero when the scanned backlog is empty. Use **Scan bucket** to refresh the inventory; this is footage duration, not a forecast of processing time.
 
+**By source** beneath the total shows each business, contributor and **Unassigned** source's known duration and timed/untimed episode counts. Business entries include their attributed country. Sources with the same name remain separate when their identities differ. Sources with pending footage but no usable duration show **Awaiting duration**; sources without pending footage are omitted. The breakdown remains visible and unchanged when you filter or paginate the table.
+
 Select **Processing queue**, **Needs action**, **Waiting for upload**, or **Completed / rejected** to browse that group. Use **Rows per page** and **Previous / Next** for pagination. These controls change the table, not the all-source duration summary above it.
 
 For **Blocked**, **Retry pending**, and **Recovery needed** rows, Raw shows a specific cause badge when the recorded diagnostic supports one, followed by the underlying processing state. The **Reason / next step** column preserves the original diagnostic and adds recovery guidance. Search by the cause label, source, camera, episode or diagnostic text; the **Processing status** filter still selects the underlying state, not the cause badge.
@@ -50,6 +52,8 @@ An unknown cause retains the generic state label and asks the operator to review
 **Checking source match** means a Clean result has been imported and automatic scans are verifying that it covers the exact current Raw files. A result run ID alone is insufficient. An `awaiting_verification` row displays **In Clean** only when `raw.status` is `processed` and `raw.pending_files` is the number `0`; missing counts, additional files or unmatched receipts leave it checking. Other explicit processing states and holds remain unchanged, and deleted recordings stay **Rejected**. See the [receipt-matching contract](../backend/README.md#raw-processing-queue).
 
 **In Clean** confirms coverage of the current Raw source files. Its original diagnostic remains available under **Recorded status message**. Select **Completed / rejected** to browse completed and rejected rows. A Clean result's source coverage does not establish human quality approval, customer acceptance or payment.
+
+Restoring a soft-deleted episode whose processing rejection records the operator removal returns its pending footage to the overall and source summaries. It waits for a fresh scan to revalidate the files before processing resumes. Restore does not override unrelated rejection reasons or retry an already-active episode; hard-deleted episodes cannot be restored through this action.
 
 ## Payment policy and operation
 

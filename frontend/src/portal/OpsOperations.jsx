@@ -2,6 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { portalFetch } from "./portalFetch.js";
 import { fmt, regionOfEpisode, sourceKey } from "./opsShared.js";
 import { processingLabels as labels, processingGroup, processingPresentation } from "./rawProcessingStatus.js";
+
+function backlogDuration(backlog) {
+  if (!backlog) return "Awaiting bucket scan";
+  if (!backlog.known_episodes && backlog.unknown_episodes) return "Awaiting duration";
+  const minutes = Math.floor((backlog.known_seconds || 0) / 60);
+  if (backlog.known_seconds > 0 && minutes === 0) return "Less than 1 min";
+  return `${fmt(Math.floor(minutes / 60))} h ${minutes % 60} m`;
+}
+
+function DurationCounts({ backlog }) {
+  return <p className="ops-hint">
+    {fmt(backlog.known_episodes)} of {fmt(backlog.pending_episodes)} episodes timed
+    {backlog.unknown_episodes > 0 && <> · {fmt(backlog.unknown_episodes)} awaiting duration
+      {backlog.partial_episodes > 0 && <> (including {fmt(backlog.partial_episodes)} partially processed)</>}
+    </>}
+  </p>;
+}
+
 export default function OpsOperations({ state, act, busy, readOnly = false }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -11,11 +29,6 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
   const [pageSize, setPageSize] = useState(25);
   const [preview, setPreview] = useState(null);
   const backlog = state.raw_backlog;
-  const remainingMinutes = Math.floor((backlog?.known_seconds || 0) / 60);
-  const remainingDuration = !backlog ? "Awaiting bucket scan"
-    : !backlog.known_episodes && backlog.unknown_episodes ? "Awaiting duration"
-    : backlog.known_seconds > 0 && remainingMinutes === 0 ? "Less than 1 min"
-    : `${fmt(Math.floor(remainingMinutes / 60))} h ${remainingMinutes % 60} m`;
   const people = new Map((state.wearers || []).map((p) => [p.id, p]));
   const rows = useMemo(
     () =>
@@ -84,14 +97,21 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
       </p>
       <div className="ops-tile ops-raw-backlog" role="region" aria-label="Footage awaiting processing">
         <div className="ops-tile-l">Footage awaiting processing</div>
-        <div className="ops-tile-n">{remainingDuration}</div>
-        {backlog && <p className="ops-hint">
-          {fmt(backlog.known_episodes)} of {fmt(backlog.pending_episodes)} episodes timed
-          {backlog.unknown_episodes > 0 && <> · {fmt(backlog.unknown_episodes)} awaiting duration
-            {backlog.partial_episodes > 0 && <> (including {fmt(backlog.partial_episodes)} partially processed)</>}
-          </>}
-        </p>}
+        <div className="ops-tile-n">{backlogDuration(backlog)}</div>
+        {backlog && <DurationCounts backlog={backlog} />}
         <p className="ops-hint">Estimated from recorded episode lengths, counted once across all sources. Fully processed and rejected episodes are excluded.</p>
+        {backlog?.sources && <section className="ops-raw-sources" aria-label="Footage awaiting processing by source">
+          <h3>By source</h3>
+          {backlog.sources.length ? <ul>
+            {backlog.sources.map(source => <li key={source.key}>
+              <div className="ops-raw-source-name">{source.name}</div>
+              <div className="ops-hint">{source.kind === "business" ? `B2B · ${regionOfEpisode({ counterparty: source })}`
+                : source.kind === "contributor" ? "Contributor" : "Source attribution needed"}</div>
+              <div className="ops-raw-source-duration">{backlogDuration(source)}</div>
+              <DurationCounts backlog={source} />
+            </li>)}
+          </ul> : <p className="ops-hint">No sources have pending footage.</p>}
+        </section>}
       </div>
       <div className="ops-tiles">
         {groups.map(([key, label]) => (
