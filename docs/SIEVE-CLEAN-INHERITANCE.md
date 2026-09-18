@@ -47,8 +47,8 @@ such, rather than claiming split-eye delivery.
 
 ## Episode inspection and labels
 
-Open a verified recording in the Sieve tab to inspect its video, IMU, original
-metadata, calibration JSON and pipeline task report together. Video and both
+Open a verified recording in the Sieve tab to inspect its video, IMU, metadata,
+calibration JSON and pipeline task report together. Video and both
 JSON documents come from the versioned Sieve receipt. IMU and task reports remain
 in Clean and are read through the same pinned Clean manifest; each panel names
 its storage source. A verified browser-compatible Clean preview is offered when
