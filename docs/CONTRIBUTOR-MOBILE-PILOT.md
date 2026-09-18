@@ -29,6 +29,20 @@ An ended camera assignment can still accept delayed footage, but finalization re
 
 ## API and supervision
 
+### Website payment details
+
+Korean individual contributors can use [Payment details](https://6thsense.dev/upload#payment-details) after signing in with a current contract. Camera approval is independent. They review the payment notice, separately confirm collection/use, financial-provider sharing, overseas transfer and account ownership, then enter the current Wise-required fields. Bank details never need to be emailed to staff. Payment setup remains optional for uploading.
+
+`GET /api/contributor/bank/setup` returns only the caller's masked bank status and the versioned Korean/English notice. `POST /bank/web/requirements` and `POST /bank/web` require its exact version/hash, language and all four acknowledgments before contacting Wise. The submission freezes that notice and the acceptance time with the durable attempt. Raw bank numbers, birth dates and address/contact fields are forwarded to Wise without database persistence; responses prohibit caching. These website endpoints currently support Korean individual recipients only; the mobile endpoints remain compatible.
+
+Finance reviews requests at **Ops → Users → Mobile contributor requests**, verifies ownership and selects **Verify and link recipient**. Existing manually linked recipients show as verified. Interrupted or ambiguous submissions remain held for operator reconciliation and never cause an automatic second recipient-creation request. The contributor can refresh status; requested corrections go through staff without emailing the account number. Recipient verification does not approve footage, calculate new earnings or send money.
+
+The production Wise requirements route was checked read-only on 2026-09-18. Automated tests use simulated recipients; they do not create real recipients or send payments. See [Wise's KRW guide](https://wise.com/help/articles/2932331/guide-to-krw-transfers) for bank verification that PayGate may separately request when a payment is sent.
+
+Validation for this change passed 64 focused backend tests and 60 browser checks across mobile, tablet and desktop. Coverage includes consent/version enforcement, account isolation, masked persistence, ambiguous writes, recovery after operator-confirmed non-creation, pre-camera setup, unchanged uploads and existing Ops recipient approval. The Korean notice and form were visually checked at 375 and 1280 pixels.
+
+### Authenticated routes
+
 Authenticated `/api/contributor/*` account routes require a Cognito access token. The server restricts issuer/client/token kind, then calls Cognito GetUser to verify the token and current phone/routing attributes. Staff cookie auth does not grant mobile access. `/configuration` is public and contains only mobile client configuration and pilot mode. The [deletion receipt endpoint](CONTRIBUTOR-DELETION.md#mobile-api) uses its own Bearer token so original and retry receipts remain usable after the login is removed; `/notice` serves published pre-account notices without authentication.
 
 The `/api/ops/contributors` routes use the existing staff role gate and CSRF origin check. Operators can list requests, approve physical camera assignments, export immutable consent receipts, and reconcile recipient attempts. Terms publication additionally requires the authenticated staff email to appear in the server-only `CONTRIBUTOR_TERMS_FOUNDER_EMAILS` allowlist. A staff role, including `founder`, does not itself grant this authority; an empty or absent allowlist denies everyone. The user-facing account cannot call these routes.

@@ -4,6 +4,7 @@ import { bytes, droppedFiles, groupEpisodes } from "./files.js";
 import { transferEpisode, uploadApi } from "./transfer.js";
 import SignIn from "./SignIn.jsx";
 import Activate, { linkFormContract } from "./Activate.jsx";
+import PaymentDetails from "./PaymentDetails.jsx";
 import { contributorSession as session } from "./auth.js";
 import { copy } from "./copy.js";
 import "./upload.css";
@@ -13,6 +14,7 @@ export default function UploadPage() {
   const t = copy[locale];
   const [signedIn, setSignedIn] = useState(session.signedIn);
   const [info, setInfo] = useState(null);
+  const [accountReady, setAccountReady] = useState(false);
   const [formConfig, setFormConfig] = useState(undefined);
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [activation, setActivation] = useState(new URLSearchParams(location.search).get('activate') === '1');
@@ -46,8 +48,12 @@ export default function UploadPage() {
 
   useEffect(() => {
     const abort = new AbortController();
-    setInfo(null); setError(""); setQueue([]);
-    if (signedIn && formConfig !== undefined) (formConfig ? linkFormContract(abort.signal).catch(e=>{if(!['contract_not_found','contract_region_mismatch'].includes(e.message))throw e;}) : Promise.resolve()).then(()=>uploadApi(session, "/info", undefined, abort.signal)).then(setInfo).catch(e => {
+    setInfo(null); setError(""); setQueue([]); setAccountReady(false);
+    if (signedIn && formConfig !== undefined) (formConfig ? linkFormContract(abort.signal).catch(e=>{if(!['contract_not_found','contract_region_mismatch'].includes(e.message))throw e;}) : Promise.resolve()).then(()=>{
+      if (abort.signal.aborted) return;
+      setAccountReady(true);
+      return uploadApi(session, "/info", undefined, abort.signal);
+    }).then(result => { if (!abort.signal.aborted) setInfo(result); }).catch(e => {
       if (!abort.signal.aborted) setError(e.message);
     });
     return () => abort.abort();
@@ -118,6 +124,7 @@ export default function UploadPage() {
             <p className="upload-eyebrow"><span />{t.eyebrow}</p>
             <h1>{t.title}</h1><p>{t.intro}</p>
           </section>
+          {signedIn && accountReady && <PaymentDetails key={locale} locale={locale} />}
           {!signedIn ? <>{activation && formConfig ? <Activate locale={locale} back={verified=>{setPhoneVerified(verified);setActivation(false);}}/> : <>{phoneVerified && <p role="status">{t.phoneVerified}</p>}<SignIn t={t} />{formConfig && <div className="upload-signin"><button className="upload-button" onClick={()=>setActivation(true)}>{locale==='ko'?'회원가입':'Sign up'}</button><p><a href={formConfig.url} target="_blank" rel="noreferrer">{locale==='ko'?'참여 계약 양식':'Contributor contract form'}</a></p></div>}</>}{error && <p className="upload-error" role="alert">{t.errors[error] || error}</p>}</> : !info ? (
             <section className="upload-access" role={error ? "alert" : "status"}><LockKeyhole size={28} /><h2>{error ? (t.errors[error] || error) : t.loading}</h2>{error && <p><a href="mailto:alex@6thsense.dev">alex@6thsense.dev <ArrowUpRight size={16} /></a></p>}<button className="upload-text-button" onClick={signOut}>{t.signOut}</button></section>
           ) : <>

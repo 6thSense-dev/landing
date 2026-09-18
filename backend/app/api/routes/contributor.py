@@ -181,6 +181,69 @@ class BankIn(BaseModel):
             raise HTTPException(422, "invalid_bank_fields")
         return {k: v.strip().upper() if k == "ifscCode" else v.strip() for k, v in values.items()}
 
+async def bank_status(account, db):
+    linked = await db.get(PayoutRecipient, account.wearer_id)
+    attempts = (await db.execute(select(ContributorRecipientAttempt).where(
+        ContributorRecipientAttempt.subject == account.subject,
+        ContributorRecipientAttempt.status != "retry_allowed",
+    ).order_by(ContributorRecipientAttempt.created_at.desc()))).scalars().all()
+    attempt = next((a for a in attempts if linked and a.recipient_id == linked.wise_recipient_id), attempts[0] if attempts else None)
+    if linked:
+        matching = attempt and attempt.recipient_id == linked.wise_recipient_id
+        summary = json.loads(attempt.summary) if matching else {"accountHolderName": linked.verified_name}
+        status = "ready"
+    elif attempt:
+        summary, status = json.loads(attempt.summary), attempt.status
+    else:
+        return None
+    return {**{k: summary[k] for k in ("accountHolderName", "bankLabel", "maskedAccount", "currency") if k in summary}, "status": status}
+
+
+@router.get("/bank/setup")
+async def bank_setup(identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    account = await account_for(identity, db)
+    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
+        raise HTTPException(409, "consent_required")
+    from app.core.payment_notice import public_notice
+    # This notice covers individual Korean recipients. Other routes retain their
+    # existing mobile flow until a suitable localized notice is published.
+    country = identity["region"]["country"]
+    return {"country": country, "bank": await bank_status(account, db),
+            "notice": public_notice() if country == "KR" else None}
+
+
+class WebBankIn(BankIn):
+    notice_version: str = Field(max_length=80)
+    notice_sha256: str = Field(pattern="^[a-f0-9]{64}$")
+    locale: Literal["en", "ko"]
+    collects_details: bool = False
+    international_transfer: bool = False
+
+    def receipt(self, identity):
+        from app.core.payment_notice import VERSION, DIGEST, public_notice
+        if identity["region"]["country"] != "KR":
+            raise HTTPException(409, "payout_region_unavailable")
+        if self.notice_version != VERSION or self.notice_sha256 != DIGEST:
+            raise HTTPException(409, "payment_notice_changed")
+        choices = {k: getattr(self, k) for k in ("collects_details", "shares_details", "international_transfer", "owns_account")}
+        if not all(choices.values()):
+            raise HTTPException(422, "bank_confirmation_required")
+        return {"notice": public_notice(), "locale": self.locale,
+                "accepted_at": now().isoformat(), "choices": choices}
+
+
+@router.post("/bank/web/requirements")
+async def web_bank_requirements(body: WebBankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    body.receipt(identity)  # Consent precedes even provider validation calls.
+    return await bank_requirements(body, identity, db)
+
+
+@router.post("/bank/web")
+async def web_save_bank(body: WebBankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    receipt = body.receipt(identity)
+    return await _save_bank(body, identity, db, receipt)
+
+
 @router.post("/bank/requirements")
 async def bank_requirements(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
     account = await account_for(identity, db)
@@ -198,6 +261,10 @@ async def bank_requirements(body: BankIn, identity=Depends(contributor_identity)
 
 @router.post("/bank")
 async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
+    return await _save_bank(body, identity, db)
+
+
+async def _save_bank(body, identity, db, consent_receipt=None):
     account = await account_for(identity, db)
     if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
         raise HTTPException(409, "consent_required")
@@ -209,6 +276,8 @@ async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: As
     # Lock and commit a durable attempt BEFORE any non-idempotent provider write.
     # Unknown outcomes remain held for an operator; retries never POST again.
     await db.execute(text("SELECT pg_advisory_xact_lock(61306133)"))
+    if await db.get(PayoutRecipient, account.wearer_id):
+        return {"status": "ready"}
     existing = (await db.execute(select(ContributorRecipientAttempt).where(ContributorRecipientAttempt.subject == account.subject, ContributorRecipientAttempt.status != "retry_allowed"))).scalars().first()
     if existing:
         return {"status": existing.status}
@@ -224,6 +293,8 @@ async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: As
         raise HTTPException(422, {"code": "invalid_bank_fields", "fields": issues})
     bank_field = next((f for f in requirements["fields"] if f["key"] == "bankCode"), {})
     summary = {"country": country, "currency": ROUTES[country][0], "accountHolderName": values["accountHolderName"], "bankLabel": next((v["label"] for v in bank_field.get("options", []) if v["value"] == values.get("bankCode")), values.get("ifscCode", "")), "maskedAccount": "•••• " + values["accountNumber"][-4:]}
+    if consent_receipt:
+        summary["payment_consent"] = consent_receipt
     attempt = ContributorRecipientAttempt(id=body.operation_id, subject=account.subject, summary=json.dumps(summary), status="submitting")
     db.add(attempt)
     await db.commit()

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 async function mock(page,{resume=false}={}) {
+  await page.route('**/api/contributor/bank/setup', r => r.fulfill({ json: { country: 'KR', notice: null, bank: { status: 'ready' } } }));
   const calls=[];
   await page.route('**/api/form-contracts/configuration',r=>r.fulfill({json:{url:'https://docs.google.com/forms/d/e/test/viewform',version:'test',rate_krw_hour:11000}}));
   await page.route('**/api/contributor/configuration',r=>r.fulfill({json:{identity:{region:'us-west-2',clientId:'testclient1234'}}}));
@@ -82,6 +83,7 @@ test('identity conflicts stop before upload access and show a recovery contact',
   await expect(page.getByRole('alert')).toContainText('confirm your contributor record');
   await expect(page.getByRole('alert').getByRole('link', {name: /alex@6thsense.dev/})).toBeVisible();
   expect(infoCalls).toBe(0);
+  await expect(page.getByRole('heading', { name: 'Payment details', exact: true })).toHaveCount(0);
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
 
@@ -98,5 +100,6 @@ test('withdrawn contract blocks upload before legacy access in both languages', 
   await page.getByRole('button', {name: '한국어', exact: true}).click();
   await expect(page.getByRole('alert')).toContainText('계약이 철회되었습니다.');
   expect(infoCalls).toBe(0);
+  await expect(page.getByRole('heading', { name: '지급정보', exact: true })).toHaveCount(0);
   await expect(page.locator('input[type=file]')).toHaveCount(0);
 });
