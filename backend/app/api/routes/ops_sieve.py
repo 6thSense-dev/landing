@@ -44,7 +44,7 @@ async def episode(recording: str, response: Response, _: User = Depends(require_
         raise HTTPException(409, 'This episode is awaiting a verified Sieve copy. Refresh after the next copy check.')
     try:
         def read():
-            return ops_sieve_episode.preview(ops_sieve.storage_client(), row, cached)
+            return ops_sieve_episode.preview(ops_sieve.storage_client(bounded=True), row, cached)
         result = await asyncio.wait_for(asyncio.to_thread(read), timeout=30)
     except (TimeoutError, BotoCoreError, ops_sieve.ClientError):
         raise HTTPException(503, 'Episode storage is unavailable. Please retry.') from None

@@ -142,7 +142,10 @@ async def test_episode_api_auth_pending_and_deleted(app, db_session, monkeypatch
     async def state(db): return {'recordings': {row['recording']: cached}}
     monkeypatch.setattr(sieve, 'inventory', inventory)
     monkeypatch.setattr(sieve, 'saved_state', state)
-    monkeypatch.setattr(sieve, 'storage_client', lambda: s3)
+    def storage_client(*, bounded):
+        assert bounded is True
+        return s3
+    monkeypatch.setattr(sieve, 'storage_client', storage_client)
     monkeypatch.setattr(sieve, 'availability', lambda: {'visible': True})
     ops, guest = await _sid(db_session, 'ops'), await _sid(db_session, 'guest')
     path = '/api/ops/sieve/episodes/' + row['recording']
@@ -151,10 +154,12 @@ async def test_episode_api_auth_pending_and_deleted(app, db_session, monkeypatch
         assert (await client.get(path, cookies={'sid': guest})).status_code == 403
         result = await client.get(path, cookies={'sid': ops})
         assert result.status_code == 200 and result.headers['cache-control'] == 'private, no-store'
-        def unavailable(): raise ReadTimeoutError(endpoint_url='https://storage.example.test')
+        def unavailable(*, bounded):
+            assert bounded is True
+            raise ReadTimeoutError(endpoint_url='https://storage.example.test')
         monkeypatch.setattr(sieve, 'storage_client', unavailable)
         assert (await client.get(path, cookies={'sid': ops})).status_code == 503
-        monkeypatch.setattr(sieve, 'storage_client', lambda: s3)
+        monkeypatch.setattr(sieve, 'storage_client', storage_client)
         cached['status'] = 'pending'
         assert (await client.get(path, cookies={'sid': ops})).status_code == 409
         cached['status'] = 'inherited'

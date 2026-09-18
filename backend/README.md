@@ -53,6 +53,8 @@ Fully processed recordings and recordings without nonempty raw media are hidden 
 
 Sieve inherits versioned MP4, original metadata and calibration from imported Clean recordings through a separate worker. The [Sieve operations guide](../docs/SIEVE-CLEAN-INHERITANCE.md#railway-operation) covers enabling it, retry behavior and the temporary Ops dashboard. The contract ends September 22, 2026; the dashboard remains visible through September 25 in Los Angeles time.
 
+`GET /api/ops/sieve/episodes/{recording}` provides Ops-only inspection of an active, verified Sieve copy, joining its video and JSON artifacts with the pinned Clean IMU and pipeline task report. It returns 15-minute, version-pinned links without copying objects; see [episode inspection and labels](../docs/SIEVE-CLEAN-INHERITANCE.md#episode-inspection-and-labels) for preview limits and the distinction from operator task assignments.
+
 ## Environment
 
 | name | required | purpose |

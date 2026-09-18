@@ -2,8 +2,9 @@
 
 Sieve's active collection inherits **only from Clean**. The Ops tab at
 `/portal/ops?tab=sieve` shows unique retained hours in Clean, hours copied into
-Sieve, country and contributor/business diversity, activity labels, cameras,
-Clean intake dates, and per-recording pending/blocked/inherited status. Customer
+Sieve, country and contributor/business diversity, operator task assignments,
+cameras, Clean intake dates, and per-recording pending/blocked/inherited status.
+Open an inherited episode for its media, sensor data and pipeline action labels. Customer
 acceptance is separate and currently not recorded. Neither Clean import nor a
 successful copy implies acceptance by Sieve.
 
