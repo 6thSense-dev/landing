@@ -10,6 +10,12 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [preview, setPreview] = useState(null);
+  const backlog = state.raw_backlog;
+  const remainingMinutes = Math.floor((backlog?.known_seconds || 0) / 60);
+  const remainingDuration = !backlog ? "Awaiting bucket scan"
+    : !backlog.known_episodes && backlog.unknown_episodes ? "Awaiting duration"
+    : backlog.known_seconds > 0 && remainingMinutes === 0 ? "Less than 1 min"
+    : `${fmt(Math.floor(remainingMinutes / 60))} h ${remainingMinutes % 60} m`;
   const people = new Map((state.wearers || []).map((p) => [p.id, p]));
   const rows = useMemo(
     () =>
@@ -76,6 +82,17 @@ export default function OpsOperations({ state, act, busy, readOnly = false }) {
           ? "Automatic bucket scans are enabled."
           : "Automatic scanning is not enabled yet."}
       </p>
+      <div className="ops-tile ops-raw-backlog" role="region" aria-label="Footage awaiting processing">
+        <div className="ops-tile-l">Footage awaiting processing</div>
+        <div className="ops-tile-n">{remainingDuration}</div>
+        {backlog && <p className="ops-hint">
+          {fmt(backlog.known_episodes)} of {fmt(backlog.pending_episodes)} episodes timed
+          {backlog.unknown_episodes > 0 && <> · {fmt(backlog.unknown_episodes)} awaiting duration
+            {backlog.partial_episodes > 0 && <> (including {fmt(backlog.partial_episodes)} partially processed)</>}
+          </>}
+        </p>}
+        <p className="ops-hint">Estimated from recorded episode lengths, counted once across all sources. Fully processed and rejected episodes are excluded.</p>
+      </div>
       <div className="ops-tiles">
         {groups.map(([key, label]) => (
           <button type="button" className={`ops-tile ops-queue-group${group === key ? " is-selected" : ""}`} key={key}

@@ -55,6 +55,8 @@
 }
 .ops-tile-n { font-family: var(--o-mono); font-size: 20px; }
 .ops-tile-l { color: var(--o-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+.ops-raw-backlog { display: grid; gap: 8px; margin-bottom: 16px; }
+.ops-raw-backlog .ops-tile-n { font-size: 28px; }
 
 /* Controls */
 .ops-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }

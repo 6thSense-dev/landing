@@ -32,7 +32,7 @@ from app.models import OpsCamera, Episode, OpsSetting, Task, User, Wearer
 from app.models.ops_clean import CleanRun
 from app.models import ProcessingJob
 from app.core.ops_ledger import contributor_summary
-from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_playback, refresh_source_receipts
+from app.core.ops_raw import INVENTORY_KEY, RECEIPTS_KEY, raw_statuses, pending_duration, pending_playback, refresh_source_receipts
 from app.core.ops_s3 import get_settings as raw_settings
 
 
@@ -160,6 +160,7 @@ async def _state(db: AsyncSession) -> dict:
         "episodes": [{**_episode_json(e), "counterparty": business_source(e, registry), "uploaded_by": delivered.get(e.recording) if delivered.get(e.recording, {}).get('prefix') == e.prefix else None, "processing": jobs.get(e.recording), "raw": raw.get(e.recording, {"status": "unavailable" if inventory is not None else "unknown"})} for e in eps],
         "rate_krw": await _rate(db),
         "last_scan": await _setting(db, SCAN_KEY),
+        "raw_backlog": pending_duration(eps, raw, jobs) if inventory is not None else None,
         "wearers": [_wearer_json(w) for w in wearers],
         "tasks": [_task_json(x) for x in tasks],
         "totals": {
