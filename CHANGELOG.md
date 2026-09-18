@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0.0] - 2026-09-18
+
+### Added
+
+- Open a Sieve episode to preview its videos, IMU samples, metadata and calibration JSON together, with links to the complete source files.
+- Inspect pipeline action labels, task environments, coverage and review status alongside each episode.
+
+### Fixed
+
+- Distinguish existing pipeline annotations from optional operator task assignments so unassigned tasks no longer imply missing action labels.
+- Bound storage requests and reject changed or unverifiable episodes before returning preview links.
+
+### Changed
+
+- Explain automatic Clean-to-Sieve copying and show whether each inspected artifact comes from Sieve or Clean.
+
 ## [0.4.0.1] - 2026-09-18
 
 ### Changed
