@@ -48,16 +48,53 @@ def signed(s3, ref, name):
                 'Bucket': ref['bucket'], 'Key': ref['key'], 'VersionId': ref['version_id']}, ExpiresIn=TTL)}
 
 
+def validate_task_episode(episode):
+    """Malformed optional annotations must not reach the rendering boundary."""
+    def optional(value, kind):
+        return value is None or type(value) is kind
+
+    def number(value):
+        return value is None or (type(value) in (int, float) and math.isfinite(value))
+
+    for field in ('task_labels', 'environments'):
+        values = episode.get(field, [])
+        if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
+            raise ValueError('Invalid task labels or environments')
+    if (not optional(episode.get('dominant_observed_task'), str)
+            or not optional(episode.get('review_required'), bool)):
+        raise ValueError('Invalid task description or review flag')
+    coverage = episode.get('coverage')
+    if coverage is not None and (not isinstance(coverage, dict)
+            or not optional(coverage.get('full_episode'), bool)
+            or any(not number(coverage.get(k)) for k in ('selected_seconds', 'annotated_selected_seconds'))):
+        raise ValueError('Invalid task coverage')
+    events = episode.get('events', [])
+    if not isinstance(events, list):
+        raise ValueError('Invalid task event list')
+    for event in events:
+        if (not isinstance(event, dict)
+                or any(not optional(event.get(k), str) for k in ('task_id', 'action', 'object', 'evidence'))
+                or not optional(event.get('review_required'), bool)
+                or any(not number(event.get(k)) for k in ('source_navigation_start_s', 'source_navigation_end_s'))):
+            raise ValueError('Invalid task event')
+
+
 def task_models(document, recording):
     if document.get('schema') != '6thsense-episode-tasks/1' or not isinstance(document.get('models'), dict):
         raise ValueError('Unknown pipeline task report')
     models = []
     for name, model in document['models'].items():
-        matches = [e for e in model.get('episodes', []) if e.get('episode_id') == recording]
+        if not isinstance(model, dict) or not isinstance(model.get('episodes', []), list):
+            raise ValueError('Invalid task model episodes')
+        episodes = model.get('episodes', [])
+        if any(not isinstance(e, dict) for e in episodes):
+            raise ValueError('Invalid task episode')
+        matches = [e for e in episodes if e.get('episode_id') == recording]
         if len(matches) > 1:
             raise ValueError('Ambiguous task annotation identity')
         if matches:
             episode = matches[0]
+            validate_task_episode(episode)
             models.append({'model': name, **{k: episode.get(k) for k in (
                 'task_labels', 'dominant_observed_task', 'environments', 'coverage', 'review_required')},
                 'event_count': len(episode.get('events', [])), 'events': episode.get('events', [])[:200]})

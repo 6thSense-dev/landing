@@ -1,5 +1,6 @@
 """Episode previews preserve storage provenance, task evidence and Ops access."""
 import io
+from copy import deepcopy
 
 import pytest
 from botocore.exceptions import ReadTimeoutError
@@ -9,7 +10,7 @@ from tests.test_ops_sieve import fixture
 from tests.test_ops_routes import app, _sid, _client
 
 
-def episode_fixture():
+def episode_fixture(task_patch=None):
     s3, row = fixture()
     imu = next(o for o in row['doc']['outputs'] if o['role'] == 'imu')
     data = ('segment_id,clean_time_us,timestamp_us,ax_ms2,ay_ms2,az_ms2,gx_degs,gy_degs,gz_degs\n' +
@@ -21,6 +22,8 @@ def episode_fixture():
                         'dominant_observed_task': 'cut:paper', 'environments': ['print_shop'], 'review_required': True,
                         'coverage': {'full_episode': False, 'selected_seconds': 10, 'annotated_selected_seconds': 8},
                         'events': [{'task_id': 'cut:paper', 'source_navigation_start_s': 2, 'source_navigation_end_s': 8}]}]}}}
+    if task_patch:
+        tasks['models']['nova']['episodes'][0].update(task_patch)
     task_ref = s3.add(f"qc-results/{row['run_id']}/scene-episode-tasks.json", sieve.encoded(tasks))
     row['doc'].setdefault('policy', {})['episode_tasks'] = task_ref
     ref = s3.add(row['manifest_key'], sieve.encoded(row['doc']))
@@ -132,6 +135,49 @@ def test_task_events_are_bounded_and_other_episodes_are_excluded():
     assert model['task_labels'] == ['cut:paper']
     assert model['event_count'] == 201 and len(model['events']) == 200
     with pytest.raises(ValueError): viewer.task_models(document, 'missing')
+
+
+@pytest.mark.parametrize('task_patch', [
+    {'task_labels': 'cut:paper'}, {'task_labels': [{}]}, {'environments': {}},
+    {'environments': ['print_shop', None]}, {'events': 'bad'}, {'events': {}},
+    {'events': [None]}, {'events': [{'evidence': {'text': 'cutting'}}]},
+    {'events': [{'review_required': 'false'}]}, {'events': [{'source_navigation_start_s': '2'}]},
+    {'review_required': 'false'}, {'dominant_observed_task': {}}, {'coverage': []},
+    {'coverage': {'full_episode': 'false'}}, {'coverage': {'selected_seconds': '10'}},
+])
+def test_malformed_task_reports_preserve_other_episode_panels(task_patch):
+    s3, row, cached = episode_fixture(task_patch)
+    result = viewer.preview(s3, row, cached)
+    assert result['tasks']['status'] == 'unavailable'
+    assert len(result['videos']) == 2
+    assert result['metadata']['data'] and result['calibration']['data']
+    assert result['imu']['status'] == 'available'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['blocked', 'pending', 'removed', 'receipt'])
+async def test_episode_api_rechecks_copy_status_after_storage(app, db_session, monkeypatch, change):
+    s3, row, cached = episode_fixture()
+    copies = {row['recording']: deepcopy(cached)}
+    async def inventory(db): return [row]
+    async def state(db): return {'recordings': deepcopy(copies)}
+    monkeypatch.setattr(sieve, 'inventory', inventory)
+    monkeypatch.setattr(sieve, 'saved_state', state)
+    monkeypatch.setattr(sieve, 'storage_client', lambda *, bounded: s3)
+    monkeypatch.setattr(sieve, 'availability', lambda: {'visible': True})
+    original = viewer.preview
+    def change_copy_during_read(*args):
+        result = original(*args)
+        if change == 'removed': copies.clear()
+        elif change == 'receipt': copies[row['recording']]['receipt']['version_id'] = 'replacement'
+        else: copies[row['recording']]['status'] = change
+        return result
+    monkeypatch.setattr(viewer, 'preview', change_copy_during_read)
+    ops = await _sid(db_session, 'ops')
+    async with _client(app) as client:
+        result = await client.get('/api/ops/sieve/episodes/' + row['recording'], cookies={'sid': ops})
+    assert result.status_code == 409
+    assert 'Episode changed while loading' in result.json()['detail']
 
 
 @pytest.mark.asyncio

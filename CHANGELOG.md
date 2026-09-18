@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1.0] - 2026-09-18
+
+### Fixed
+
+- Reject episode previews when their verified Sieve copy is blocked, removed or replaced while files are loading.
+- Keep video, IMU and JSON previews usable when a pipeline task report contains malformed labels, events or coverage fields.
+
 ## [0.5.0.0] - 2026-09-18
 
 ### Added
