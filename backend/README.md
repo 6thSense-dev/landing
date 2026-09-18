@@ -65,6 +65,8 @@ The server stores originals under `s3://6thsense-raw/sessions/web-{batch_id}/{re
 
 Keep bucket versioning enabled; the default accelerated upload path also requires S3 Transfer Acceleration. In addition to existing Ops read permissions, the configured Ops AWS identity needs `s3:PutObject`, `s3:AbortMultipartUpload` and `s3:ListMultipartUploadParts` scoped to `arn:aws:s3:::6thsense-raw/sessions/web-*`. The bucket CORS rule must allow `PUT` from `https://6thsense.dev`, allow `content-type` and `x-amz-checksum-sha256`, and expose `ETag`. Retain the existing seven-day abort-incomplete-multipart lifecycle rule; after it expires an unfinished file, selecting the same originals restarts that file while preserving completed files. Browser clients receive short-lived part grants; AWS credentials stay on the backend.
 
+`GET /api/ops/sieve/episodes/{recording}` provides Ops-only inspection of an active, verified Sieve copy, joining its video and JSON artifacts with the pinned Clean IMU and pipeline task report. It returns 15-minute, version-pinned links without copying objects; see [episode inspection and labels](../docs/SIEVE-CLEAN-INHERITANCE.md#episode-inspection-and-labels) for preview limits and the distinction from operator task assignments.
+
 ## Environment
 
 | name | required | purpose |

@@ -36,6 +36,86 @@ async function setup(page) {
 const summary = (page, name) => page.locator('summary').filter({hasText:name});
 const metric = (page, name) => page.getByRole('article',{name,exact:true});
 
+function episodeData() {
+  const artifact = (name, storage = 'Sieve') => ({name, storage, url:'/demo-box-mobile.mp4', bytes:1234, version_id:'version-1'});
+  return {recording:'ego_20260901_120000_ABC123', expires_in:900, warnings:[], operator_task:'Unclassified',
+    videos:[artifact('left.mp4'), artifact('right.mp4')], browser_preview:artifact('Browser preview (stereo)', 'Clean'),
+    metadata:{...artifact('metadata.json'), data:{device_id:'ABC123', captured_frames:1800}},
+    calibration:{...artifact('calibration.json'), data:{device_id:'ABC123', stereo:{baseline_m:0.06}}},
+    imu:{...artifact('imu.csv', 'Clean'),status:'available',total_samples:18000,scope:'first_samples',
+      units:{acceleration:'m/s^2',angular_velocity:'deg/s'},columns:['clean_time_us','ax_ms2','ay_ms2','az_ms2','gx_degs','gy_degs','gz_degs'],
+      rows:Array.from({length:200},(_,i)=>({clean_time_us:i*3333,ax_ms2:Math.sin(i/10),ay_ms2:Math.cos(i/10),az_ms2:9.8,gx_degs:i/10,gy_degs:2,gz_degs:3}))},
+    tasks:{status:'available',artifact:artifact('episode-tasks.json','Clean'),human_verified:false,models:[{model:'Nova',
+      task_labels:['cut:paper','pack:package'],dominant_observed_task:'cut:paper',environments:['print_shop'],review_required:true,
+      coverage:{full_episode:false,selected_seconds:60,annotated_selected_seconds:54},event_count:1,
+      events:[{task_id:'cut:paper',source_navigation_start_s:2,source_navigation_end_s:8,evidence:'Cuts a sheet of paper.',review_required:false}]}]}};
+}
+
+test('opening one episode previews video, IMU, both JSON documents and pipeline labels', async ({page},info) => {
+  const state = await setup(page);
+  state.data.totals.task_reports=1;
+  state.data.recordings[0].activity='Unclassified'; state.data.recordings[0].pipeline_tasks='linked';
+  let reads=0;
+  await page.route('**/api/ops/sieve/episodes/*', route => { reads++; return route.fulfill({json:episodeData()}); });
+  await page.goto('/portal/ops?tab=sieve');
+  expect(reads).toBe(0);
+  await page.locator('.sieve-recording > summary').first().focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('region',{name:'Episode video',exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:'IMU',exact:true})).toContainText('First 200 of 18,000');
+  await expect(page.getByRole('region',{name:'Metadata',exact:true})).toContainText('captured_frames');
+  await expect(page.getByRole('region',{name:'Calibration',exact:true})).toContainText('baseline_m');
+  const tasks=page.getByRole('region',{name:'Pipeline action labels',exact:true});
+  await expect(tasks).toContainText('cut · paper');
+  await expect(tasks).toContainText('pack · package');
+  await expect(tasks).toContainText('Operator task: Not assigned');
+  await expect(tasks).toContainText('Partial episode coverage');
+  await expect(tasks).toContainText('not human verified');
+  await expect(page.getByLabel('Acceleration, first 200 IMU samples')).toBeVisible();
+  const player=page.getByLabel('Episode video player');
+  await player.evaluate(video => video.play());
+  await expect.poll(() => player.evaluate(video => video.currentTime)).toBeGreaterThan(0);
+  await player.evaluate(video => video.pause());
+  await page.getByLabel('Video view',{exact:true}).selectOption('2');
+  await expect(page.getByRole('region',{name:'Episode video',exact:true}).locator('.sieve-inspector-heading')).toContainText('Sieve');
+  await tasks.locator('summary').click();
+  await expect(tasks).toContainText('Cuts a sheet of paper');
+  await expect(page.locator('.sieve-recording').first()).toHaveAttribute('open','');
+  await expectNoHorizontalOverflow(page);
+  await page.locator('.sieve-inspector').screenshot({path:info.outputPath('sieve-episode.png')});
+  expect(reads).toBe(1);
+  await page.locator('.sieve-recording > summary').last().click();
+  await expect(page.getByLabel('Episode video player')).toHaveCount(0);
+  expect(reads).toBe(1);
+});
+
+test('episode retry, unavailable annotations, expired links and close during load', async ({page}) => {
+  await page.clock.install();
+  await setup(page);
+  let fail=true, delay=false;
+  const data=episodeData();
+  await page.route('**/api/ops/sieve/episodes/*', async route => {
+    if(delay) await new Promise(resolve=>setTimeout(resolve,100));
+    return route.fulfill({status:fail?503:200,json:fail?{detail:'Storage unavailable'}:data});
+  });
+  await page.goto('/portal/ops?tab=sieve');
+  await page.locator('.sieve-recording > summary').first().click();
+  await expect(page.getByRole('alert')).toContainText('Storage unavailable');
+  fail=false;data.tasks={status:'unavailable',error:'Pipeline report could not be verified.'};
+  await page.getByRole('button',{name:'Retry episode'}).click();
+  await expect(page.getByRole('region',{name:'Pipeline action labels',exact:true})).toContainText('could not be verified');
+  await expect(page.getByRole('region',{name:'Metadata',exact:true})).toBeVisible();
+  await page.clock.fastForward(900001);
+  await expect(page.getByText('Artifact links have expired.',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'Refresh episode'}).click();
+  await expect(page.getByRole('region',{name:'Metadata',exact:true})).toBeVisible();
+  await expect(page.getByText('Artifact links have expired.',{exact:false})).toHaveCount(0);
+  delay=true;
+  await page.getByRole('button',{name:'Refresh episode'}).click();
+  await page.locator('.sieve-recording > summary').first().click();
+  await expect(page.locator('.sieve-inspector')).toHaveCount(0);
+});
+
 test('recurring verified uploads add once and explain held recordings', async ({page}) => {
   const state=await setup(page);
   state.pipeline.delivery.uploaded_hours=7.38;
@@ -95,8 +175,8 @@ test('all original statistics and technical details remain accessible', async ({
   await expect(copies).toContainText('0 copy pending · 1 copy blocked');
   await expect(copies).toContainText('Original codecs are preserved');
   await summary(page,'Collection breakdown').click();
-  for(const name of ['Country','Contributor / business','Activity','Clean intake by day']) await expect(page.getByRole('region',{name,exact:true})).toBeVisible();
-  await expect(page.getByRole('region',{name:'Activity',exact:true})).toContainText('Unclassified');
+  for(const name of ['Country','Contributor / business','Operator task','Clean intake by day']) await expect(page.getByRole('region',{name,exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:'Operator task',exact:true})).toContainText('Not assigned');
   await expect(page.locator('.sieve-breakdown')).toContainText('2 countries · 2 contributors · 2 cameras');
   await expect(page.locator('.sieve-deadline')).toContainText('Sep 22, 2026');
   await expect(page.locator('.sieve-footer')).toContainText('Sep 25');
@@ -131,6 +211,7 @@ test('unavailable or partial figures never become zero or passed', async ({page}
   Object.assign(state.pipeline.delivery,{state:'TRANSFERRING',complete:false,uploaded_hours:null,uploaded_files:16,total_files:null,stale:true});
   state.pipeline.validation={available:true,state:'COMPLETE',clip_reports:325,total_clips:325};
   await page.goto('/portal/ops?tab=sieve');
+  await expect(page.getByText('Pipeline task coverage is not reported.',{exact:false})).toBeVisible();
   await expect(metric(page,'Uploaded to Sieve')).toContainText('Not reported');
   await expect(metric(page,'Uploaded to Sieve').getByRole('progressbar')).toHaveCount(0);
   await expect(metric(page,'Originals transfer')).toContainText('Not reported');

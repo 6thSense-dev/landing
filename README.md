@@ -25,7 +25,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 For Collector operations, see [clean footage, combined viewing, and contributor estimates](docs/OPS-CLEAN.md) and the [Raw processing queue](backend/README.md#raw-processing-queue).
 For contracted footage outside individual payouts, see [business source attribution](docs/OPS-BUSINESS-SOURCES.md).
-For Sieve's Clean-only MP4, metadata and calibration handoff and its temporary hours/diversity dashboard, see [Sieve collection and inheritance](docs/SIEVE-CLEAN-INHERITANCE.md).
+For Sieve's Clean-only handoff, automatic copy process, and episode viewer with video, IMU, metadata, calibration and pipeline action labels, see [Sieve collection and inheritance](docs/SIEVE-CLEAN-INHERITANCE.md).
 For audited bookkeeping of payments made outside the payout workflow, see [external payment records](docs/EXTERNAL-PAYMENT-RECORDS.md).
 For Korean contributor signup through the interim Google Form contract register, secure website activation and verified camera handover, see the [Form register release guide](docs/contributors/google-form-register.md). It records deployment checks and the retention work that remains operational.
 For verified mobile accounts, supervised camera requests and bank-recipient review, see the [contributor mobile pilot](docs/CONTRIBUTOR-MOBILE-PILOT.md). The pilot retains manual SD-card upload and requires published agreements before camera or bank registration.

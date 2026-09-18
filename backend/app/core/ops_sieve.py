@@ -156,6 +156,10 @@ def summarize(rows, snapshot):
                     reason=cached.get('reason', '') if current else 'Awaiting Clean verification',
                     checked_at=cached.get('checked_at') if current else None,
                     copied_bytes=cached.get('copied_bytes', 0) if current and cached.get('status') == 'inherited' else 0)
+        # Operator assignment and pipeline annotation are separate sources. A
+        # missing Episode.task_id says nothing about the linked model report.
+        item['pipeline_tasks'] = 'linked' if row.get('doc', {}).get('policy', {}).get('episode_tasks') else 'not_linked'
+        item['operator_task'] = None if row['activity'] == 'Unclassified' else row['activity']
         public.append(item)
     inherited = [r for r in public if r['status'] == 'inherited']
     breakdowns = {}
@@ -177,6 +181,7 @@ def summarize(rows, snapshot):
                        'entities': len({r['entity']['id'] for r in public} - {'unassigned'}),
                        'cameras': len({r['camera'] for r in public}),
                        'activities': len({r['activity'] for r in public} - {'Unclassified'}),
+                       'task_reports': sum(r['pipeline_tasks'] == 'linked' for r in public),
                        'status_counts': dict(Counter(r['status'] for r in public))},
             'sync': {k: snapshot.get(k) for k in ('started_at', 'completed_at', 'error')},
             'automatic_sync': os.getenv('OPS_SIEVE_ENABLED', 'false') == 'true',
