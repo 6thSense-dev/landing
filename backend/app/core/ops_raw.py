@@ -51,16 +51,22 @@ def pending_playback(recording, inventory, manifests, receipts):
     s3 = _client(cfg)
     verified = processed_keys(manifests, receipts)
     files = []
+    containers = {}
     for prefix in inventory[recording]['prefixes']:
         for page in s3.get_paginator('list_objects_v2').paginate(Bucket=cfg.bucket, Prefix=prefix):
             for obj in page.get('Contents', []):
                 key = obj['Key']
                 raw = {'key': key, 'bytes': obj.get('Size', 0), 'etag': obj.get('ETag', '')}
+                if key.lower().endswith('.egoc') and raw['bytes'] and not is_processed(raw, verified):
+                    containers[key] = raw
                 if not key.lower().endswith(PLAYABLE) or not raw['bytes'] or is_processed(raw, verified):
                     continue
                 files.append({'name': key[len(prefix):], 'key': key, 'bytes': raw['bytes'],
                               'url': s3.generate_presigned_url('get_object',
                                   Params={'Bucket': cfg.bucket, 'Key': key}, ExpiresIn=cfg.presign_ttl)})
+    if not files and containers:
+        from app.core.ops_raw_preview import decoded_playback
+        return decoded_playback(recording, list(containers.values()), s3, cfg)
     return sorted(files, key=lambda f: (f['name'], f['key']))
 
 
