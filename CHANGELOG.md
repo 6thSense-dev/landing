@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2.0] - 2026-09-19
+
+### Added
+
+- Show the known footage duration awaiting Raw processing across all sources, with separate counts for untimed and partially processed episodes.
+- Exclude verified completed, rejected and deleted episodes from the backlog without double-counting stereo files or repeated deliveries.
+
 ## [0.5.1.0] - 2026-09-18
 
 ### Fixed

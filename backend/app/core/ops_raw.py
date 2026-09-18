@@ -5,6 +5,8 @@ raw object. A recording name, upload date, or matching file size is insufficient
 re-deliveries can contain both processed copies and previously missing segments.
 Receipts are operator-verified source/copy hashes, never supplied by cameras.
 """
+import math
+
 from app.core.ops_s3 import PLAYABLE, _client, get_settings
 
 INVENTORY_KEY = 'raw_inventory_v1'
@@ -43,6 +45,35 @@ def raw_statuses(inventory, manifests, receipts):
         out[rec] = {'status': status, 'pending_files': pending, 'processed_files': done,
                     'raw_bytes': sum(o['bytes'] for o in media if not is_processed(o, verified))}
     return out
+
+
+def pending_duration(episodes, raw, jobs):
+    """Recorded footage still in Raw, counted once per episode, not per eye.
+
+    Episode duration cannot tell us the length of just the outstanding segments
+    of a partial Clean import. Keep those episodes in the unknown count instead
+    of estimating their remaining time from file counts or bytes.
+    """
+    summary = dict(known_seconds=0, known_episodes=0, unknown_episodes=0,
+                   partial_episodes=0, pending_episodes=0)
+    for episode in episodes:
+        source = raw.get(episode.recording, {})
+        if (episode.deleted_at is not None
+                or jobs.get(episode.recording, {}).get('state') == 'rejected'
+                or source.get('pending_files', 0) <= 0):
+            continue
+        summary['pending_episodes'] += 1
+        partial = source.get('status') == 'partial' or source.get('processed_files', 0) > 0
+        duration = episode.duration_s
+        if (partial or isinstance(duration, bool) or not isinstance(duration, (int, float))
+                or not math.isfinite(duration) or duration <= 0):
+            summary['unknown_episodes'] += 1
+            summary['partial_episodes'] += int(partial)
+        else:
+            summary['known_seconds'] += duration
+            summary['known_episodes'] += 1
+    summary['known_seconds'] = round(summary['known_seconds'], 3)
+    return summary
 
 
 def pending_playback(recording, inventory, manifests, receipts):
