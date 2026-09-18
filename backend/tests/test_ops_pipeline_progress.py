@@ -120,6 +120,26 @@ def full_storage():
     return storage
 
 
+def test_recurring_hours_require_consistent_recording_receipts():
+    storage=Storage()
+    value={'schema':'6thsense-sieve-customer-summary/1','enabled':True,'customer_accepted':False,
+           'updated_at':datetime.now(timezone.utc).isoformat(),'running':1,'max_parallel':4,
+           'uploaded_seconds':120,'uploaded_assets':2,'uploaded_files':14,'uploaded_bytes':10000,
+           'recordings':[{'recording':'ego_20260901_010101_AAAAAA','status':'running','reason':'','uploaded_seconds':120}]}
+    storage.add('6thsense-sieve','customer/v1/summary.json',value)
+    assert progress._customer(storage)['uploaded_hours']==pytest.approx(120/3600)
+    value['uploaded_seconds']=240
+    storage.add('6thsense-sieve','customer/v1/summary.json',value)
+    with pytest.raises(ValueError,match='hours do not match'):
+        progress._customer(storage)
+
+
+def test_default_delivery_uses_replacement_without_reusing_old_validation():
+    assert progress.DEFAULT_BATCH=='sow1-20260916-yield-recovery-v2'
+    assert progress._BATCH.fullmatch(progress.DEFAULT_BATCH)
+    assert progress.DEFAULT_VALIDATION_RUN!='sow1-20260916-independent-v2'
+
+
 def test_company_counts_every_country_and_keeps_categories_honest(monkeypatch):
     storage = Storage()
     add_config(storage)

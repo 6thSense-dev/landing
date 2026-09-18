@@ -30,14 +30,15 @@ LIFECYCLE_PREFIX = "raw-lifecycle/v1/"
 CONFIG_KEY = LIFECYCLE_PREFIX + "config.json"
 STATE_PREFIX = LIFECYCLE_PREFIX + "states/"
 
-DEFAULT_BATCH = "sow1-20260915-batch-1"
-DEFAULT_VALIDATION_RUN = "sow1-20260916-independent-v2"
+DEFAULT_BATCH = "sow1-20260916-yield-recovery-v2"
+# The old independent PASS is bound to the superseded batch, not its replacement.
+DEFAULT_VALIDATION_RUN = "sow1-20260918-replacement-v1"
 DEFAULT_SUPPLEMENT_RUN = "sow1-20260916-supplement-v1"
 SUPPLEMENT_TOTAL_BYTES = 25_394_461_079
 SUPPLEMENT_MANIFEST_SHA256 = "ecc33fb99ae6c426e721615ff13a9cb8b886ad98bec8ae9863ef4bd87b759e2d"
 VALIDATION_STATUS_SCHEMA = "sixthsense-sieve-independent-final-validation/1"
 
-_BATCH = re.compile(r"^sow[0-9]+-[0-9]{8}-batch-[0-9]+$")
+_BATCH = re.compile(r"^sow[0-9]+-[0-9]{8}-(?:batch-[0-9]+|yield-recovery-v[0-9]+)$")
 _RUN = re.compile(r"^sow[0-9]+-[0-9]{8}-[a-z0-9]+(?:-[a-z0-9]+)*-v[0-9]+$")
 _RECORDING = re.compile(r"^ego_[0-9]{8}_[0-9]{6}_[A-Fa-f0-9]{6}(?:_s[0-9]{2,4})?$")
 _PROOF = re.compile(r"^[0-9]{10}\.json$")
@@ -457,6 +458,41 @@ _SUPPLEMENT_DELIVERY_FIELDS = ("run_id", "batch_id", "manifest_sha256", "state",
     "uploaded_hours", "external_transfer_completed", "complete", "customer_accepted", "human_review", "updated_at")
 
 
+def _customer(s3) -> dict:
+    value, meta = _json(s3, SIEVE_BUCKET, 'customer/v1/summary.json', optional=True)
+    if value is None:
+        return {'available': False, 'stale': False}
+    if (not isinstance(value, dict) or value.get('schema') != '6thsense-sieve-customer-summary/1'
+            or type(value.get('enabled')) is not bool or value.get('customer_accepted') is not False):
+        raise ValueError('Customer delivery summary identity is invalid')
+    rows = value.get('recordings')
+    if not isinstance(rows, list) or len(rows) > MAX_STATE_OBJECTS:
+        raise ValueError('Customer delivery recording list is invalid')
+    public = []
+    states = {'held','queued','submitting','running','retry_wait','prepared_canary','delivered_checksums_verified'}
+    for row in rows:
+        if (not isinstance(row,dict) or not _RECORDING.fullmatch(row.get('recording',''))
+                or row.get('status') not in states
+                or not re.fullmatch('[a-z0-9_]{0,100}',row.get('reason',''))):
+            raise ValueError('Customer delivery state is invalid')
+        public.append({'recording':row['recording'],'status':row['status'],'reason':row.get('reason',''),
+                       'uploaded_seconds':_number(row.get('uploaded_seconds'),'uploaded_seconds')})
+    seconds = _number(value.get('uploaded_seconds'),'uploaded_seconds')
+    if not math.isclose(seconds,sum(r['uploaded_seconds'] for r in public),abs_tol=1e-6):
+        raise ValueError('Customer hours do not match recording receipts')
+    updated = _latest(value.get('updated_at'),meta['updated_at'])
+    return {'available':True,'enabled':value['enabled'],'updated_at':updated,'stale':_stale(updated,terminal=False),
+            'uploaded_hours':seconds/3600,'recordings':public,
+            'running':_integer(value.get('running'),'running'),
+            'max_parallel':_integer(value.get('max_parallel'),'max_parallel'),
+            'uploaded_assets':_integer(value.get('uploaded_assets'),'uploaded_assets'),
+            'uploaded_files':_integer(value.get('uploaded_files'),'uploaded_files'),
+            'uploaded_bytes':_integer(value.get('uploaded_bytes'),'uploaded_bytes'),
+            'held':sum(r['status']=='held' for r in public),
+            'queued':sum(r['status'] in ('queued','submitting','retry_wait') for r in public),
+            'customer_accepted':False}
+
+
 def _empty(*, error: str | None = None) -> dict:
     result = {
         "checked_at": _now_iso(),
@@ -466,6 +502,7 @@ def _empty(*, error: str | None = None) -> dict:
         "validation": _unavailable(_VALIDATION_FIELDS),
         "supplement": _unavailable(_SUPPLEMENT_FIELDS),
         "supplement_delivery": _unavailable(_SUPPLEMENT_DELIVERY_FIELDS),
+        "customer_delivery": {"available": False, "stale": False},
         "errors": [],
     }
     if error:
@@ -490,6 +527,7 @@ def _collect() -> dict:
         "validation": lambda: _validation(s3, validation_run, batch),
         "supplement": lambda: _supplement(s3, supplement_run),
         "supplement_delivery": lambda: _supplement_delivery(s3, supplement_run),
+        "customer_delivery": lambda: _customer(s3),
     }
     with ThreadPoolExecutor(max_workers=len(calls)) as pool:
         futures = {pool.submit(call): name for name, call in calls.items()}

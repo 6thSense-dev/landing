@@ -21,6 +21,42 @@ RECORDING = "ego_20260901_120000_ABC123"
 SESSION = "korea-site"
 
 
+@pytest.mark.asyncio
+async def test_customer_inventory_requires_authentication(app, monkeypatch):
+    monkeypatch.setenv('OPS_PIPELINE_TOKEN',TOKEN)
+    async with _client(app) as client:
+        assert (await client.get('/api/ops/pipeline/sieve-customer-inventory')).status_code==403
+        result=await client.get('/api/ops/pipeline/sieve-customer-inventory',headers={'Authorization':f'Bearer {TOKEN}'})
+    assert result.status_code==200
+    assert result.json()['recordings']==[]
+
+
+@pytest.mark.asyncio
+async def test_customer_inventory_rechecks_exclusions_and_current_copy(app,db_session,monkeypatch):
+    from app.core import ops_sieve
+    monkeypatch.setenv('OPS_PIPELINE_TOKEN',TOKEN)
+    _,row=sieve_fixture();doc=row['doc'];doc['country']='korea'
+    person=Wearer(name='Private name must not be exported');db_session.add(person);await db_session.flush()
+    db_session.add(CleanRun(run_id=doc['run_id'],device_id='ABC123',wearer_id=person.id,
+        manifest_key=row['manifest_key'],manifest_version=row['manifest_version'],manifest_sha256=row['manifest_sha256'],
+        manifest_json=json.dumps(doc),retained_seconds=60,rejected_seconds=0,rate_krw_hour=11000))
+    db_session.add(Episode(recording=row['recording'],wearer_id=person.id));await db_session.commit()
+    current=(await ops_sieve.inventory(db_session))[0]
+    setting=OpsSetting(key=ops_sieve.STATE_KEY,value=json.dumps({'recordings':{row['recording']:{
+        'status':'inherited','revision':current['revision'],'receipt':{'bucket':'6thsense-sieve','key':'private','version_id':'v'}}}}))
+    db_session.add(setting);await db_session.commit()
+    async with _client(app) as client:
+        response=await client.get('/api/ops/pipeline/sieve-customer-inventory',headers={'Authorization':f'Bearer {TOKEN}'})
+        assert response.status_code==200 and len(response.json()['recordings'])==1
+        assert 'Private name' not in response.text
+        assert response.json()['recordings'][0]['operator_key']==f'wearer:{person.id}'
+        db_session.add(OpsSetting(key=ops_sieve.EXCLUSIONS_KEY,value=json.dumps({
+            'schema':'6thsense-sieve-delivery-exclusions/1','wearers':{str(person.id):{'reason':'Residential exclusion'}}})))
+        await db_session.commit()
+        response=await client.get('/api/ops/pipeline/sieve-customer-inventory',headers={'Authorization':f'Bearer {TOKEN}'})
+        assert response.json()['recordings']==[]
+
+
 def _result(doc):
     digest = hashlib.sha256(json.dumps(doc, sort_keys=True).encode()).hexdigest()
     evidence = {

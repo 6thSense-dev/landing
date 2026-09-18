@@ -60,6 +60,42 @@ async def inventory(db=Depends(get_session)):
     return {'episodes': rows}
 
 
+@router.get('/sieve-customer-inventory', dependencies=[Depends(authorize)])
+async def sieve_customer_inventory(recording: str | None = None, db=Depends(get_session)):
+    """Current Clean eligibility, checked again by cloud workers before upload.
+
+    Uses the same source-alias and residential exclusion rules as inheritance.
+    No bearer, personal names, payment state or customer acceptance is returned.
+    """
+    from app.core import ops_sieve
+    from app.core.contributor_deletion import pending_wearers
+    held = await pending_wearers(db)
+    episodes = {e.recording: e for e in (await db.execute(select(Episode))).scalars()}
+    runs = {r.run_id: r for r in (await db.execute(select(CleanRun))).scalars()}
+    saved = await ops_sieve.saved_state(db)
+    rows = []
+    for row in await ops_sieve.inventory(db):
+        if recording is not None and row['recording'] != recording:
+            continue
+        episode, run = episodes.get(row['recording']), runs[row['run_id']]
+        if ((episode and (episode.deleted_at or episode.wearer_id in held))
+                or run.wearer_id in held):
+            continue
+        inherited = saved.get('recordings', {}).get(row['recording'], {})
+        if inherited.get('status') != 'inherited' or inherited.get('revision') != row['revision']:
+            continue
+        operator = episode.wearer_id if episode and episode.wearer_id else run.wearer_id
+        rows.append({k: row[k] for k in ('recording', 'run_id', 'revision', 'manifest_sha256',
+                    'manifest_key', 'manifest_version', 'camera', 'country', 'retained_seconds')} | {
+            'entity_id': row['entity']['id'],
+            'operator_key': f'wearer:{operator}' if operator else None,
+            'inheritance_receipt': inherited['receipt'],
+            'source_sha256': sorted(s['sha256'] for s in row['rec']['sources']),
+        })
+    return {'schema': '6thsense-sieve-customer-inventory/1',
+            'checked_at': datetime.now(timezone.utc).isoformat(), 'recordings': rows}
+
+
 def verified_result(run_id):
     s3 = _client(get_settings())
     doc, key, version, digest = _committed_result(s3, f'qc-results/{run_id}/_SUCCESS.json')
