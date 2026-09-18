@@ -54,6 +54,10 @@ async def episode(recording: str, response: Response, _: User = Depends(require_
     # Do not issue URLs after deletion, supersession, or attribution changes while reading S3.
     db.expire_all()
     current = {r['recording']: r for r in await ops_sieve.inventory(db)}.get(recording)
-    if not current or current['revision'] != row['revision']:
+    current_copy = (await ops_sieve.saved_state(db)).get('recordings', {}).get(recording, {})
+    if (not current or current['revision'] != row['revision']
+            or current_copy.get('status') != 'inherited'
+            or current_copy.get('revision') != row['revision']
+            or current_copy.get('receipt') != cached.get('receipt')):
         raise HTTPException(409, 'Episode changed while loading. Refresh the collection.')
     return result

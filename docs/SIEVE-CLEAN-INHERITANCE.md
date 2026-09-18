@@ -69,7 +69,8 @@ refer only to operator assignments, not model task coverage.
 
 `GET /api/ops/sieve/episodes/{recording}` requires the existing Ops role. Only
 active, currently inherited recordings can issue 15-minute, version-pinned links.
-The endpoint rechecks eligibility after storage reads and returns `no-store`.
+The endpoint rechecks eligibility and the verified copy receipt after storage reads
+and returns `no-store`.
 Deleted, stale, pending and blocked recordings cannot issue preview links. The
 browser loads one expanded episode at a time and cancels requests on close.
 
