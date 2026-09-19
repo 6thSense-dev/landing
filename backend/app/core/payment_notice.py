@@ -1,43 +1,72 @@
-"""Versioned payment consent for the private contributor bank register."""
+"""Versioned payment notice; provider disclosures are separate from consent choices."""
 import hashlib
 import json
 
-VERSION = "KR-PAYMENT-SHEET-2026-09-19-1"
+VERSION = "KR-PAYMENT-SHEET-2026-09-19-2"
+REQUIRED_CHOICES = ("collects_details", "international_transfer")
+GOOGLE_COUNTRIES_EN = "United States, Argentina, Australia, Belgium, Brazil, Canada, Chile, Denmark, Finland, France, Germany, Hong Kong, India, Ireland, Israel, Italy, Japan, Mexico, Netherlands, New Zealand, Philippines, Poland, Singapore, South Korea, Spain, Sweden, Switzerland, Taiwan and United Kingdom"
+GOOGLE_COUNTRIES_KO = "미국, 아르헨티나, 호주, 벨기에, 브라질, 캐나다, 칠레, 덴마크, 핀란드, 프랑스, 독일, 홍콩, 인도, 아일랜드, 이스라엘, 이탈리아, 일본, 멕시코, 네덜란드, 뉴질랜드, 필리핀, 폴란드, 싱가포르, 대한민국, 스페인, 스웨덴, 스위스, 대만, 영국"
 NOTICE = {
     "version": VERSION,
     "locales": {
         "en": {
-            "title": "How we store your payment details",
+            "title": "Payment privacy notice",
             "paragraphs": [
-                "6thSense AI, Inc. collects your account holder name, bank and account number to prepare payment of your earnings and resolve payment questions. These are linked to your contributor ID and consent receipt. Contact: alex@6thsense.dev.",
-                "When you submit, your details are sent over encrypted connections through 6thSense’s backend hosted by Railway and stored in a private Google spreadsheet managed by 6thSense. Authorized staff with access to that workbook can read the full account number. The website database keeps only a masked account receipt. This submission does not register a recipient with Wise or send a payment.",
-                "Your details are transferred electronically to 6thSense in the United States and processed using Railway and Google’s cloud services, including processing outside South Korea. They are used to maintain the payment register and prepare your earnings payments. Any additional payment-provider registration will be explained separately.",
-                "Minimal settlement records are kept for five years after the later of the end of the relationship or final settlement. Other unnecessary active payment information is deleted within 30 days of that point. You may refuse or withdraw consent and request access, correction or deletion at alex@6thsense.dev. Contact us to discuss an alternative payment method. Refusal does not cancel earned payment or prevent uploading. Never enter a banking password, PIN, resident registration number or verification code.",
+                "Purpose: earnings settlement, payment preparation and payment enquiries. Data: account holder name, bank name and account number, linked to your contributor ID and consent record.",
+                "Retention: minimal settlement evidence for five years after the later of the end of participation or final settlement; other unnecessary payment information is deleted within 30 days of that point.",
+                "You may refuse consent; online bank registration will then remain unavailable. Refusal does not cancel earned payment or prevent uploading. For an alternative payment method, withdrawal, access, correction or deletion, contact alex@6thsense.dev.",
+                "Controller: 6thSense AI, Inc. (United States). Contact: alex@6thsense.dev.",
             ],
+            "details": {
+                "title": "Service providers and overseas processing (Google / Railway)",
+                "paragraphs": [
+                    "Data and timing: the bank details, contributor ID and consent record above are transmitted electronically over encrypted connections when you submit and when payment records are managed. 6thSense collects and manages them in the United States for the purposes and periods stated above.",
+                    "Google LLC — United States; contact: https://support.google.com/a/contact/googlecloud_dpr. Purpose: payment-record storage and synchronization. Retention: the periods stated above; residual internal copies may take up to 180 days to be deleted after service deletion.",
+                    "Railway Corporation — United States (California); privacy@railway.com. Purpose: hosting the payment-registration service and its records. Bank details pass through the service; stored records use a masked account number. Retention: the periods stated above; hosting logs are retained for seven days and do not intentionally contain full bank details.",
+                    "Google service maintenance, security and data-centre processing may also occur in: " + GOOGLE_COUNTRIES_EN + ". No US-only processing guarantee is made. The provider directory below identifies the relevant affiliates and activities; bank documents are not shared in optional support cases.",
+                    "Refusal or withdrawal: leave the overseas-transfer consent unchecked or contact alex@6thsense.dev. Online registration cannot proceed without this consent; alternative payment arrangements can be discussed without forfeiting earned payment or upload access.",
+                ],
+                "links": [{"label": "Google subprocessors", "url": "https://workspace.google.com/terms/subprocessors/"},
+                          {"label": "Railway subprocessors", "url": "https://trust.railway.com/item/subprocessors"}],
+            },
             "choices": {
-                "collects_details": "I agree to collection and use of my bank details for payment preparation.",
-                "shares_details": "I agree to storing my full bank details in 6thSense’s private Google spreadsheet for authorized staff to review.",
-                "international_transfer": "I agree to the described overseas processing through 6thSense, Railway and Google.",
-                "owns_account": "This is my own bank account, and the details are accurate.",
+                "collects_details": "I agree to the collection and use of personal information for payment.",
+                "international_transfer": "I agree to the overseas transfer described above.",
             },
         },
         "ko": {
-            "title": "지급정보 저장 및 이용 안내",
+            "title": "지급정보 수집·이용 안내",
             "paragraphs": [
-                "6thSense AI, Inc.는 보수 지급 준비와 지급 관련 문의 처리를 위해 예금주명, 은행명, 계좌번호를 수집합니다. 이 정보는 참여자 ID 및 동의 기록과 연결됩니다. 문의: alex@6thsense.dev.",
-                "제출한 정보는 암호화 통신으로 Railway에 호스팅된 6thSense 서버를 거쳐 회사가 관리하는 비공개 Google 스프레드시트에 저장됩니다. 해당 문서에 접근 권한이 있는 담당자는 전체 계좌번호를 확인할 수 있습니다. 웹사이트 데이터베이스에는 계좌 끝자리 등 접수 내역만 저장됩니다. 이 제출만으로 Wise에 수취인이 등록되거나 송금이 실행되지는 않습니다.",
-                "제출 시 정보가 미국의 6thSense로 전송되며 Railway와 Google의 클라우드 서비스를 통해 한국 외 지역에서도 처리됩니다. 지급정보 관리와 보수 지급 준비에 이용하며, 추가로 송금 서비스에 등록할 필요가 있으면 별도로 안내합니다.",
-                "최소 정산 증빙은 계약 종료일과 최종 정산일 중 늦은 날부터 5년간 보관합니다. 그 밖에 불필요해진 지급정보는 해당 시점부터 30일 이내 삭제합니다. 동의를 거부·철회하거나 열람·정정·삭제를 요청하려면 alex@6thsense.dev로 연락해 주세요. 대체 지급 방식을 협의할 수 있으며, 동의 거부로 이미 발생한 보수나 업로드 권한이 없어지지 않습니다. 은행 비밀번호, PIN, 주민등록번호, 인증번호는 입력하지 마세요.",
+                "목적: 보수 정산·지급 준비 및 관련 문의 처리. 항목: 예금주명, 은행명, 계좌번호(참여자 ID 및 동의 기록과 연결).",
+                "보유기간: 최소 정산 증빙은 참여 종료일과 최종 정산일 중 늦은 날부터 5년, 그 밖에 불필요해진 지급정보는 해당 시점부터 30일 이내 삭제합니다.",
+                "동의를 거부할 수 있으며, 거부 시 온라인 계좌 등록은 진행되지 않습니다. 이미 발생한 보수와 업로드 권한에는 영향이 없습니다. 대체 지급 방식, 동의 철회, 열람·정정·삭제 문의: alex@6thsense.dev.",
+                "개인정보처리자: 6thSense AI, Inc.(미국). 연락처: alex@6thsense.dev.",
             ],
+            "details": {
+                "title": "처리위탁·국외이전 안내 (Google·Railway)",
+                "paragraphs": [
+                    "항목·시기·방법: 위 계좌정보, 참여자 ID 및 동의 기록을 제출 시와 지급정보 관리 시 암호화된 인터넷 통신으로 전송합니다. 6thSense는 미국에서 위 목적과 보유기간에 따라 수집·관리합니다.",
+                    "Google LLC — 미국 / 연락처: https://support.google.com/a/contact/googlecloud_dpr / 목적: 지급정보 보관·동기화 / 보유기간: 위 항목별 기간. 서비스에서 삭제한 뒤 내부 잔여 사본 삭제에 최대 180일이 걸릴 수 있습니다.",
+                    "Railway Corporation — 미국(캘리포니아) / 연락처: privacy@railway.com / 목적: 계좌 등록 서비스와 관련 기록 호스팅. 계좌정보는 서버를 거쳐 전달되며 저장 기록의 계좌번호는 마스킹됩니다. 보유기간: 위 항목별 기간, 호스팅 로그 7일(전체 계좌정보를 의도적으로 기록하지 않음).",
+                    "Google의 유지보수·보안·데이터센터 처리는 다음 국가에서도 이루어질 수 있습니다: " + GOOGLE_COUNTRIES_KO + ". 처리가 미국에만 한정되지는 않습니다. 아래 수탁자 목록에서 해당 계열사와 업무를 확인할 수 있으며, 선택적인 고객지원 요청에는 계좌 문서를 공유하지 않습니다.",
+                    "거부·철회 방법 및 효과: 국외이전에 동의하지 않거나 alex@6thsense.dev로 철회를 요청할 수 있습니다. 동의 없이는 온라인 계좌 등록이 진행되지 않으며, 이미 발생한 보수나 업로드 권한을 잃지 않고 대체 지급 방식을 협의할 수 있습니다.",
+                ],
+                "links": [{"label": "Google 수탁자 목록", "url": "https://workspace.google.com/terms/subprocessors/"},
+                          {"label": "Railway 수탁자 목록", "url": "https://trust.railway.com/item/subprocessors"}],
+            },
             "choices": {
-                "collects_details": "보수 지급 준비를 위한 계좌정보 수집·이용에 동의합니다.",
-                "shares_details": "전체 계좌정보를 6thSense의 비공개 Google 스프레드시트에 저장하고 권한 있는 담당자가 확인하는 데 동의합니다.",
-                "international_transfer": "위 안내에 따른 6thSense, Railway 및 Google을 통한 국외 처리에 동의합니다.",
-                "owns_account": "본인 명의 계좌이며 입력한 정보가 정확합니다.",
+                "collects_details": "보수 지급을 위한 개인정보 수집·이용에 동의합니다.",
+                "international_transfer": "위 안내에 따른 개인정보 국외이전에 동의합니다.",
             },
         },
     },
 }
+# Old open browser tabs only render paragraphs. Keep the complete disclosure
+# there so accepting a refreshed notice never hides its provider/transfer terms.
+for localized in NOTICE["locales"].values():
+    localized["summary"] = localized["paragraphs"]
+    localized["paragraphs"] = [*localized["summary"], *localized["details"]["paragraphs"],
+        *(link["label"] + ": " + link["url"] for link in localized["details"]["links"])]
 DIGEST = hashlib.sha256(json.dumps(NOTICE, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 

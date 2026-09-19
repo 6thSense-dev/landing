@@ -262,12 +262,12 @@ class WebBankIn(BankIn):
     international_transfer: bool = False
 
     def receipt(self, identity):
-        from app.core.payment_notice import VERSION, DIGEST, public_notice
+        from app.core.payment_notice import VERSION, DIGEST, REQUIRED_CHOICES, public_notice
         if identity["region"]["country"] != "KR":
             raise HTTPException(409, "payout_region_unavailable")
         if self.notice_version != VERSION or self.notice_sha256 != DIGEST:
             raise HTTPException(409, "payment_notice_changed")
-        choices = {k: getattr(self, k) for k in ("collects_details", "shares_details", "international_transfer", "owns_account")}
+        choices = {k: getattr(self, k) for k in REQUIRED_CHOICES}
         if not all(choices.values()):
             raise HTTPException(422, "bank_confirmation_required")
         return {"notice": public_notice(), "locale": self.locale,

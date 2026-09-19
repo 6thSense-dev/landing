@@ -17,6 +17,8 @@
  * with the registered company name + mailing address before launch.
  */
 
+import paymentNotice from './payment-notice.json';
+
 const CONTACT_EMAIL = "ops@6thsense.dev";
 const LAST_UPDATED = "July 18, 2026";
 const SYNAPSE_LAST_UPDATED = "September 17, 2026";
@@ -185,7 +187,7 @@ export const legalPages = [
       },
       {
         h2: "How long we keep it",
-        body: "The applicable regional notices and agreements describe retention for contributed data. Account deletion is an operator-supervised process that records footage and processor cleanup separately from any legally required retention of consent or payment records. Retained records require a documented scope, reason, and review date. This page does not establish a fixed retention or deletion period.",
+        body: "The applicable regional notices and agreements describe retention for contributed data. Account deletion is an operator-supervised process that records footage and processor cleanup separately from any legally required retention of consent or payment records. Retained records require a documented scope, reason, and review date. The payment notice below states bank-record retention; overall account-deletion completion depends on confirmed footage and provider cleanup.",
       },
       {
         h2: "Third parties we share with",
@@ -307,6 +309,19 @@ export const legalPages = [
     ],
   },
 ];
+
+// Published copy of the same versioned bank notice shown before consent.
+// Regenerate payment-notice.json from backend/app/core/payment_notice.py when it changes.
+for (const page of legalPages.filter(page => page.path.startsWith('/privacy'))) {
+  page.updated = 'September 19, 2026';
+  for (const locale of ['ko', 'en']) {
+    const notice = paymentNotice.locales[locale];
+    page.sections.push({h2: notice.title, body: notice.summary});
+    page.sections.push({h2: notice.details.title, body: [
+      ...notice.details.paragraphs, ...notice.details.links.map(link => `${link.label}: ${link.url}`),
+    ]});
+  }
+}
 
 export const legalContactEmail = CONTACT_EMAIL;
 

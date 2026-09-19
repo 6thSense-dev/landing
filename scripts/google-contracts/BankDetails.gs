@@ -96,7 +96,7 @@ function bankRequest(envelope) {
         || !['accountHolderName', 'bankName'].every(key => typeof values[key] === 'string'
           && values[key].trim() && values[key].length <= 100 && !/[\x00-\x1f]/.test(values[key]))
         || !consent.notice || !/^[a-f0-9]{64}$/.test(String(consent.notice.sha256))
-        || !['collects_details', 'shares_details', 'international_transfer', 'owns_account']
+        || !['collects_details', 'international_transfer']
           .every(key => consent.choices && consent.choices[key] === true)) return {ok: false};
     const row = [String(data.contributorId), bankSafeCell(data.contributorName),
       bankSafeCell(values.accountHolderName), bankSafeCell(values.bankName), values.accountNumber,

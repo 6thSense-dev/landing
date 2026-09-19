@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-const choices = { collects_details:'Collect my details', shares_details:'Store in the private spreadsheet', international_transfer:'Process overseas', owns_account:'My own account' };
+import paymentNotice from '../../src/seo/payment-notice.json' with { type: 'json' };
+const choices = { collects_details:'Collect my details', international_transfer:'Process overseas' };
 const notice = { version:'TEST-SHEET-1', sha256:'a'.repeat(64), locales:{
   en:{title:'How we store payment details',paragraphs:['Full details are stored in the private payment spreadsheet.'],choices},
   ko:{title:'지급정보 저장 안내',paragraphs:['비공개 지급정보 스프레드시트에 저장됩니다.'],choices},
@@ -36,6 +37,23 @@ async function enter(page) {
   await page.getByLabel('Bank name',{exact:true}).selectOption('신한은행');
   await page.getByLabel('Account number',{exact:true}).fill('001234567890');
 }
+test('the current notice has two consents and readable provider details in both languages',async({page})=>{
+  const state=await mock(page);state.notice=paymentNotice;
+  await page.goto('/upload#payment-details');
+  await page.getByRole('button',{name:'한국어',exact:true}).click();
+  await page.getByRole('button',{name:'계좌 등록하기',exact:true}).click();
+  const form=page.locator('.upload-payment-form');
+  await expect(form.getByRole('checkbox')).toHaveCount(2);
+  await expect(form).not.toContainText('스프레드시트');
+  await page.getByText(paymentNotice.locales.ko.details.title,{exact:true}).click();
+  await expect(form.getByText(/Google LLC — 미국/)).toBeVisible();
+  await expect(form.getByText(/Railway Corporation — 미국/)).toBeVisible();
+  await page.getByRole('button',{name:'English',exact:true}).click();
+  await expect(form.getByText(/Google LLC — United States/)).toBeVisible();
+  for(const label of Object.values(paymentNotice.locales.en.choices)) await page.getByRole('checkbox',{name:label,exact:true}).check();
+  await page.getByRole('button',{name:'Continue to bank details',exact:true}).click();
+  await expect(page.getByLabel('Bank name',{exact:true})).toBeVisible();
+});
 test('saves three fields with consent and shows the masked receipt before camera approval',async({page})=>{
   const state=await mock(page);await enter(page);
   await page.getByRole('button',{name:'Save bank details',exact:true}).click();

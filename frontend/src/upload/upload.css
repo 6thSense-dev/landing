@@ -119,6 +119,9 @@
 .upload-payment-notice { max-width: 850px; }
 .upload-payment-notice h3 { font-family: inherit; font-size: 16px; font-weight: 600; margin: 8px 0 12px; }
 .upload-payment-notice a { font-size: 14px; }
+.upload-payment-disclosure { margin-top: 16px; overflow-wrap: anywhere; }
+.upload-payment-disclosure summary { cursor: pointer; padding: 12px 0; font-size: 16px; font-weight: 500; }
+.upload-payment-disclosure summary:focus-visible { outline: 2px solid var(--up-accent); outline-offset: 2px; }
 .upload-payment fieldset { padding: 0; margin: 24px 0 0; border: 0; min-width: 0; }
 .upload-payment legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .upload-payment-consents { display: grid; gap: 8px; }

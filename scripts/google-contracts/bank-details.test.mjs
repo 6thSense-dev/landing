@@ -20,7 +20,7 @@ function fixture() {
   const signed=(data,timestamp=String(Math.floor(Date.now()/1000)))=>{const payload=JSON.stringify(data);return{timestamp,payload,signature:createHmac('sha256',secret).update(timestamp+'.'+payload).digest('hex')};};
   return {ctx,rows,signed,setSharing:v=>sharing=v,setLocked:v=>locked=v,getFlushes:()=>flushes};
 }
-const submission=()=>({action:'submit',contributorId:8,contributorName:'테스트',operationId:'a1a1a1a1-1234-4567-8123-a1a1a1a1a1a1',values:{accountHolderName:'테스트',bankName:'Test Bank',accountNumber:'001234567890'},consent:{notice:{version:'test',sha256:'a'.repeat(64)},choices:{collects_details:true,shares_details:true,international_transfer:true,owns_account:true}}});
+const submission=()=>({action:'submit',contributorId:8,contributorName:'테스트',operationId:'a1a1a1a1-1234-4567-8123-a1a1a1a1a1a1',values:{accountHolderName:'테스트',bankName:'Test Bank',accountNumber:'001234567890'},consent:{notice:{version:'test',sha256:'a'.repeat(64)},choices:{collects_details:true,international_transfer:true}}});
 test('writes once, preserves leading zeros and returns a masked read-back receipt',()=>{
   const f=fixture(),data=submission();
   const saved=f.ctx.bankRequest(f.signed(data));
@@ -42,7 +42,7 @@ test('rejects tampered, expired and missing authentication before writing',()=>{
 test('private workbook, consent, schema and lock failures never write',()=>{
   const f=fixture();f.setSharing('ANYONE');assert.throws(()=>f.ctx.bankRequest(f.signed(submission())));
   f.setSharing('PRIVATE');f.setLocked(true);assert.equal(f.ctx.bankRequest(f.signed(submission())).ok,false);
-  f.setLocked(false);const data=submission();data.consent.choices.owns_account=false;
+  f.setLocked(false);const data=submission();data.consent.choices.international_transfer=false;
   assert.equal(f.ctx.bankRequest(f.signed(data)).ok,false);
   assert.equal(f.rows.length,1);f.rows[0][0]='renamed';assert.throws(()=>f.ctx.bankRequest(f.signed(submission())));
 });

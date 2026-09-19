@@ -88,7 +88,13 @@ export default function PaymentDetails({ locale }) {
     {setup && !notice && !bank && <p>{t.unsupported}</p>}
     {(uncertain || bank || error) && <button className="upload-text-button" disabled={busy} onClick={refresh}>{t.refresh}</button>}
     {phase === 'consent' && localized && !bank && <form onSubmit={begin} className="upload-payment-form">
-      <div className="upload-payment-notice"><h3>{localized.title}</h3>{localized.paragraphs.map(p => <p key={p}>{p}</p>)}</div>
+      <div className="upload-payment-notice"><h3>{localized.title}</h3>{(localized.summary || localized.paragraphs).map(p => <p key={p}>{p}</p>)}
+        {localized.details && <details className="upload-payment-disclosure">
+          <summary>{localized.details.title}</summary>
+          {localized.details.paragraphs.map(p => <p key={p}>{p}</p>)}
+          {localized.details.links.map(link => <p key={link.url}><a href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a></p>)}
+        </details>}
+      </div>
       <fieldset disabled={busy} className="upload-payment-consents"><legend>{localized.title}</legend>{Object.entries(localized.choices).map(([key, label]) => <label key={key}><input type="checkbox" required checked={!!choices[key]} onChange={e => setChoices({ ...choices, [key]: e.target.checked })} /><span>{label}</span></label>)}</fieldset>
       <div className="upload-actions"><button className="upload-button" disabled={!accepted || busy}>{busy ? t.loading : t.continue}</button><button type="button" className="upload-text-button" onClick={close} disabled={busy}>{t.cancel}</button></div>
     </form>}
