@@ -22,12 +22,14 @@ This workflow replaces laptop coordination with a scheduled AWS Lambda and Batch
 - Archive receipts: `receipts/<recording>/<fingerprint>.json`; per-object resolvers: `source-index/<sha256-of-original-identity>.json`; deletion audits: `retirement/`.
 - EventBridge invokes one coordinator every two minutes; reserved concurrency is one. State is persisted before Batch submission. An uncertain submission is reconciled by its deterministic job name, never blindly repeated.
 - Original job plans are adopted only if pinned source identities match. Existing CPU/GPU jobs continue on their original queues. The new queues and launch templates are separate.
-- CPU maximum: 64 vCPU; GPU maximum: 8 vCPU (two g5.xlarge, shared regional GPU quota). Minimum zero; no GPU quota increase. Capacity scales with queued jobs within these bounds.
-- Initial autonomous authorization: $100 additional compute, bounded eight-hour window. A five-minute watchdog disables new queues and terminates this workflow's active jobs at the deadline; the coordinator and retirement also enforce the deadline. This is a bounded initial run, not an indefinite spending authorization. S3 archive storage remains retained.
+- Initial rollout capacity: CPU maximum 64 vCPU; GPU maximum 8 vCPU (two g5.xlarge, shared regional GPU quota), minimum zero and no GPU quota increase. These are historical starting limits, not a statement of current capacity.
+- Initial rollout authorization: $100 additional compute within eight hours, enforced by a five-minute watchdog and coordinator/retirement deadline checks. That authorization described the initial run; it does not establish the current run's budget or completion policy. S3 archive storage remains retained.
+
+For current operation, read the active `config.json`, its completion policy and enabled flags, the configured Batch queues/compute environments, and the deployed schedules. These are authoritative for the active run; the historical rollout limits must not be assumed to remain live.
 
 ## Deploy and operate
 
-Run `deploy.py prepare` with boto3 credentials for the production profile. It starts disabled and refuses to reset an enabled run. It downloads Alex's original runtime from the exact S3 version and SHA256 pinned in `SOURCE_RUNTIME`; no Mac or local extracted folder is needed. Re-run only after intentionally pausing the coordinator; job IDs and source states remain in S3. Set `RAW_LIFECYCLE_EVIDENCE_DIR` to choose local evidence output; the default is `.context/raw-lifecycle`.
+For an initial rollout, run `deploy.py prepare` with boto3 credentials for the production profile. It starts disabled and refuses to reset an enabled run. It downloads Alex's original runtime from the exact S3 version and SHA256 pinned in `SOURCE_RUNTIME`; no Mac or local extracted folder is needed. Re-run only after intentionally pausing the coordinator; job IDs and source states remain in S3. Set `RAW_LIFECYCLE_EVIDENCE_DIR` to choose local evidence output; the default is `.context/raw-lifecycle`.
 
 For code fixes during a run, disable retirement and use `deploy.py update-code`; this preserves the budget, flags, jobs and worker definitions. `deploy.py update-archive` registers a new immutable archive worker for future jobs, extends only its exact submission permission, and preserves existing queued/running jobs and the spending deadline. `deploy.py update-processing` updates future conversion/Clean definitions together with a new pinned runtime, extends exact IAM scope, waits for propagation, and conditionally publishes only those config fields. It does not retry failed jobs. Do not re-run `prepare` merely to update code.
 
@@ -35,13 +37,43 @@ The updated Clean runtime publishes a verified H.264 stereo viewing copy before 
 
 The portal's `OPS_PIPELINE_TOKEN` must equal Secrets Manager `sixthsense-raw-lifecycle-v1-portal-token`. Transfer it through protected process input (`railway variable set OPS_PIPELINE_TOKEN --stdin --skip-deploys`), never in shell arguments, Git, logs or documentation. Deploy the backend router before enabling AWS. Bearer POST requests also require the allowed `Origin: https://6thsense.dev` header.
 
-After unit/adversarial tests and a live archive canary, run `deploy.py enable` (processing and archive only). `deploy.py enable --retire` also enables independent retirement and adds only that role to the Raw bucket's deletion exception. Enabling explicitly re-enables this workflow's queues. Record the deadline returned by the command.
+For the initial deadline-based rollout, after unit/adversarial tests and a live archive canary, run `deploy.py enable` (processing and archive only). `deploy.py enable --retire` also enables independent retirement and adds only that role to the Raw bucket's deletion exception. Enabling explicitly re-enables this workflow's queues. Record the deadline returned by the command. Existing runs follow their active configuration and approved operating policy.
 
-To pause: set config `enabled=false` and `retirement_enabled=false`; disable the tick EventBridge rule. Existing jobs do not stop automatically until the watchdog deadline. To stop this run immediately, shorten `run_deadline_epoch` to now and invoke the watchdog. Never stop unrelated queues or delete archive originals.
+To pause new work: set config `enabled=false` and `retirement_enabled=false`; disable the tick EventBridge rule. Existing jobs continue unless explicitly stopped or an active watchdog stops them. For the initial deadline-based deployment, shortening `run_deadline_epoch` to now and invoking its watchdog stops that workflow's jobs. Verify the active completion policy and deployed watchdog before using that procedure on a later run. Never stop unrelated queues or delete archive originals.
 
 Failed or uncertain jobs are held for review; inspect CloudWatch and version-pinned state, then record an explicit replacement attempt. Do not remove durable submission intents merely to force a retry.
 
 The retirement Lambda accepts `dry_run: true` with a recording and fingerprint for a production-role verification pass that performs zero deletions while retirement stays disabled. Interrupted cleanup retains its original snapshot and intent; subsequent ticks resume missing versions safely even if Raw is empty, or recover the existing immutable completion audit. Newly arrived keys or versions block unfinished cleanup.
+
+## Scheduled health monitor
+
+Deploy the monitor separately from processing, from the repository root with credentials for account `194680606079` in `us-west-2`:
+
+```sh
+python3 infra/raw_lifecycle/deploy_health_monitor.py
+```
+
+This creates or updates `sixthsense-raw-lifecycle-v1-health`, enables its EventBridge rule at `rate(30 minutes)`, and reserves one concurrent invocation. It preserves processing configuration, jobs, capacity, deadlines and QA decisions. Its 240-second Lambda checks coordinator status, the configured queues and compute environments, recent job failures, worker log activity and website availability. It reads `GET /api/ops/pipeline/health` using the existing pipeline bearer secret; this private endpoint returns the last Raw scan, automatic-scan flag and processing-state counts for non-deleted episodes, without names or media links. Deploy that API route before enabling the monitor.
+
+Reports use schema `6thsense-raw-health/1` and remain private at `s3://6thsense-processed/raw-lifecycle/v1/health/latest.json` and `health/reports/<timestamp>.json` under the same lifecycle prefix. Each dated report is written once. Lambda logs are retained for 30 days at `/aws/lambda/sixthsense-raw-lifecycle-v1-health`. The deployment receipt is `s3://6thsense-deploy-artifacts/raw-lifecycle/v1/audit/raw-backlog-20260919/health-deployment.json`.
+
+| Finding | Threshold and severity |
+| --- | --- |
+| Coordinator stale | Missing status or more than 20 minutes since its last status update: critical |
+| Raw scan stale | Missing scan time or more than 30 minutes since refresh: critical |
+| Runnable queue backlog | Oldest queued job over 30 minutes: warning while another job is starting/running, critical when none is active |
+| Admission/start delay | Submitted, pending or starting job older than 30 minutes since creation: warning |
+| Worker progress stale | More than 45 minutes without new log activity, or since start when no log activity exists: warning |
+| Worker failure / source hold | Any job failed in the last 30 minutes, or any blocked recording: warning |
+| Configuration / check failure | Disabled coordinator or Raw scanning, expired configured deadline, missing/unavailable required queue or compute, invalid compute, or failed component read: critical |
+
+The deadline check respects `completion_policy: until_idle`; other policies require an unexpired `run_deadline_epoch`. Queue age and log silence are diagnostic signals, not proof that a job failed. The monitor reports holds and bottlenecks without retrying work, expanding capacity, changing QA, deleting media or paying contributors.
+
+CloudWatch namespace `SixthSense/RawPipeline` receives `HealthCheckSucceeded` and `CriticalFindings`. The former means the check published its reports and metrics, not that the pipeline is healthy. Its alarm treats missing data as breaching after two 30-minute periods. `CriticalFindings > 0` alarms after one period, with missing data non-breaching; monitor outages are covered by the first alarm. The deploy script does not configure external CloudWatch alarm actions.
+
+The runtime IAM role can describe/list Batch state, read only the configured S3 config/status objects, read worker logs and the named pipeline token secret, and write only health reports, its own logs and metrics in that namespace. It has no Batch mutation or media-write/delete permission. The deployment identity separately needs the permissions to provision the monitor resources.
+
+Optional Slack delivery uses a Secrets Manager `SecretString` containing an incoming webhook for the selected channel. Set `SLACK_WEBHOOK_SECRET_ARN` to that secret's ARN when running the deployment script; it grants access to that exact secret and preserves an existing configured ARN on later deployments. The webhook URL must stay in Secrets Manager. Every check posts a summary when configured, and delivery is confirmed only by the report's `slack.delivered: true`; notification failures become critical findings. As of the September 19 release, `#dataops` is the selected destination, but Slack delivery remains unconfigured pending its webhook credentials. AWS reports and alarms do not establish Slack delivery.
 
 ## Limits
 
