@@ -49,7 +49,7 @@ async def test_consent_missing_stale_and_retries(app,db_session):
     async with _client(app) as c:
         assert (await c.get('/api/contributor/terms')).json()=={'status':'not_published','documents':[]}
         assert (await c.post('/api/contributor/cameras',json={'device_id':'ABC123'})).status_code==409
-        assert (await c.post('/api/contributor/bank/requirements',json={'values':{}})).status_code==409
+        assert (await c.post('/api/contributor/bank/requirements',json={'values':{}})).status_code==410
         assert (await c.post('/api/contributor/consent',json={'locale':'en','documents':{},'versions':{}})).status_code==409
         db_session.add(OpsSetting(key='contributor_terms_kr-2026-v1',value=json.dumps(documents())));await db_session.commit()
         body={'locale':'en','documents':{d['agreement']:d['sha256'] for d in documents()},'versions':{d['agreement']:d['version'] for d in documents()}}
@@ -92,24 +92,17 @@ async def test_aws_verification_is_authoritative(monkeypatch):
     with pytest.raises(HTTPException) as exc:await contributor_identity('Bearer plausible')
     assert exc.value.status_code==401 and 'secret' not in exc.value.detail
 
-async def test_unknown_bank_outcome_never_creates_again_and_masks_storage(app,db_session,monkeypatch):
+async def test_legacy_bank_registration_requires_website_without_wise(app,db_session,monkeypatch):
     await setup(db_session);await accept(db_session);identity(app)
     from app.core import contributor_wise as m
-    calls=[]
-    class Fake:
-        def requirements(self,country,values):return {'country':'KR','currency':'KRW','fields':[{'key':k,'required':True,'minLength':None,'maxLength':None} for k in ['accountHolderName','accountNumber']]}
-        def create(self,country,values):calls.append(values);raise OSError('bank-must-not-leak')
-    monkeypatch.setattr(m,'RecipientClient',Fake)
-    body={'values':{'accountHolderName':'Test Person','accountNumber':'001234567890'},'operation_id':str(uuid4()),'owns_account':True,'shares_details':True}
+    def forbidden(): raise AssertionError('Legacy endpoint must not create Wise recipients')
+    monkeypatch.setattr(m,'RecipientClient',forbidden)
     async with _client(app) as c:
-        assert (await c.post('/api/contributor/bank',json={**body,'owns_account':False})).status_code==422
-        for _ in range(2):
-            r=await c.post('/api/contributor/bank',json=body);assert r.status_code==200,r.text
-            assert r.json()['status']=='needs_reconciliation'
-        assert len(calls)==1
-        a=(await db_session.execute(select(ContributorRecipientAttempt))).scalars().one()
-        assert '001234567890' not in a.summary and json.loads(a.summary)['maskedAccount']=='•••• 7890'
-        assert 'bank-must' not in r.text
+        for endpoint in ('','/requirements'):
+            result=await c.post('/api/contributor/bank'+endpoint,json={'values':{}})
+            assert result.status_code==410
+            assert result.json()['detail']=='use_website_bank_registration'
+        assert not (await db_session.execute(select(ContributorRecipientAttempt))).scalars().all()
 
 def test_recipient_shape_and_unsupported_field():
     r=recipient_body('IN',{'accountNumber':'001234567','email':'test@example.invalid','accountHolderName':'Test Person'},'123')

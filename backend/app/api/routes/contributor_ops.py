@@ -384,6 +384,17 @@ async def fulfill_deletion(request_id: str, body: DeletionFulfillmentIn,
     if row.status == 'completed':
         return {'status':'completed', 'request_id':row.id}
     row.attempts += 1
+    account = await db.get(ContributorAccount, row.subject)
+    if account:
+        from app.core.payment_sheet import PaymentSheetClient, PaymentSheetError
+        try:
+            # The sheet's tombstone prevents a delayed, previously timed-out
+            # bank request from recreating personal data after erasure.
+            await asyncio.to_thread(PaymentSheetClient().delete, account.wearer_id)
+        except PaymentSheetError:
+            row.provider_status = 'sheet_retry_required'
+            await db.commit()
+            raise HTTPException(503, 'payment_sheet_deletion_retry_required') from None
     try:
         await asyncio.to_thread(deletion.delete_cognito_user, row.subject)
     except Exception:

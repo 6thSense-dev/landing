@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.4.0] - 2026-09-19
+
+### Fixed
+
+- Save contributor bank details to the private Google contributor workbook with explicit consent, masked receipts and safe retries, without creating Wise recipients.
+- Keep typed bank details after network errors and language changes; recover confirmed spreadsheet saves after lost responses.
+- Isolate bank registration from footage-scanner locks and erase spreadsheet rows with a tombstone before account-deletion completion.
+
 ## [0.5.3.0] - 2026-09-19
 
 ### Added

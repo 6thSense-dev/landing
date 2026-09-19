@@ -124,7 +124,7 @@ export default function UploadPage() {
             <p className="upload-eyebrow"><span />{t.eyebrow}</p>
             <h1>{t.title}</h1><p>{t.intro}</p>
           </section>
-          {signedIn && accountReady && <PaymentDetails key={locale} locale={locale} />}
+          {signedIn && accountReady && <PaymentDetails locale={locale} />}
           {!signedIn ? <>{activation && formConfig ? <Activate locale={locale} back={verified=>{setPhoneVerified(verified);setActivation(false);}}/> : <>{phoneVerified && <p role="status">{t.phoneVerified}</p>}<SignIn t={t} />{formConfig && <div className="upload-signin"><button className="upload-button" onClick={()=>setActivation(true)}>{locale==='ko'?'회원가입':'Sign up'}</button><p><a href={formConfig.url} target="_blank" rel="noreferrer">{locale==='ko'?'참여 계약 양식':'Contributor contract form'}</a></p></div>}</>}{error && <p className="upload-error" role="alert">{t.errors[error] || error}</p>}</> : !info ? (
             <section className="upload-access" role={error ? "alert" : "status"}><LockKeyhole size={28} /><h2>{error ? (t.errors[error] || error) : t.loading}</h2>{error && <p><a href="mailto:alex@6thsense.dev">alex@6thsense.dev <ArrowUpRight size={16} /></a></p>}<button className="upload-text-button" onClick={signOut}>{t.signOut}</button></section>
           ) : <>
