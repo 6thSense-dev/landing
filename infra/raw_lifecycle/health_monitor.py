@@ -57,6 +57,28 @@ def age_seconds(timestamp, now):
     return max(0, now - datetime.fromisoformat(timestamp.replace('Z', '+00:00')).timestamp())
 
 
+def accumulation_lines(portal):
+    """Recorded hours and upload volume, with unknown measurements made explicit."""
+    summary = portal.get('accumulated_data')
+    if not summary:
+        return ['Accumulated data by country: unavailable.']
+
+    def line(label, row):
+        duration = f"{row['known_seconds'] / 3600:,.2f} h"
+        if row['unknown_duration_episodes']:
+            duration += f" known + {row['unknown_duration_episodes']:,} episodes with unknown duration"
+        size = f"{row['uploaded_bytes'] / 1e9:,.2f} GB uploaded"
+        if row['unknown_size_episodes']:
+            size += f" + {row['unknown_size_episodes']:,} episodes with unknown size"
+        return f"• {label}: {duration} · {row['episodes']:,} episodes · {size}."
+
+    return ['*Accumulated data by country*',
+            *(line(row['label'], row) for row in summary['countries']),
+            line('Total', summary['totals']),
+            'All recorded uploads, including processed and held episodes; counted once per episode. '
+            'Deleted episodes excluded. Uploaded GB is ledger volume, not current bucket storage.']
+
+
 def evaluate(report):
     """Separate source holds, expected capacity backlog, and stalled infrastructure."""
     findings = []
@@ -251,6 +273,7 @@ def handler(event, context):
             lines.extend(f"• {f['detail']}" for f in report['findings'][:12])
             if not report['findings']:
                 lines.append('No bottleneck detected by these checks.')
+            lines.extend(accumulation_lines(report['portal']))
             return send_slack('\n'.join(lines), credential, bot=bool(bot_secret))
 
         report['slack'] = attempt('slack_delivery', notify_slack) or {'delivered': False}

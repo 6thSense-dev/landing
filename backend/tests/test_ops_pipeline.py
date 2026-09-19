@@ -338,7 +338,47 @@ async def test_health_summary_requires_token_and_excludes_deleted_episodes(app, 
     assert result['processing_counts'] == {'blocked': 1}
     assert result['last_raw_scan'] == '2026-09-19T10:51:34+00:00'
     assert result['automatic_scan'] is True
+    assert result['accumulated_data']['totals']['episodes'] == 1
     assert 'private diagnostic' not in response.text and RECORDING not in response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('same_bucket', [False, True])
+async def test_health_accumulation_uses_confirmed_source_and_all_upload_states(app, db_session, monkeypatch, same_bucket):
+    from app.models import OpsSetting, ProcessingJob
+    from app.core.ops_sources import ATTRIBUTIONS_KEY
+    from app.core.ops_raw import INVENTORY_KEY
+    monkeypatch.setenv('OPS_PIPELINE_TOKEN', TOKEN)
+    first = await _episode(db_session, RECORDING)
+    second = await _episode(db_session, RECORDING + '_s02')
+    for ep in (first, second):
+        ep.session = 'business-delivery'
+        ep.prefix = f'sessions/business-delivery/ABC123/{ep.recording}/'
+        ep.duration_s = 1800
+        ep.size_bytes = 1_000_000_000
+    registry = {ep.recording: dict(recording=ep.recording, device_id=ep.device_id, session=ep.session,
+                 counterparty=dict(kind='business', id='example', name='Private company', country='india', payment_model='b2b_contract'))
+                for ep in (first, second)}
+    db_session.add_all([
+        OpsSetting(key=ATTRIBUTIONS_KEY, value=json.dumps(registry)),
+        # Only a snapshot from this bucket can supply conflicting source evidence.
+        OpsSetting(key=INVENTORY_KEY, value=json.dumps({'bucket': ops_pipeline.get_settings().bucket if same_bucket else 'another-bucket', 'takes': {
+            first.recording: {'prefixes': ['sessions/china-work/ABC123/one/']}}})),
+        ProcessingJob(recording=first.recording, fingerprint='a' * 64, input_json='{}', state='clean', reason=''),
+        ProcessingJob(recording=second.recording, fingerprint='b' * 64, input_json='{}', state='blocked', reason=''),
+    ])
+    await db_session.commit()
+    async with _client(app) as client:
+        response = await client.get('/api/ops/pipeline/health', headers={'Authorization': f'Bearer {TOKEN}'})
+    assert response.status_code == 200
+    result = response.json()['accumulated_data']
+    assert result['totals']['episodes'] == 2
+    india = next(row for row in result['countries'] if row['country'] == 'india')
+    assert india['known_seconds'] == (1800 if same_bucket else 3600)
+    assert india['uploaded_bytes'] == (1_000_000_000 if same_bucket else 2_000_000_000)
+    if same_bucket:
+        assert next(row for row in result['countries'] if row['country'] == 'unassigned')['episodes'] == 1
+    assert 'Private company' not in response.text and RECORDING not in response.text
 
 
 @pytest.mark.asyncio
