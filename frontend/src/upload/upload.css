@@ -131,6 +131,7 @@
 .upload-payment input:focus-visible, .upload-payment select:focus-visible { outline: 2px solid var(--up-accent); outline-offset: 2px; }
 .upload-payment-fields [aria-invalid="true"] { border-color: #903b37; }
 .upload-payment-fields .upload-payment-field-error { display: block; color: #903b37; margin-top: 6px; }
+.upload-payment-custom-bank { margin-top: 16px; }
 .upload-payment-status { border-top: 1px solid var(--up-line); margin-top: 20px; padding-top: 20px; }
 .upload-payment-status strong { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .upload-payment-mask { font-family: "Geist Mono", monospace; overflow-wrap: anywhere; }

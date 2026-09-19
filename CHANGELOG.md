@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.5.0] - 2026-09-19
+
+### Changed
+
+- Select a Korean bank from the payment-details dropdown, or choose Other to enter an unlisted bank; keep the selection and custom name through retries and language changes.
+
 ## [0.5.4.0] - 2026-09-19
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Contributor bank spreadsheet
 
-`/upload#payment-details` accepts an account holder name (including Korean), bank name and Korean account number after the current payment notice is accepted. It does not call Wise. Existing payout links and financial history remain unchanged. Older mobile bank-write endpoints return HTTP410 directing people to the website.
+`/upload#payment-details` accepts an account holder name (including Korean), bank name and Korean account number after the current payment notice is accepted. Select from 25 Korean banks and financial institutions, or choose **Other — enter bank name** (**기타 은행 직접 입력**) to type an unlisted name; the selection and custom name survive retries and language changes. It does not call Wise. Existing payout links and financial history remain unchanged. Older mobile bank-write endpoints return HTTP410 directing people to the website.
 
 The authenticated backend identifies the contributor; the browser cannot supply a contributor ID. It sends an HMAC-SHA256 envelope to `scripts/google-contracts/BankDetails.gs` in the existing contractor Apps Script project. Deploy that script as an owner-executed web app with anonymous HTTP access: every request still requires the server HMAC. Append the file without replacing the current contract source or its triggers.
 
