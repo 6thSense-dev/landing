@@ -8,7 +8,7 @@ from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.routes.ops import require_ops, _wearer_json, _setting, _put_setting
 from app.core.db import get_session
-from app.core.ops_clean import committed_results, estimate_krw, playback
+from app.core.ops_clean import PIPELINE_RUN_PREFIXES, committed_results, estimate_krw, playback
 from app.core.ops_artifacts import validate_artifacts
 from app.core.ops_collections import COLLECTIONS_KEY, validate_collection, collection_playback
 from app.core.ops_regions import clean_region
@@ -128,7 +128,7 @@ async def scan(_: User = Depends(require_ops), db: AsyncSession = Depends(get_se
         # These runs carry source/payment evidence that only the dedicated
         # pipeline bridge verifies. The periodic generic scan must not race it
         # and create a weaker CleanRun before that verification completes.
-        if str(doc.get('run_id', '')).startswith(('raw-clean-auto-', 'raw-clean-20260915-')):
+        if str(doc.get('run_id', '')).startswith(PIPELINE_RUN_PREFIXES):
             continue
         try:
             if doc['run_id'] in by_id:

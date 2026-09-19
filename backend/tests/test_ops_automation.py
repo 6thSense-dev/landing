@@ -5,6 +5,64 @@ from app.core.wise import WiseClient, WiseError
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [None, 'raw', 'clean'])
+async def test_raw_refresh_precedes_clean_and_scan_failures_are_isolated(monkeypatch, failure):
+    from app.core import ops_automation
+    from app.api.routes import ops, ops_clean
+
+    calls = []
+
+    class Connection:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def execute(self, query):
+            if 'unlock' in str(query):
+                calls.append('unlock')
+            return SimpleNamespace(scalar=lambda: True)
+
+        async def commit(self):
+            calls.append('commit')
+
+        async def rollback(self):
+            calls.append('rollback')
+
+    async def raw(_, db):
+        calls.append('raw')
+        if failure == 'raw':
+            raise RuntimeError('Raw unavailable')
+
+    async def clean(_, db, *, skip_invalid):
+        assert skip_invalid
+        calls.append('clean')
+        if failure == 'clean':
+            raise RuntimeError('Clean unavailable')
+
+    async def setting(db, key, value):
+        assert key == 'automation_last_success'
+        calls.append('raw_success')
+
+    async def payouts():
+        calls.append('payouts')
+
+    monkeypatch.setattr(ops_automation, 'get_engine', lambda: SimpleNamespace(connect=Connection))
+    monkeypatch.setattr(ops_automation, 'get_sessionmaker', lambda: Connection)
+    monkeypatch.setattr(ops_automation, 'payout_tick', payouts)
+    monkeypatch.setattr(ops, 'scan_bucket', raw)
+    monkeypatch.setattr(ops, '_put_setting', setting)
+    monkeypatch.setattr(ops_clean, 'scan', clean)
+
+    await ops_automation.tick()
+
+    expected = ['raw', 'rollback'] if failure == 'raw' else ['raw', 'raw_success', 'commit']
+    expected += ['clean'] + (['rollback'] if failure == 'clean' else [])
+    assert calls == expected + ['payouts', 'unlock']
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("enabled", [None, "false", "true"])
 async def test_payout_loop_requires_separate_opt_in_even_with_wise_credentials(monkeypatch, enabled):
     from app.core import ops_automation

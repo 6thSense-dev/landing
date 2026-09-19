@@ -133,13 +133,6 @@ async def tick():
 
             async with get_sessionmaker()() as db:
                 try:
-                    await scan(
-                        None, db, skip_invalid=True
-                    )  # verified committed results only
-                except Exception:
-                    await db.rollback()
-                    logger.exception("automatic_clean_import_failed")
-                try:
                     await scan_bucket(None, db)
                     await _put_setting(
                         db,
@@ -150,6 +143,13 @@ async def tick():
                 except Exception:
                     await db.rollback()
                     logger.exception("automatic_raw_scan_failed")
+                try:
+                    await scan(
+                        None, db, skip_invalid=True
+                    )  # verified committed results only
+                except Exception:
+                    await db.rollback()
+                    logger.exception("automatic_clean_import_failed")
             await payout_tick()
         finally:
             await lock.execute(text("SELECT pg_advisory_unlock(61306133)"))
