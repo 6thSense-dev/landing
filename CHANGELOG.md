@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.9.0] - 2026-09-19
+
+### Changed
+
+- Include accumulated recording hours, episode counts and uploaded GB by country, plus a grand total, in every 30-minute Raw pipeline report.
+- Count each non-deleted episode once across processing stages and show unknown country, duration and size explicitly.
+
 ## [0.5.8.0] - 2026-09-19
 
 ### Changed
