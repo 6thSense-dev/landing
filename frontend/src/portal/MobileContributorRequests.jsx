@@ -44,6 +44,13 @@ function BankRequest({ attempt, person, disabled, mutate }) {
     }, resolution === "found" ? "Recipient found. Review and link it separately for payments."
       : "No recipient was created. The contributor can submit their bank details again.");
   };
+  if (attempt.status === "sheet_saved") return <article className="ops-mobile-request" aria-label={`Bank review for ${person.name}`}>
+    <h4>{person.name} <span>· contributor #{person.id}</span></h4>
+    <p>{summary.accountHolderName} · {summary.bankLabel} · {summary.maskedAccount}</p>
+    <p>Bank details saved in the contributor spreadsheet. Review the account there before arranging payment.</p>
+    <a href="https://docs.google.com/spreadsheets/d/1ZJZ_H4ZIWRl_c6QngmsDTfcAhQnbN6vrLbUnpPd_CPg/edit" target="_blank" rel="noreferrer">Open contributor spreadsheet → Bank details</a>
+    <p className="ops-hint ops-mobile-reference">Submission {attempt.id}</p>
+  </article>;
   return <article className="ops-mobile-request" aria-label={`Bank review for ${person.name}`}>
     <h4>{person.name} <span>· contributor #{person.id}</span></h4>
     <dl className="ops-mobile-bank-summary">
@@ -149,7 +156,7 @@ export default function MobileContributorRequests({ wearers, onChanged, parentBu
   };
   const claims = data?.claims.filter((claim) => claim.status === "pending" && !claim.ended_at) || [];
   const recipients = data?.recipients.filter((attempt) => {
-    if (!["submitting", "needs_reconciliation", "needs_review"].includes(attempt.status)) return false;
+    if (!["submitting", "needs_reconciliation", "needs_review", "sheet_saved"].includes(attempt.status)) return false;
     const person = personFor(attempt.subject);
     const linked = data.payments.find((row) => row.wearer_id === person.id)?.recipient;
     return !attempt.recipient_id || !linked || String(linked.id) !== String(attempt.recipient_id);

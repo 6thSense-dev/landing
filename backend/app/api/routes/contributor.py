@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import DBAPIError
 from app.core.contributor_auth import contributor_identity, REGIONS
 from app.core.db import get_session
 from app.core.ops_ledger import footage_ledger
@@ -196,19 +197,60 @@ async def bank_status(account, db):
         summary, status = json.loads(attempt.summary), attempt.status
     else:
         return None
-    return {**{k: summary[k] for k in ("accountHolderName", "bankLabel", "maskedAccount", "currency") if k in summary}, "status": status}
+    return {**{k: summary[k] for k in ("accountHolderName", "bankLabel", "maskedAccount", "currency", "submissionId", "submittedAt") if k in summary}, "status": status}
+
+
+async def bank_account(identity, db):
+    # Bank registration must not wait for the global footage scanner. Lock only
+    # this wearer: account deletion updates this same row before it commits.
+    await db.execute(text("SET LOCAL lock_timeout = '2s'"))
+    account = await db.get(ContributorAccount, identity["subject"])
+    if not account:
+        raise HTTPException(409, "enrollment_required")
+    try:
+        wearer = (await db.execute(select(Wearer).where(
+            Wearer.id == account.wearer_id).with_for_update())).scalar_one_or_none()
+    except DBAPIError:
+        await db.rollback()
+        raise HTTPException(503, "payment_sheet_unavailable") from None
+    if await db.get(ContributorDeletion, identity["subject"]):
+        raise HTTPException(403, "account_deletion_pending")
+    if not wearer or not wearer.is_active or account.routing_version != identity["region"]["routing_version"]:
+        raise HTTPException(403, "enrollment_inactive")
+    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
+        raise HTTPException(409, "consent_required")
+    return account, wearer
+
+
+async def remember_sheet_receipt(account, receipt, db, consent=None):
+    existing = await db.get(ContributorRecipientAttempt, receipt["submissionId"])
+    if existing and existing.subject != account.subject:
+        raise HTTPException(409, "operation_conflict")
+    if not existing:
+        summary = {**receipt, "country": "KR", "currency": "KRW"}
+        if consent:
+            summary["payment_consent"] = consent
+        db.add(ContributorRecipientAttempt(id=receipt["submissionId"], subject=account.subject,
+            summary=json.dumps(summary, ensure_ascii=False), status="sheet_saved"))
+        await db.commit()
+    return receipt
 
 
 @router.get("/bank/setup")
 async def bank_setup(identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
-    account = await account_for(identity, db)
-    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
-        raise HTTPException(409, "consent_required")
+    account, _ = await bank_account(identity, db)
     from app.core.payment_notice import public_notice
-    # This notice covers individual Korean recipients. Other routes retain their
-    # existing mobile flow until a suitable localized notice is published.
+    from app.core.payment_sheet import PaymentSheetClient, PaymentSheetError
     country = identity["region"]["country"]
-    return {"country": country, "bank": await bank_status(account, db),
+    bank = await bank_status(account, db)
+    if country == "KR" and bank is None:
+        try:
+            bank = await asyncio.to_thread(PaymentSheetClient().lookup, account.wearer_id)
+        except PaymentSheetError:
+            raise HTTPException(503, "payment_sheet_unavailable") from None
+        if bank:
+            await remember_sheet_receipt(account, bank, db)
+    return {"country": country, "bank": bank,
             "notice": public_notice() if country == "KR" else None}
 
 
@@ -234,80 +276,50 @@ class WebBankIn(BankIn):
 
 @router.post("/bank/web/requirements")
 async def web_bank_requirements(body: WebBankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
-    body.receipt(identity)  # Consent precedes even provider validation calls.
-    return await bank_requirements(body, identity, db)
+    body.receipt(identity)
+    await bank_account(identity, db)
+    from app.core.payment_sheet import requirements
+    return requirements()
 
 
 @router.post("/bank/web")
 async def web_save_bank(body: WebBankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
-    receipt = body.receipt(identity)
-    return await _save_bank(body, identity, db, receipt)
+    consent = body.receipt(identity)
+    account, wearer = await bank_account(identity, db)
+    from app.core.payment_sheet import PaymentSheetClient, PaymentSheetError, clean_values
+    from uuid import UUID
+    try:
+        UUID(body.operation_id or "")
+    except ValueError:
+        raise HTTPException(422, "bank_confirmation_required") from None
+    existing = await bank_status(account, db)
+    if existing:
+        return existing
+    operation = await db.get(ContributorRecipientAttempt, body.operation_id)
+    if operation:
+        raise HTTPException(409, "operation_conflict")
+    values, issues = clean_values(body.values)
+    if issues:
+        raise HTTPException(422, {"code": "invalid_bank_fields", "fields": issues})
+    try:
+        receipt = await asyncio.to_thread(PaymentSheetClient().submit, account.wearer_id,
+            wearer.name, body.operation_id, values, consent)
+    except PaymentSheetError:
+        # The Sheet may have saved before a response was lost. No success is
+        # claimed; lookup and retries recover its one row per contributor.
+        raise HTTPException(503, "payment_sheet_unavailable") from None
+    return await remember_sheet_receipt(account, receipt, db, consent)
 
 
 @router.post("/bank/requirements")
-async def bank_requirements(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
-    account = await account_for(identity, db)
-    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
-        raise HTTPException(409, "consent_required")
-    from app.core.contributor_wise import RecipientClient, ROUTES
-    country = identity["region"]["country"]
-    if country not in ROUTES:
-        raise HTTPException(409, "payout_region_unavailable")
-    values = BankIn.clean(body.values)
-    try:
-        return await asyncio.to_thread(RecipientClient().requirements, country, values)
-    except Exception:
-        raise HTTPException(503, "bank_requirements_unavailable") from None
+async def bank_requirements(body: BankIn, identity=Depends(contributor_identity)):
+    raise HTTPException(410, "use_website_bank_registration")
+
 
 @router.post("/bank")
-async def save_bank(body: BankIn, identity=Depends(contributor_identity), db: AsyncSession = Depends(get_session)):
-    return await _save_bank(body, identity, db)
-
-
-async def _save_bank(body, identity, db, consent_receipt=None):
-    account = await account_for(identity, db)
-    if not await has_consent(account, identity["region"], db, verified_phone=identity.get("verified_phone")):
-        raise HTTPException(409, "consent_required")
-    from app.core.contributor_wise import RecipientClient, ROUTES, validate
-    country = identity["region"]["country"]
-    if country not in ROUTES or not body.owns_account or not body.shares_details or not body.operation_id:
-        raise HTTPException(422, "bank_confirmation_required")
-    values = BankIn.clean(body.values)
-    # Lock and commit a durable attempt BEFORE any non-idempotent provider write.
-    # Unknown outcomes remain held for an operator; retries never POST again.
-    await db.execute(text("SELECT pg_advisory_xact_lock(61306133)"))
-    if await db.get(PayoutRecipient, account.wearer_id):
-        return {"status": "ready"}
-    existing = (await db.execute(select(ContributorRecipientAttempt).where(ContributorRecipientAttempt.subject == account.subject, ContributorRecipientAttempt.status != "retry_allowed"))).scalars().first()
-    if existing:
-        return {"status": existing.status}
-    if await db.get(ContributorRecipientAttempt, body.operation_id):
-        raise HTTPException(409, "operation_conflict")
-    try:
-        client = RecipientClient()
-        requirements = await asyncio.to_thread(client.requirements, country, values)
-        issues = validate(requirements, values)
-    except Exception:
-        raise HTTPException(503, "bank_requirements_unavailable") from None
-    if issues:
-        raise HTTPException(422, {"code": "invalid_bank_fields", "fields": issues})
-    bank_field = next((f for f in requirements["fields"] if f["key"] == "bankCode"), {})
-    summary = {"country": country, "currency": ROUTES[country][0], "accountHolderName": values["accountHolderName"], "bankLabel": next((v["label"] for v in bank_field.get("options", []) if v["value"] == values.get("bankCode")), values.get("ifscCode", "")), "maskedAccount": "•••• " + values["accountNumber"][-4:]}
-    if consent_receipt:
-        summary["payment_consent"] = consent_receipt
-    attempt = ContributorRecipientAttempt(id=body.operation_id, subject=account.subject, summary=json.dumps(summary), status="submitting")
-    db.add(attempt)
-    await db.commit()
-    try:
-        result = await asyncio.to_thread(client.create, country, values)
-        if not isinstance(result.get("id"), int) or result["id"] <= 0:
-            raise ValueError()
-        attempt.recipient_id = str(result["id"])
-        attempt.status = "needs_review"
-    except Exception:
-        attempt.status = "needs_reconciliation"
-    await db.commit()
-    return {"status": attempt.status}
+async def save_bank(body: BankIn, identity=Depends(contributor_identity)):
+    # Older mobile builds cannot supply consent for spreadsheet storage.
+    raise HTTPException(410, "use_website_bank_registration")
 
 
 def deletion_status(row):

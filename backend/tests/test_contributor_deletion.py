@@ -9,6 +9,20 @@ from app.models import ContributorAccount, Wearer, OpsSetting
 
 PATH = '/api/contributor/account-deletion'
 
+@pytest.fixture(autouse=True)
+def payment_sheet_cleanup(monkeypatch):
+    from app.core import payment_sheet
+    class Fake:
+        calls=[]
+        fail=False
+        def delete(self, wearer_id):
+            self.calls.append(wearer_id)
+            if self.fail: raise payment_sheet.PaymentSheetError('payment_sheet_unavailable')
+    fake=Fake()
+    monkeypatch.setattr(payment_sheet, 'PaymentSheetClient', lambda:fake)
+    return fake
+
+
 async def test_before_enrollment_idempotent_and_receipt_private(app, db_session):
     identity(app)
     async with _client(app) as c:
@@ -151,7 +165,7 @@ async def test_pending_blocks_actions_and_operator_approvals(app, db_session):
         assert (await c.post(url,json={'physically_verified':True},**kwargs)).status_code==200
         assert (await c.post(PATH,json={'confirmed':True})).status_code==200
         for path,body in [('/enrollment',{'name':'new'}),('/cameras',{'device_id':'ABC124'}),('/bank',{}),('/bank/requirements',{})]:
-            assert (await c.post('/api/contributor'+path,json=body)).status_code==403
+            assert (await c.post('/api/contributor'+path,json=body)).status_code==(410 if path.startswith('/bank') else 403)
         assert (await c.post(url,json={'physically_verified':True},**kwargs)).status_code in (403,409)
         assert (await c.post('/api/ops/payments/recipient',json={'wearer_id':account.wearer_id,'recipient_id':123,'confirm_recipient':True},**kwargs)).status_code==403
         assert (await c.post('/api/ops/episodes/assigned/assign',json={'wearer_id':None},**kwargs)).status_code==403
@@ -316,3 +330,30 @@ async def test_retry_issuance_limit_preserves_receipts_and_recovers(app, db_sess
         blocked = await c.post(PATH, json={'confirmed': True})
         assert blocked.status_code == 429 and blocked.headers['retry-after'] == '84601'
         assert (await c.get(PATH+'/receipt', headers={'Authorization':'Bearer '+tokens[0]})).status_code == 200
+
+async def test_sheet_erasure_required_even_without_a_bank_receipt(app, db_session, monkeypatch, payment_sheet_cleanup):
+    from app.core import contributor_deletion
+    account=await setup(db_session);identity(app)
+    sid=await _sid(db_session,'ops');identity_deletes=[]
+    monkeypatch.setattr(contributor_deletion,'delete_cognito_user',lambda subject:identity_deletes.append(subject))
+    async with _client(app) as client:
+        request=(await client.post(PATH,json={'confirmed':True})).json()
+        url='/api/ops/contributors/deletions/'+request['request_id']+'/fulfill'
+        kwargs={'cookies':{'sid':sid},'headers':{'Origin':ORIGIN},'json':evidence()}
+        payment_sheet_cleanup.fail=True
+        result=await client.post(url,**kwargs)
+        assert result.status_code==503 and result.json()['detail']=='payment_sheet_deletion_retry_required'
+        assert identity_deletes==[]
+        assert (await client.get(PATH)).json()['status']!='completed'
+        payment_sheet_cleanup.fail=False
+        assert (await client.post(url,**kwargs)).json()['status']=='completed'
+        assert payment_sheet_cleanup.calls==[account.wearer_id,account.wearer_id]
+
+async def test_pending_deletion_rejects_sheet_registration(app, db_session):
+    from tests.test_contributor_mobile import accept
+    from tests.test_contributor_bank_web import body
+    await setup(db_session);await accept(db_session);identity(app)
+    async with _client(app) as client:
+        await client.post(PATH,json={'confirmed':True})
+        assert (await client.get('/api/contributor/bank/setup')).status_code==403
+        assert (await client.post('/api/contributor/bank/web',json=body())).status_code==403

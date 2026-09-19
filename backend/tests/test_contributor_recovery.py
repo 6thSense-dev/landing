@@ -146,37 +146,20 @@ async def test_recovery_requires_explicit_evidence_and_sanitizes_provider_failur
     assert await audit_for(db_session, attempt) is None
 
 
-async def test_confirmed_no_create_allows_one_new_submission(app, db_session, provider, monkeypatch):
+async def test_confirmed_no_create_allows_website_retry_but_never_legacy_wise_create(app, db_session, provider, monkeypatch):
     _, attempt = await held_attempt(db_session)
-    await accept(db_session)
-    identity(app)
+    await accept(db_session); identity(app)
     sid = await _sid(db_session, "ops")
     from app.core import contributor_wise
-    creates = []
-    class FakeRecipient:
-        def requirements(self, country, values):
-            return {"country": "KR", "currency": "KRW", "fields": [
-                {"key": key, "required": True, "minLength": None, "maxLength": None}
-                for key in ["accountHolderName", "accountNumber"]]}
-        def create(self, country, values):
-            creates.append(country)
-            return {"id": 456}
-    monkeypatch.setattr(contributor_wise, "RecipientClient", FakeRecipient)
-    body = {"operation_id": str(uuid4()), "owns_account": True, "shares_details": True,
-            "values": {"accountHolderName": "Test Person", "accountNumber": "001234567890"}}
+    def forbidden(): raise AssertionError("No new Wise recipient")
+    monkeypatch.setattr(contributor_wise, "RecipientClient", forbidden)
     async with _client(app) as client:
         response = await post(client, attempt, sid, not_created())
         assert response.status_code == 200 and response.json()["status"] == "retry_allowed"
         assert (await client.get("/api/contributor/dashboard")).json()["bank"] is None
-        assert (await client.post("/api/contributor/bank", json={**body, "operation_id": attempt.id})).status_code == 409
-        for _ in range(2):
-            response = await client.post("/api/contributor/bank", json=body)
-            assert response.status_code == 200, response.text
-            assert response.json()["status"] == "needs_review"
+        assert (await client.post("/api/contributor/bank", json={"values":{}})).status_code == 410
         assert (await post(client, attempt, sid, not_created())).status_code == 200
-    assert creates == ["KR"] and provider[1] == []
-    rows = (await db_session.execute(select(ContributorRecipientAttempt))).scalars().all()
-    assert len(rows) == 2
+    assert provider[1] == []
     assert json.loads((await audit_for(db_session, attempt)).value)["confirmed_not_created"]
 
 
