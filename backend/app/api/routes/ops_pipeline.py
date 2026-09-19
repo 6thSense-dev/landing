@@ -31,15 +31,25 @@ def authorize(authorization: str = Header(default='')):
 async def health(db=Depends(get_session)):
     """Small read-only summary for the scheduled pipeline health monitor."""
     from app.api.routes.ops import SCAN_KEY, _setting
+    from app.core.ops_accumulation import accumulated_data
+    from app.core.ops_raw import INVENTORY_KEY
     counts = (await db.execute(
         select(ProcessingJob.state, func.count())
         .join(Episode, Episode.recording == ProcessingJob.recording)
         .where(Episode.deleted_at.is_(None))
         .group_by(ProcessingJob.state)
     )).all()
+    episodes = (await db.execute(select(
+        Episode.recording, Episode.device_id, Episode.session, Episode.prefix,
+        Episode.wearer_id, Episode.duration_s, Episode.size_bytes, Episode.deleted_at,
+    ).where(Episode.deleted_at.is_(None)))).all()
+    snapshot = json.loads(await _setting(db, INVENTORY_KEY) or '{}')
+    inventory = snapshot.get('takes', {}) if snapshot.get('bucket') == get_settings().bucket else {}
+    accumulation = accumulated_data(episodes, await source_registry(db), inventory)
     return {'checked_at': datetime.now(timezone.utc).isoformat(),
             'last_raw_scan': await _setting(db, SCAN_KEY),
             'processing_counts': dict(counts),
+            'accumulated_data': accumulation,
             'automatic_scan': os.getenv('OPS_AUTOMATION_ENABLED') == 'true'}
 
 

@@ -73,6 +73,25 @@ def test_timestamp_age_handles_utc_and_future_clock_skew():
     assert monitor.age_seconds(None, 120) is None
 
 
+def test_country_totals_show_hours_episodes_upload_size_and_unknown_measurements():
+    india = dict(country='india', label='India', episodes=3, known_seconds=5400,
+                 unknown_duration_episodes=1, uploaded_bytes=2_500_000_000, unknown_size_episodes=1)
+    empty = dict(country='vietnam', label='Vietnam', episodes=0, known_seconds=0,
+                 unknown_duration_episodes=0, uploaded_bytes=0, unknown_size_episodes=0)
+    portal = {'accumulated_data': {'countries': [india, empty], 'totals': india}}
+    text = '\n'.join(monitor.accumulation_lines(portal))
+    assert 'India: 1.50 h known + 1 episodes with unknown duration · 3 episodes · 2.50 GB uploaded' in text
+    assert '1 episodes with unknown size' in text
+    assert 'Vietnam: 0.00 h · 0 episodes · 0.00 GB uploaded' in text
+    assert 'Total: 1.50 h known' in text
+    assert 'including processed and held episodes' in text
+    assert 'Deleted episodes excluded' in text
+
+
+def test_missing_country_summary_is_unavailable_instead_of_zero():
+    assert monitor.accumulation_lines({}) == ['Accumulated data by country: unavailable.']
+
+
 def test_disabled_configured_queue_and_expired_window_cannot_look_healthy():
     report = healthy()
     report['deadline_expired'] = True
@@ -97,7 +116,7 @@ def test_long_pre_running_wait_never_looks_healthy(phase):
     assert findings[0]['severity'] == 'warning'
 
 
-def slack_response(monkeypatch, body, status=200):
+def slack_response(monkeypatch, body, status=200, *, expected_timeout=15):
     requests = []
 
     class Response:
@@ -114,7 +133,7 @@ def slack_response(monkeypatch, body, status=200):
 
     def send(request, timeout):
         requests.append(request)
-        assert timeout == 15
+        assert timeout == expected_timeout
         return Response()
 
     monkeypatch.setattr(monitor.urllib.request, 'urlopen', send)
@@ -216,7 +235,10 @@ def test_handler_persists_failed_delivery_without_exposing_credentials(monkeypat
     clients['s3'].get_object.side_effect = read_object
     clients['batch'].get_paginator.return_value.paginate.return_value = [{'jobQueues': [], 'computeEnvironments': []}]
     clients['secretsmanager'].get_secret_value.return_value = {'SecretString': 'fake-secret-must-not-appear'}
-    slack_response(monkeypatch, json.dumps({'last_raw_scan': now.isoformat(), 'automatic_scan': True}).encode())
+    country = dict(country='india', label='India', episodes=3, known_seconds=5400,
+                   unknown_duration_episodes=0, uploaded_bytes=2_500_000_000, unknown_size_episodes=0)
+    slack_response(monkeypatch, json.dumps({'last_raw_scan': now.isoformat(), 'automatic_scan': True,
+        'accumulated_data': {'countries': [country], 'totals': country}}).encode(), expected_timeout=20)
     sender = MagicMock(side_effect=RuntimeError('fake-secret-must-not-appear'))
     monkeypatch.setattr(monitor, 'send_slack', sender)
     result = monitor.handler({}, None)
@@ -232,6 +254,9 @@ def test_handler_persists_failed_delivery_without_exposing_credentials(monkeypat
         sender.assert_not_called()
     else:
         assert sender.call_args.kwargs == {'bot': True}
+        assert 'India: 1.50 h · 3 episodes · 2.50 GB uploaded' in sender.call_args.args[0]
+        assert 'Total: 1.50 h · 3 episodes · 2.50 GB uploaded' in sender.call_args.args[0]
+        assert reports[0]['portal']['accumulated_data']['totals']['episodes'] == 3
 
 
 def test_deploy_grants_only_selected_slack_secret_and_preserves_other_environment(monkeypatch):
