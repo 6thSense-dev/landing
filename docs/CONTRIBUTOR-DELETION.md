@@ -81,7 +81,15 @@ The date above is a payload example, not a retention policy. Evidence is recorde
 once and is immutable across retries. The operator is attesting verified cleanup;
 accepting text is not an automated check of external evidence.
 
-The service durably records processing, calls Cognito `AdminDeleteUser` using the
+The service durably records processing. For an enrolled contributor, it first
+removes their **Bank details** spreadsheet rows and records a contributor-ID
+tombstone that prevents delayed submissions from recreating them, even when no
+masked database receipt exists. A bridge failure returns HTTP `503` with
+`payment_sheet_deletion_retry_required`; processing remains retryable and Cognito
+deletion has not run. See the [bank spreadsheet guide](contributors/bank-spreadsheet.md)
+for configuration and the separate handling of retained settlement evidence.
+
+After spreadsheet cleanup, the service calls Cognito `AdminDeleteUser` using the
 configured contributor pool and subject, then scrubs the profile and bank summaries
 and removes the active payout-recipient link. `UserNotFoundException` is idempotent
 success; other failures remain `processing` with `retry_required`, sanitized error
