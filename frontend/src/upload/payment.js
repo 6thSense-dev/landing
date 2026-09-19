@@ -2,6 +2,15 @@ import { contributorSession } from './auth.js';
 
 const API = import.meta.env.VITE_API_URL ?? '';
 
+// Common Korean institutions; unlisted banks remain available through manual entry.
+// Names checked against https://openapi.kftc.or.kr/service/openBanking and https://imbank.co.kr/.
+export const koreanBanks = [
+  'KB국민은행', '신한은행', '우리은행', '하나은행', 'NH농협은행', 'IBK기업은행',
+  '카카오뱅크', '토스뱅크', '케이뱅크', 'SC제일은행', '한국씨티은행', 'KDB산업은행',
+  'Sh수협은행', 'iM뱅크', 'BNK부산은행', 'BNK경남은행', '광주은행', '전북은행',
+  '제주은행', '우체국', '새마을금고', '신협', '지역농축협', '지역수협', '산림조합',
+];
+
 // A user may retry a save: the spreadsheet deduplicates by authenticated contributor.
 // Refresh recovers the receipt if the previous response was lost.
 export async function paymentApi(path, body, signal) {
@@ -33,7 +42,8 @@ export const paymentCopy = {
     add: 'Add bank details', loading: 'Loading payment details…', continue: 'Continue to bank details',
     cancel: 'Cancel', save: 'Save bank details', saving: 'Saving…', refresh: 'Check saved status',
     optional: 'optional', back: 'Back to consent',
-    hint: 'Enter the account holder name as it appears at your bank, your bank name and your Korean account number.',
+    hint: 'Enter the account holder name as it appears at your bank and your Korean account number. Select your bank, or choose Other to enter its name.',
+    selectBank: 'Select your bank', otherBank: 'Other — enter bank name', customBank: 'Other bank name',
     pending: 'Details received — awaiting review', ready: 'Payment account verified', saved: 'Bank details saved',
     checking: 'Save not confirmed', checkingHint: 'We could not confirm the save. Your entries are still here. Check the saved status or submit again; retrying will not create a duplicate.',
     legacyHint: 'Staff need to review your earlier submission. Contact alex@6thsense.dev.',
@@ -53,7 +63,8 @@ export const paymentCopy = {
     add: '계좌 등록하기', loading: '지급정보를 불러오는 중…', continue: '계좌정보 입력하기',
     cancel: '취소', save: '계좌정보 저장하기', saving: '저장 중…', refresh: '저장 상태 확인',
     optional: '선택', back: '동의 화면으로',
-    hint: '은행에 등록된 예금주명, 은행명, 본인 명의 한국 계좌번호를 입력해 주세요.',
+    hint: '은행에 등록된 예금주명과 본인 명의 한국 계좌번호를 입력해 주세요. 은행을 선택하고, 목록에 없으면 직접 입력해 주세요.',
+    selectBank: '은행을 선택해 주세요', otherBank: '기타 은행 직접 입력', customBank: '은행명 직접 입력',
     pending: '접수 완료 · 확인 대기', ready: '지급 계좌 확인 완료', saved: '계좌정보 저장 완료',
     checking: '저장 여부를 확인하지 못했어요', checkingHint: '입력 내용은 이 화면에 남아 있어요. 저장 상태를 확인하거나 다시 제출해 주세요. 다시 제출해도 중복으로 등록되지 않아요.',
     legacyHint: '이전 제출 건에 대한 담당자 확인이 필요해요. alex@6thsense.dev로 문의해 주세요.',

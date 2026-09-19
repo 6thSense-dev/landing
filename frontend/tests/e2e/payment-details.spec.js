@@ -33,7 +33,7 @@ async function enter(page) {
   for(const label of Object.values(choices)) await page.getByRole('checkbox',{name:label,exact:true}).check();
   await page.getByRole('button',{name:'Continue to bank details',exact:true}).click();
   await page.getByLabel('Account holder name',{exact:true}).fill('테스트');
-  await page.getByLabel('Bank name',{exact:true}).fill('신한은행');
+  await page.getByLabel('Bank name',{exact:true}).selectOption('신한은행');
   await page.getByLabel('Account number',{exact:true}).fill('001234567890');
 }
 test('saves three fields with consent and shows the masked receipt before camera approval',async({page})=>{
@@ -69,7 +69,42 @@ test('changing language keeps all entered details',async({page})=>{
   await mock(page);await enter(page);
   await page.getByRole('button',{name:'한국어',exact:true}).click();
   await expect(page.getByLabel('예금주명',{exact:true})).toHaveValue('테스트');
+  await expect(page.getByRole('combobox',{name:'은행명',exact:true})).toHaveValue('신한은행');
   await expect(page.getByLabel('계좌번호',{exact:true})).toHaveValue('001234567890');
   await page.getByRole('button',{name:'계좌정보 저장하기',exact:true}).click();
   await expect(page.getByText('계좌정보 저장 완료',{exact:true})).toBeVisible();
+});
+test('an unlisted bank requires its name and preserves it through language changes and retries',async({page})=>{
+  const state=await mock(page);state.fail=true;await enter(page);
+  await page.getByRole('combobox',{name:'Bank name',exact:true}).selectOption('other');
+  await page.getByRole('button',{name:'Save bank details',exact:true}).click();
+  expect(state.writes).toHaveLength(0);
+  await page.getByLabel('Other bank name',{exact:true}).fill('테스트저축은행');
+  await page.getByRole('button',{name:'한국어',exact:true}).click();
+  await expect(page.getByRole('combobox',{name:'은행명',exact:true})).toHaveValue('other');
+  await expect(page.getByLabel('은행명 직접 입력',{exact:true})).toHaveValue('테스트저축은행');
+  await page.getByRole('button',{name:'계좌정보 저장하기',exact:true}).click();
+  await expect(page.getByText('저장 여부를 확인하지 못했어요',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'저장 상태 확인',exact:true}).click();
+  await expect(page.getByLabel('은행명 직접 입력',{exact:true})).toHaveValue('테스트저축은행');
+  state.fail=false;
+  await page.getByRole('button',{name:'계좌정보 저장하기',exact:true}).click();
+  await expect(page.getByText('계좌정보 저장 완료',{exact:true})).toBeVisible();
+  expect(state.writes.map(write=>write.values.bankName)).toEqual(['테스트저축은행','테스트저축은행']);
+  expect(state.writes[0].operation_id).toBe(state.writes[1].operation_id);
+});
+test('switching from a custom bank to a listed bank submits only the current selection',async({page})=>{
+  const state=await mock(page);await enter(page);
+  const bank=page.getByRole('combobox',{name:'Bank name',exact:true});
+  await bank.selectOption('other');
+  await page.getByLabel('Other bank name',{exact:true}).fill('테스트저축은행');
+  await bank.selectOption('카카오뱅크');
+  await expect(page.getByLabel('Other bank name',{exact:true})).toHaveCount(0);
+  await bank.selectOption('other');
+  await expect(page.getByLabel('Other bank name',{exact:true})).toHaveValue('테스트저축은행');
+  await bank.selectOption('카카오뱅크');
+  await page.getByRole('button',{name:'Save bank details',exact:true}).click();
+  await expect(page.getByText('테스트 · 카카오뱅크 · •••• 7890',{exact:true})).toBeVisible();
+  expect(state.writes[0].values.bankName).toBe('카카오뱅크');
+  expect(Object.keys(state.writes[0].values).sort()).toEqual(['accountHolderName','accountNumber','bankName']);
 });

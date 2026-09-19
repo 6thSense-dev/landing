@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Landmark } from 'lucide-react';
-import { paymentApi, paymentCopy } from './payment.js';
+import { koreanBanks, paymentApi, paymentCopy } from './payment.js';
 
 export default function PaymentDetails({ locale }) {
   const t = paymentCopy[locale];
   const [setup, setSetup] = useState(null), [phase, setPhase] = useState('closed');
   const [choices, setChoices] = useState({}), [requirements, setRequirements] = useState(null);
   const [values, setValues] = useState({}), [busy, setBusy] = useState(false);
+  const [bankOption, setBankOption] = useState(''), [customBank, setCustomBank] = useState('');
   const [error, setError] = useState(''), [invalid, setInvalid] = useState([]), [uncertain, setUncertain] = useState(false);
   const lifetime = useRef(null), locked = useRef(false), operation = useRef(crypto.randomUUID());
   const notice = setup?.notice, localized = notice?.locales[locale], bank = setup?.bank;
@@ -24,7 +25,11 @@ export default function PaymentDetails({ locale }) {
     return () => abort.abort();
   }, []);
 
-  const clear = () => { setValues({}); setRequirements(null); setChoices({}); setPhase('closed'); setInvalid([]); setUncertain(false); };
+  const clear = () => { setValues({}); setBankOption(''); setCustomBank(''); setRequirements(null); setChoices({}); setPhase('closed'); setInvalid([]); setUncertain(false); };
+  const changeValue = (key, value) => {
+    setValues(current => ({ ...current, [key]: value }));
+    setInvalid(current => current.filter(invalidKey => invalidKey !== key));
+  };
   const run = async action => {
     if (locked.current) return;
     locked.current = true; setBusy(true); setError('');
@@ -92,9 +97,24 @@ export default function PaymentDetails({ locale }) {
       <fieldset disabled={busy} className="upload-payment-fields"><legend>{t.title}</legend>{requirements.fields.map(field => {
         const id = `bank-${field.key}`, isInvalid = invalid.includes(field.key);
         return <div key={field.key}><label htmlFor={id}>{t.fields[field.key] || field.key}</label>
-          <input id={id} name={field.key} required={field.required} value={values[field.key] || ''} onChange={e => { setValues({ ...values, [field.key]: e.target.value }); setInvalid(current => current.filter(key => key !== field.key)); }}
+          {field.key === 'bankName' ? <>
+            <select id={id} name="bankSelection" required={field.required} value={bankOption}
+              aria-invalid={isInvalid} aria-describedby={isInvalid ? `${id}-error` : undefined}
+              onChange={e => { setBankOption(e.target.value); changeValue('bankName', e.target.value === 'other' ? customBank : e.target.value); }}>
+              <option value="" disabled>{t.selectBank}</option>
+              {koreanBanks.map(name => <option key={name} value={name}>{name}</option>)}
+              <option value="other">{t.otherBank}</option>
+            </select>
+            {bankOption === 'other' && <div className="upload-payment-custom-bank">
+              <label htmlFor={`${id}-other`}>{t.customBank}</label>
+              <input id={`${id}-other`} name="bankName" type="text" required={field.required} value={customBank}
+                onChange={e => { setCustomBank(e.target.value); changeValue('bankName', e.target.value); }}
+                aria-invalid={isInvalid} aria-describedby={isInvalid ? `${id}-error` : undefined}
+                minLength={field.minLength || undefined} maxLength={field.maxLength || 100} autoComplete="off" spellCheck={false} />
+            </div>}
+          </> : <input id={id} name={field.key} required={field.required} value={values[field.key] || ''} onChange={e => changeValue(field.key, e.target.value)}
             aria-invalid={isInvalid} aria-describedby={isInvalid ? `${id}-error` : undefined}
-            type="text" inputMode={field.key === 'accountNumber' ? 'numeric' : undefined} minLength={field.minLength || undefined} maxLength={field.maxLength || 100} autoComplete="off" spellCheck={false} />
+            type="text" inputMode={field.key === 'accountNumber' ? 'numeric' : undefined} minLength={field.minLength || undefined} maxLength={field.maxLength || 100} autoComplete="off" spellCheck={false} />}
           {isInvalid && <span className="upload-payment-field-error" id={`${id}-error`}>{t.fieldError}</span>}
         </div>;
       })}</fieldset>
