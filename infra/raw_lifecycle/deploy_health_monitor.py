@@ -12,12 +12,32 @@ import boto3
 ACCOUNT = '194680606079'
 REGION = 'us-west-2'
 NAME = 'sixthsense-raw-lifecycle-v1-health'
+SLACK_KEYS = ('SLACK_BOT_SECRET_ARN', 'SLACK_WEBHOOK_SECRET_ARN')
+
+
+def notification_environment(requested, existing):
+    """Preserve the current destination unless a replacement is explicitly supplied."""
+    slack = {k: requested[k] for k in SLACK_KEYS if requested.get(k)}
+    if not slack:
+        slack = {k: existing[k] for k in SLACK_KEYS if existing.get(k)}
+    if len(slack) > 1:
+        raise ValueError('Configure only one Slack delivery method')
+    for arn in slack.values():
+        if not arn.startswith(f'arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:'):
+            raise ValueError('Slack secret must belong to the monitor account and region')
+    return {**{k: v for k, v in existing.items() if k not in SLACK_KEYS}, **slack}
 
 
 def deploy():
     session = boto3.Session(region_name=REGION)
     assert session.client('sts').get_caller_identity()['Account'] == ACCOUNT, 'Wrong AWS account'
     iam, lam, events, s3, cw = [session.client(service) for service in ('iam', 'lambda', 'events', 's3', 'cloudwatch')]
+    try:
+        existing = lam.get_function_configuration(FunctionName=NAME).get('Environment', {}).get('Variables', {})
+    except lam.exceptions.ResourceNotFoundException:
+        existing = {}
+    environment = notification_environment(os.environ, existing)
+    slack_secret = next((environment[k] for k in SLACK_KEYS if environment.get(k)), None)
     logs = session.client('logs')
     try:
         logs.create_log_group(logGroupName='/aws/lambda/' + NAME)
@@ -42,14 +62,7 @@ def deploy():
         {'Effect': 'Allow', 'Action': ['logs:CreateLogStream', 'logs:PutLogEvents'], 'Resource': f'arn:aws:logs:{REGION}:{ACCOUNT}:log-group:/aws/lambda/{NAME}:*'},
         {'Effect': 'Allow', 'Action': 'cloudwatch:PutMetricData', 'Resource': '*', 'Condition': {'StringEquals': {'cloudwatch:namespace': 'SixthSense/RawPipeline'}}},
     ]
-    slack_secret = os.getenv('SLACK_WEBHOOK_SECRET_ARN')
-    if not slack_secret:
-        try:
-            slack_secret = lam.get_function_configuration(FunctionName=NAME).get('Environment', {}).get('Variables', {}).get('SLACK_WEBHOOK_SECRET_ARN')
-        except lam.exceptions.ResourceNotFoundException:
-            pass
     if slack_secret:
-        assert slack_secret.startswith(f'arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:')
         statements.append({'Effect': 'Allow', 'Action': 'secretsmanager:GetSecretValue', 'Resource': slack_secret})
     iam.put_role_policy(RoleName=NAME, PolicyName='ReadOnlyPipelineChecks', PolicyDocument=json.dumps({'Version': '2012-10-17', 'Statement': statements}))
     source = Path(__file__).with_name('health_monitor.py').read_bytes()
@@ -57,8 +70,7 @@ def deploy():
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as z:
         z.writestr('health_monitor.py', source)
     args = dict(FunctionName=NAME, Runtime='python3.12', Role=role, Handler='health_monitor.handler', Timeout=240, MemorySize=256)
-    if slack_secret:
-        args['Environment'] = {'Variables': {'SLACK_WEBHOOK_SECRET_ARN': slack_secret}}
+    args['Environment'] = {'Variables': environment}
     try:
         lam.get_function(FunctionName=NAME)
     except lam.exceptions.ResourceNotFoundException:

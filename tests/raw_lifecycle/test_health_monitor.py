@@ -1,6 +1,10 @@
 import copy
 import importlib.util
+import io
+import json
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -91,3 +95,166 @@ def test_long_pre_running_wait_never_looks_healthy(phase):
     assert len(findings) == 1
     assert findings[0]['code'] == ('job_start_delayed' if phase == 'STARTING' else 'job_admission_delayed')
     assert findings[0]['severity'] == 'warning'
+
+
+def slack_response(monkeypatch, body, status=200):
+    requests = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def read(self, limit):
+            return body[:limit]
+
+    Response.status = status
+
+    def send(request, timeout):
+        requests.append(request)
+        assert timeout == 15
+        return Response()
+
+    monkeypatch.setattr(monitor.urllib.request, 'urlopen', send)
+    return requests
+
+
+def bot_secret(channel='C123ABC'):
+    return json.dumps({'bot_token': 'xoxb-test-only', 'channel_id': channel})
+
+
+def test_bot_delivery_targets_configured_channel_and_keeps_token_out_of_report(monkeypatch):
+    requests = slack_response(monkeypatch, b'{"ok":true,"channel":"C123ABC","ts":"123.456"}')
+    result = monitor.send_slack('Pipeline report', bot_secret(), bot=True)
+    assert result == {'delivered': True, 'method': 'bot', 'channel_id': 'C123ABC', 'message_ts': '123.456'}
+    request = requests[0]
+    assert request.full_url == 'https://slack.com/api/chat.postMessage'
+    assert request.get_header('Authorization') == 'Bearer xoxb-test-only'
+    assert json.loads(request.data) == {'text': 'Pipeline report', 'channel': 'C123ABC', 'unfurl_links': False, 'unfurl_media': False}
+    assert 'xoxb-' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('body,status', [
+    (b'{"ok":false,"error":"not_in_channel"}', 200),
+    (b'{"ok":true,"channel":"COTHER","ts":"123.456"}', 200),
+    (b'{"ok":true,"channel":"C123ABC"}', 200),
+    (b'{}', 429),
+])
+def test_slack_http_success_alone_does_not_confirm_delivery(monkeypatch, body, status):
+    slack_response(monkeypatch, body, status)
+    with pytest.raises(ValueError, match='Slack did not acknowledge'):
+        monitor.send_slack('Pipeline report', bot_secret(), bot=True)
+
+
+@pytest.mark.parametrize('credential', [
+    '[]', '{}', bot_secret('D123ABC'), bot_secret('#dataops'),
+    '{"bot_token":"xoxp-user-token","channel_id":"C123ABC"}',
+])
+def test_invalid_bot_configuration_never_sends_a_request(monkeypatch, credential):
+    requests = slack_response(monkeypatch, b'{}')
+    with pytest.raises(ValueError):
+        monitor.send_slack('Pipeline report', credential, bot=True)
+    assert requests == []
+
+
+def test_existing_incoming_webhook_delivery_still_requires_acknowledgement(monkeypatch):
+    requests = slack_response(monkeypatch, b'ok')
+    result = monitor.send_slack('Pipeline report', 'https://hooks.slack.com/services/test-only')
+    assert result == {'delivered': True, 'method': 'webhook'}
+    assert requests[0].get_header('Authorization') is None
+    slack_response(monkeypatch, b'invalid_token')
+    with pytest.raises(ValueError):
+        monitor.send_slack('Pipeline report', 'https://hooks.slack.com/services/test-only')
+
+
+deploy_spec = importlib.util.spec_from_file_location('deploy_health_monitor', Path(__file__).parents[2] / 'infra/raw_lifecycle/deploy_health_monitor.py')
+deployment = importlib.util.module_from_spec(deploy_spec)
+deploy_spec.loader.exec_module(deployment)
+SECRET_ARN = 'arn:aws:secretsmanager:us-west-2:194680606079:secret:slack-test'
+
+
+@pytest.mark.parametrize('key', deployment.SLACK_KEYS)
+def test_redeploy_preserves_slack_destination_and_unrelated_environment(key):
+    existing = {key: SECRET_ARN, 'LOG_LEVEL': 'INFO'}
+    assert deployment.notification_environment({}, existing) == existing
+
+
+def test_explicit_bot_configuration_replaces_webhook_without_retaining_old_permission():
+    assert deployment.notification_environment(
+        {'SLACK_BOT_SECRET_ARN': SECRET_ARN},
+        {'SLACK_WEBHOOK_SECRET_ARN': SECRET_ARN + '-old', 'LOG_LEVEL': 'INFO'},
+    ) == {'SLACK_BOT_SECRET_ARN': SECRET_ARN, 'LOG_LEVEL': 'INFO'}
+
+
+@pytest.mark.parametrize('requested,existing', [
+    ({key: SECRET_ARN for key in deployment.SLACK_KEYS}, {}),
+    ({}, {key: SECRET_ARN for key in deployment.SLACK_KEYS}),
+    ({'SLACK_BOT_SECRET_ARN': SECRET_ARN.replace('us-west-2', 'us-east-1')}, {}),
+])
+def test_ambiguous_or_wrong_region_delivery_configuration_is_rejected(requested, existing):
+    with pytest.raises(ValueError):
+        deployment.notification_environment(requested, existing)
+
+
+@pytest.mark.parametrize('conflicting', [False, True])
+def test_handler_persists_failed_delivery_without_exposing_credentials(monkeypatch, capsys, conflicting):
+    monkeypatch.setenv('SLACK_BOT_SECRET_ARN', SECRET_ARN)
+    monkeypatch.delenv('SLACK_WEBHOOK_SECRET_ARN', raising=False)
+    if conflicting:
+        monkeypatch.setenv('SLACK_WEBHOOK_SECRET_ARN', SECRET_ARN + '-old')
+    clients = {name: MagicMock() for name in ['s3', 'batch', 'logs', 'secretsmanager', 'cloudwatch']}
+    monkeypatch.setattr(monitor.boto3, 'client', lambda name, **kwargs: clients[name])
+    now = datetime.now(timezone.utc)
+
+    def read_object(Bucket, Key):
+        value = {'enabled': True, 'completion_policy': 'until_idle', 'api_url': 'https://example.invalid', 'token_secret': 'pipeline-token'} if Key.endswith('config.json') else {}
+        body = json.dumps(value).encode()
+        return {'Body': io.BytesIO(body), 'ContentLength': len(body), 'LastModified': now}
+
+    clients['s3'].get_object.side_effect = read_object
+    clients['batch'].get_paginator.return_value.paginate.return_value = [{'jobQueues': [], 'computeEnvironments': []}]
+    clients['secretsmanager'].get_secret_value.return_value = {'SecretString': 'fake-secret-must-not-appear'}
+    slack_response(monkeypatch, json.dumps({'last_raw_scan': now.isoformat(), 'automatic_scan': True}).encode())
+    sender = MagicMock(side_effect=RuntimeError('fake-secret-must-not-appear'))
+    monkeypatch.setattr(monitor, 'send_slack', sender)
+    result = monitor.handler({}, None)
+    reports = [json.loads(call.kwargs['Body']) for call in clients['s3'].put_object.call_args_list]
+    assert len(reports) == 2
+    assert result['status'] == 'critical'
+    for report in reports:
+        assert report['slack']['delivered'] is False
+        assert report['check_errors']['slack_delivery'] == ('ValueError' if conflicting else 'RuntimeError')
+        assert any(f['code'] == 'check_failed' and f['severity'] == 'critical' and 'slack_delivery' in f['detail'] for f in report['findings'])
+    assert 'fake-secret-must-not-appear' not in json.dumps(reports) + capsys.readouterr().out
+    if conflicting:
+        sender.assert_not_called()
+    else:
+        assert sender.call_args.kwargs == {'bot': True}
+
+
+def test_deploy_grants_only_selected_slack_secret_and_preserves_other_environment(monkeypatch):
+    monkeypatch.setenv('SLACK_BOT_SECRET_ARN', SECRET_ARN)
+    monkeypatch.delenv('SLACK_WEBHOOK_SECRET_ARN', raising=False)
+    clients = {name: MagicMock() for name in ['sts', 'iam', 'lambda', 'events', 's3', 'cloudwatch', 'logs', 'secretsmanager']}
+    session = MagicMock()
+    session.client.side_effect = lambda name: clients[name]
+    monkeypatch.setattr(deployment.boto3, 'Session', lambda **kwargs: session)
+    clients['sts'].get_caller_identity.return_value = {'Account': deployment.ACCOUNT}
+    clients['lambda'].get_function_configuration.return_value = {
+        'FunctionArn': 'arn:aws:lambda:us-west-2:194680606079:function:health-test',
+        'Environment': {'Variables': {'SLACK_WEBHOOK_SECRET_ARN': SECRET_ARN + '-old', 'LOG_LEVEL': 'INFO'}},
+    }
+    clients['s3'].get_object.return_value = {'Body': io.BytesIO(b'{"token_secret":"pipeline-token"}')}
+    clients['secretsmanager'].describe_secret.return_value = {'ARN': SECRET_ARN + '-pipeline'}
+    clients['iam'].create_role.return_value = {'Role': {'Arn': 'arn:aws:iam::194680606079:role/health-test'}}
+    clients['events'].put_rule.return_value = {'RuleArn': 'arn:aws:events:us-west-2:194680606079:rule/health-test'}
+    clients['events'].put_targets.return_value = {'FailedEntryCount': 0}
+    deployment.deploy()
+    policy = json.loads(clients['iam'].put_role_policy.call_args.kwargs['PolicyDocument'])
+    secret_resources = {s['Resource'] for s in policy['Statement'] if s['Action'] == 'secretsmanager:GetSecretValue'}
+    assert secret_resources == {SECRET_ARN, SECRET_ARN + '-pipeline'}
+    assert clients['lambda'].update_function_configuration.call_args.kwargs['Environment']['Variables'] == {
+        'SLACK_BOT_SECRET_ARN': SECRET_ARN, 'LOG_LEVEL': 'INFO',
+    }

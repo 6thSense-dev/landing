@@ -73,7 +73,18 @@ CloudWatch namespace `SixthSense/RawPipeline` receives `HealthCheckSucceeded` an
 
 The runtime IAM role can describe/list Batch state, read only the configured S3 config/status objects, read worker logs and the named pipeline token secret, and write only health reports, its own logs and metrics in that namespace. It has no Batch mutation or media-write/delete permission. The deployment identity separately needs the permissions to provision the monitor resources.
 
-Optional Slack delivery uses a Secrets Manager `SecretString` containing an incoming webhook for the selected channel. Set `SLACK_WEBHOOK_SECRET_ARN` to that secret's ARN when running the deployment script; it grants access to that exact secret and preserves an existing configured ARN on later deployments. The webhook URL must stay in Secrets Manager. Every check posts a summary when configured, and delivery is confirmed only by the report's `slack.delivered: true`; notification failures become critical findings. As of the September 19 release, `#dataops` is the selected destination, but Slack delivery remains unconfigured pending its webhook credentials. AWS reports and alarms do not establish Slack delivery.
+Optional Slack delivery posts a summary after every check. Choose one delivery method and store its credential in Secrets Manager in account `194680606079`, region `us-west-2`:
+
+| Deployment variable | SecretString format | Slack setup |
+| --- | --- | --- |
+| `SLACK_BOT_SECRET_ARN` | JSON object with `bot_token` and `channel_id` | Install a bot with `chat:write` and add it to the selected channel. |
+| `SLACK_WEBHOOK_SECRET_ARN` | Plaintext incoming webhook URL | Authorize the webhook for the selected channel. |
+
+Set exactly one of these variables to its secret ARN when running `python3 infra/raw_lifecycle/deploy_health_monitor.py`. An explicit selection replaces the previous delivery variable and its IAM secret access. Omitting both variables preserves the deployed selection; unrelated Lambda environment variables are also preserved. The deployment rejects two selected methods. Keep bot tokens and webhook URLs in Secrets Manager, not shell arguments or source control.
+
+Bot delivery requires Slack to acknowledge `ok: true`, the configured channel ID and a message timestamp. A successful private report records `slack.delivered: true`, `method: bot`, `channel_id` and `message_ts`; webhook delivery requires HTTP 200 with an `ok` body and records `method: webhook`. Notification failures become critical findings, with only the exception class in check errors. AWS reports and alarms alone do not establish Slack delivery.
+
+The September 19 setup uses the **6thSense DataOps Monitor** app in the 6thSense workspace, with credentials at `sixthsense/raw-pipeline/dataops-bot` and destination `#dataops`. Setup used `channels:join` to join this public channel; the bot has no history-reading scope. Live delivery was verified on September 19, 2026 at 13:21 UTC: Slack acknowledged the selected channel and message timestamp, the report had no check errors, and the 30-minute EventBridge rule was enabled. The pipeline still reported queue backlog and source/QA holds; successful notification does not mean those issues are resolved.
 
 ## Limits
 

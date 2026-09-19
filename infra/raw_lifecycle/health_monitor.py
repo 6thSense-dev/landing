@@ -2,6 +2,7 @@
 import concurrent.futures
 import json
 import os
+import re
 import time
 import urllib.request
 from datetime import datetime, timezone
@@ -13,6 +14,41 @@ PREFIX = 'raw-lifecycle/v1/health/'
 BUCKET = '6thsense-processed'
 ARTIFACTS = '6thsense-deploy-artifacts'
 ACTIVE = ('SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING')
+
+
+def send_slack(text, credential, *, bot=False):
+    """Acknowledge delivery without putting credentials or response bodies in reports."""
+    headers = {'Content-Type': 'application/json; charset=utf-8'}
+    payload = {'text': text}
+    if bot:
+        config = json.loads(credential)
+        if not isinstance(config, dict):
+            raise ValueError('Expected a Slack bot secret object')
+        token, channel = config.get('bot_token'), config.get('channel_id')
+        if (not isinstance(token, str) or not token.startswith('xoxb-')
+                or not isinstance(channel, str) or not re.fullmatch(r'[CG][A-Z0-9]+', channel)):
+            raise ValueError('Expected a bot token and channel ID')
+        url = 'https://slack.com/api/chat.postMessage'
+        headers['Authorization'] = 'Bearer ' + token
+        payload.update(channel=channel, unfurl_links=False, unfurl_media=False)
+    else:
+        if not credential.startswith('https://hooks.slack.com/services/'):
+            raise ValueError('Expected a Slack incoming webhook')
+        url = credential
+    request = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
+    with urllib.request.urlopen(request, timeout=15) as response:
+        if response.status != 200:
+            raise ValueError('Slack did not acknowledge the report')
+        body = response.read(65536)
+    if bot:
+        result = json.loads(body)
+        if (not isinstance(result, dict) or result.get('ok') is not True
+                or result.get('channel') != channel or not result.get('ts')):
+            raise ValueError('Slack did not acknowledge delivery to the configured channel')
+        return {'delivered': True, 'method': 'bot', 'channel_id': channel, 'message_ts': result['ts']}
+    if body.strip() != b'ok':
+        raise ValueError('Slack did not acknowledge the report')
+    return {'delivered': True, 'method': 'webhook'}
 
 
 def age_seconds(timestamp, now):
@@ -197,12 +233,14 @@ def handler(event, context):
     report['findings'] = evaluate(report)
     report['status'] = ('critical' if any(f['severity'] == 'critical' for f in report['findings'])
                         else 'attention' if report['findings'] else 'healthy')
-    slack_secret = os.getenv('SLACK_WEBHOOK_SECRET_ARN')
+    bot_secret = os.getenv('SLACK_BOT_SECRET_ARN')
+    webhook_secret = os.getenv('SLACK_WEBHOOK_SECRET_ARN')
+    slack_secret = bot_secret or webhook_secret
     if slack_secret:
         def notify_slack():
-            webhook = boto3.client('secretsmanager', config=opts).get_secret_value(SecretId=slack_secret)['SecretString']
-            if not webhook.startswith('https://hooks.slack.com/services/'):
-                raise ValueError('Expected a Slack incoming webhook')
+            if bot_secret and webhook_secret:
+                raise ValueError('Configure only one Slack delivery method')
+            credential = boto3.client('secretsmanager', config=opts).get_secret_value(SecretId=slack_secret)['SecretString']
             lines = [f"*Raw pipeline check: {report['status']}* — {stamp}"]
             for queue in report['queues']:
                 counts = queue['counts']
@@ -213,11 +251,7 @@ def handler(event, context):
             lines.extend(f"• {f['detail']}" for f in report['findings'][:12])
             if not report['findings']:
                 lines.append('No bottleneck detected by these checks.')
-            request = urllib.request.Request(webhook, data=json.dumps({'text': '\n'.join(lines)}).encode(), headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(request, timeout=15) as response:
-                if response.status != 200 or response.read(128).strip() != b'ok':
-                    raise ValueError('Slack did not acknowledge the report')
-            return {'delivered': True}
+            return send_slack('\n'.join(lines), credential, bot=bool(bot_secret))
 
         report['slack'] = attempt('slack_delivery', notify_slack) or {'delivered': False}
         if not report['slack']['delivered']:

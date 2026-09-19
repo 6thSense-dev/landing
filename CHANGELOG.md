@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.8.0] - 2026-09-19
+
+### Changed
+
+- Deliver the 30-minute Raw pipeline reports through a Slack bot as well as an incoming webhook, and verify acknowledgement from the configured channel.
+- Preserve the selected Slack destination on monitor redeployment and report delivery failures without exposing credentials.
+
 ## [0.5.7.0] - 2026-09-19
 
 ### Fixed
