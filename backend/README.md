@@ -43,6 +43,8 @@ Run the contributor-deletion regressions and real migration checks in separate i
 
 In `/portal/ops`, **Scan bucket** refreshes the `raw_inventory_v1` snapshot of media keys, sizes, ETags, and delivery prefixes. Raw uses that snapshot to show pending footage separately from the permanent episode and payment ledger. After an upload, cleanup, or clean import, scan again to refresh the queue.
 
+When automatic scanning is enabled, each cycle refreshes Raw and commits its success timestamp before generic Clean imports. A subsequent Clean import failure does not undo that Raw refresh. Lifecycle runs are excluded from generic artifact discovery before expensive output checks; their dedicated pipeline importer retains full verification. See [Clean import paths](../docs/OPS-CLEAN.md#imports-playback-and-review) and the [scheduled pipeline health monitor](../infra/raw_lifecycle/README.md#scheduled-health-monitor) for freshness checks and reports.
+
 `raw_source_receipts_v1` records verified source fingerprints. A receipt only marks an object processed when it matches a source bucket, key, version, SHA-256, and size in an imported clean manifest; the current raw object must also match the receipt's key, ETag, and size. Scanning can create original-source receipts by reading the exact manifest-pinned S3 version and checking its size and ETag. Missing or inaccessible source versions leave unverified files pending.
 
 Copies in another delivery folder require operator-audited receipts backed by independently verified source/copy hashes. Cameras do not supply these receipts. A shared recording name, upload date, or file size alone does not prove processing, so additional segments and unverified copies remain visible.

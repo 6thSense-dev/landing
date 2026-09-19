@@ -159,7 +159,11 @@ def _committed_result(s3, key):
     return doc, ref['key'], version, digest
 
 
+PIPELINE_RUN_PREFIXES = ('raw-clean-auto-', 'raw-clean-20260915-')
+
+
 def committed_results():
+    """Verify generic imports; lifecycle runs use the dedicated pipeline bridge."""
     from botocore.exceptions import ClientError
     s3 = _client(get_settings())
     results = VerifiedResults()
@@ -167,6 +171,13 @@ def committed_results():
         for obj in page.get('Contents', []):
             key = obj['Key']
             if not key.endswith('/_SUCCESS.json'):
+                continue
+            # The import route already excludes these runs. Checking every
+            # frame archive before discarding them can postpone Raw scans for
+            # hours as the pipeline grows. Their dedicated import API retains
+            # full output, source and payment-evidence verification.
+            run_id = key.removeprefix('qc-results/').split('/', 1)[0]
+            if run_id.startswith(PIPELINE_RUN_PREFIXES):
                 continue
             try:
                 results.append(_committed_result(s3, key))

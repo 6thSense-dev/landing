@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.7.0] - 2026-09-19
+
+### Fixed
+
+- Refresh Raw before generic Clean imports and skip redundant lifecycle artifact checks that delayed inventory updates as the backlog grew.
+
+### Added
+
+- Check Raw pipeline progress, queue capacity, failures and dashboard freshness every 30 minutes, with private AWS reports and CloudWatch alarms.
+
 ## [0.5.6.0] - 2026-09-19
 
 ### Changed

@@ -27,6 +27,47 @@ def test_estimate_is_hourly_and_rounds_once():
     validate_manifest(manifest())
 
 
+def test_generic_discovery_skips_pipeline_artifacts_before_verification(monkeypatch):
+    from app.core import ops_clean
+
+    class S3:
+        def get_paginator(self, operation):
+            assert operation == 'list_objects_v2'
+            return self
+
+        def paginate(self, **kwargs):
+            assert kwargs['Prefix'] == 'qc-results/'
+            yield {'Contents': [
+                {'Key': 'qc-results/raw-clean-auto-episode/_SUCCESS.json'},
+                {'Key': 'qc-results/raw-clean-20260915-episode/_SUCCESS.json'},
+                {'Key': 'qc-results/factory-test/scene-qa.json'},
+            ]}
+            yield {'Contents': [
+                {'Key': 'qc-results/factory-test/_SUCCESS.json'},
+                {'Key': 'qc-results/factory-broken/_SUCCESS.json'},
+            ]}
+
+    verified = []
+    result = (manifest(), 'qc-results/factory-test/result.json', 'v1', 'a' * 64)
+
+    def verify(s3, key):
+        # These can represent thousands of expensive object checks per run.
+        assert not key.startswith(('qc-results/raw-clean-auto-', 'qc-results/raw-clean-20260915-'))
+        verified.append(key)
+        if key == 'qc-results/factory-broken/_SUCCESS.json':
+            raise ValueError('Output differs from committed evidence')
+        return result
+
+    monkeypatch.setattr(ops_clean, '_client', lambda _: S3())
+    monkeypatch.setattr(ops_clean, '_committed_result', verify)
+    results = ops_clean.committed_results()
+
+    assert results == [result]
+    assert verified == ['qc-results/factory-test/_SUCCESS.json', 'qc-results/factory-broken/_SUCCESS.json']
+    assert results.errors == [{'marker': 'qc-results/factory-broken/_SUCCESS.json',
+                               'error': 'ValueError', 'retryable': False}]
+
+
 @pytest.mark.parametrize('fault',['gap','overlap','nan','totals','duplicate','unversioned','outside','missing'])
 def test_bad_evidence_is_rejected(fault):
     doc=manifest(); rec=doc['recordings'][0]
