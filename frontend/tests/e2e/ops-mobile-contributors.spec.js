@@ -6,11 +6,11 @@ const subject = '11111111-1111-1111-1111-111111111111';
 const claimId = '22222222-2222-2222-2222-222222222222';
 const attemptId = '33333333-3333-3333-3333-333333333333';
 
-async function openRequests(page, { unknown = false, failLoad = false, cameraError = false } = {}) {
+async function openRequests(page, { unknown = false, sheetSaved = false, failLoad = false, cameraError = false } = {}) {
   const requests = [];
   const claims = [{ id: claimId, subject, device_id: 'ABC123', status: 'pending', ended_at: null }];
-  const attempt = { id: attemptId, subject, status: unknown ? 'needs_reconciliation' : 'needs_review',
-    recipient_id: unknown ? null : '456', summary: { accountHolderName: '한규태', bankLabel: 'Test Bank',
+  const attempt = { id: attemptId, subject, status: sheetSaved ? 'sheet_saved' : unknown ? 'needs_reconciliation' : 'needs_review',
+    recipient_id: (unknown || sheetSaved) ? null : '456', summary: { accountHolderName: '한규태', bankLabel: 'Test Bank',
       maskedAccount: '•••• 7890', country: 'KR', currency: 'KRW' } };
   const state = { failLoad, cameraError };
   let linked = null;
@@ -135,4 +135,14 @@ test('failed request loading leaves the existing Users screen usable and can be 
   await expect(panel.getByRole('alert')).toHaveCount(0);
   await expect(panel.getByRole('article', { name: 'Camera EGO-ABC123' })).toBeVisible();
   expect(requests.every(request => request.method === 'GET')).toBe(true);
+});
+
+test('spreadsheet receipts link to the private register without Wise reconciliation controls', async ({page}) => {
+  const {panel,requests}=await openRequests(page,{sheetSaved:true});
+  const bank=panel.getByRole('article',{name:'Bank review for 한규태'});
+  await expect(bank).toContainText('Bank details saved in the contributor spreadsheet.');
+  await expect(bank.getByRole('link')).toHaveAttribute('href',/docs.google.com\/spreadsheets\/d\/1ZJZ_H4/);
+  await expect(bank.getByRole('button')).toHaveCount(0);
+  await expect(bank.getByLabel('Verified outcome')).toHaveCount(0);
+  expect(requests.filter(r=>r.method==='POST')).toHaveLength(0);
 });

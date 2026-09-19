@@ -94,7 +94,7 @@ export const legalPages = [
         h2: "Optional contributor accounts and cloud data",
         body: [
           "Where contributor enrollment is enabled, account authentication uses Amazon Cognito, including your phone number, verification status, and regional routing information. The contributor service stores your name, agreement receipts, operator-confirmed camera assignments, footage and review metadata, and payment records. Sign-in credentials and a deletion-status receipt may be kept in secure storage on this phone.",
-          "Bank details you submit are sent over HTTPS through the contributor service to Wise for recipient setup. Depending on the payment route, these details include the account-holder name, bank and account identifiers, and required contact, address or date-of-birth information. The app shows a masked account summary. Recipient creation does not authorize a payment; an operator separately verifies assignments, footage, and payments. In the supervised pilot, an operator imports recordings from the camera storage card; creating an account does not upload footage from your phone.",
+          "Korean contributors register bank details on the website after accepting the payment notice. The account-holder name, bank name and full account number are sent over HTTPS through the 6thSense backend hosted by Railway and stored in a private Google spreadsheet accessible to authorized staff. The website database keeps a masked receipt. Registration does not create a Wise recipient or send a payment; staff separately review payment instructions, footage and payments. Any additional payment-provider registration is explained separately. In the supervised pilot, an operator imports recordings from the camera storage card; creating an account does not upload footage from your phone.",
           "Regional notices and agreements explain the collection, sharing, international transfers, and retention that apply to participation. Enrollment stays unavailable where the required final documents have not been published. This public policy does not replace those agreements.",
         ],
       },
@@ -102,7 +102,7 @@ export const legalPages = [
         h2: "Deleting a contributor account",
         body: [
           "Use Delete account in the contributor account area, including before enrollment or agreement acceptance. The service records the request and stops new contributor activity and approvals. Deletion may require operator work; a request or deactivation is not confirmation that data has been erased. The app displays request status and any configured completion estimate, and keeps a private status receipt so you can check completion after the login has been removed.",
-          "Completion requires removal of the Cognito login, scrubbing of the contributor profile and bank summary, and an operator record of footage and processor cleanup. Any legal or payment records that must be retained require a recorded scope, reason, and review date. The applicable regional documents describe retention; this policy does not promise a fixed deletion period. Deleting the cloud account does not erase independent copies on your camera or previously shared destinations.",
+          "Completion requires removal of the Cognito login, scrubbing of the contributor profile and bank summary, confirmed removal of the bank spreadsheet row, and an operator record of footage and processor cleanup. Any legal or payment records that must be retained require a recorded scope, reason, and review date. The applicable regional documents describe retention; this policy does not promise a fixed deletion period. Deleting the cloud account does not erase independent copies on your camera or previously shared destinations.",
         ],
       },
       {
@@ -157,7 +157,7 @@ export const legalPages = [
           "Tactile-glove data — contact and pressure signals from the sensing glove and skin (for example, contact onset and pressure over time across the sensor channels).",
           "IMU / motion data — accelerometer and gyroscope readings and derived motion cues from the rig and wearables.",
           "Session and device metadata — timestamps, device identifiers, hardware and firmware versions, capture settings, calibration values, and quality-check metrics used to align and validate the recording.",
-          "Contributor account information — your name, phone-based authentication and verification information, regional routing, agreement receipts, supervised camera assignments, and footage and payment records. Bank recipient setup uses Wise; the service keeps a masked bank summary and recipient identifiers.",
+          "Contributor account information — your name, phone-based authentication and verification information, regional routing, agreement receipts, supervised camera assignments, and footage and payment records. Korean bank registration collects the account-holder name, bank name and full account number for storage in a private Google spreadsheet; the website database keeps a masked receipt. Existing payout recipient identifiers may also be retained for operator-approved payments.",
           "Basic technical logs — app version, error and diagnostic logs, and upload status used to keep capture and upload working.",
         ],
       },
@@ -194,7 +194,8 @@ export const legalPages = [
         ],
         items: [
           "Amazon Web Services (AWS) — Cognito account authentication, cloud hosting, and storage for submitted recordings and supporting services.",
-          "Wise — bank recipient setup and operator-approved payments for participating contributors.",
+          "Google and Railway — private spreadsheet storage and backend processing for bank details submitted with the payment notice. Full account numbers are accessible to authorized spreadsheet users.",
+          "Wise — existing recipient records and operator-approved transfers where this payment method applies. Website bank registration does not automatically send details to Wise.",
           "Partners and customers — the specific partner or customer that a dataset is captured for, under agreement.",
           "Service providers — vetted vendors who help us operate the pipeline (for example, infrastructure and error monitoring), limited to what they need.",
           "Legal and safety — authorities when required by law, or to protect rights, safety, and security.",
