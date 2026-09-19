@@ -247,8 +247,9 @@ async def test_old_or_incomplete_bundles_fail_closed_everywhere(app, db_session,
         assert (await client.get("/api/contributor/dashboard")).json()["consent_current"] is False
         assert (await client.post("/api/contributor/consent", json=consent_body(old))).status_code == 409
         assert (await client.post("/api/contributor/cameras", json={"device_id": "ABC123"})).status_code == 409
-        assert (await client.post("/api/contributor/bank/requirements", json={})).status_code == 409
-        assert (await client.post("/api/contributor/bank", json={})).status_code == 409
+        # This legacy Wise route was retired by the spreadsheet onboarding release.
+        assert (await client.post("/api/contributor/bank/requirements", json={})).status_code == 410
+        assert (await client.post("/api/contributor/bank", json={})).status_code == 410
         onboarding = (await client.get("/api/ops/state", cookies={"sid": sid})).json()["onboarding"]
     assert onboarding["terms_status"] == "terms_not_configured"
     assert set(onboarding["required_agreements"]) == AGREEMENTS
