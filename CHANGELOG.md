@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.6.0] - 2026-09-19
+
+### Changed
+
+- Simplify payment registration to two consent choices, with a short notice and expandable provider and overseas-processing details published in both privacy policies.
+- Keep complete disclosures visible in older open pages and record only the consent choices actually requested.
+
 ## [0.5.5.0] - 2026-09-19
 
 ### Changed

@@ -18,7 +18,7 @@ def body(**overrides):
     notice = public_notice()
     return {"values": {"accountHolderName": "테스트", "bankName": "신한은행", "accountNumber": "001-234-567890"},
         "operation_id": str(uuid4()), "locale": "ko", "notice_version": notice["version"], "notice_sha256": notice["sha256"],
-        "collects_details": True, "shares_details": True, "international_transfer": True, "owns_account": True, **overrides}
+        "collects_details": True, "international_transfer": True, **overrides}
 
 
 @pytest.fixture(autouse=True)
@@ -66,7 +66,7 @@ async def test_web_requires_each_consent_and_current_notice(app, db_session, pro
     await setup(db_session); await accept(db_session); identity(app)
     async with _client(app) as client:
         for endpoint in ('/web/requirements', '/web'):
-            for key in ('collects_details','shares_details','international_transfer','owns_account'):
+            for key in ('collects_details','international_transfer'):
                 assert (await client.post('/api/contributor/bank'+endpoint,json=body(**{key:False}))).status_code == 422
             assert (await client.post('/api/contributor/bank'+endpoint,json=body(notice_version='old'))).status_code == 409
         response = await client.post('/api/contributor/bank/web/requirements',json=body())
@@ -87,6 +87,7 @@ async def test_save_only_after_sheet_receipt_masks_database_and_deduplicates(app
         assert attempt.recipient_id is None
         assert '001234567890' not in attempt.summary and '001-234' not in attempt.summary
         assert json.loads(attempt.summary)['payment_consent']['notice'] == public_notice()
+        assert json.loads(attempt.summary)['payment_consent']['choices'] == {'collects_details': True, 'international_transfer': True}
         assert (await client.get('/api/contributor/bank/setup')).json()['bank']['maskedAccount'] == '•••• 7890'
 
 
