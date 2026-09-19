@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
+from sqlalchemy import select, text, func
 from app.core.db import get_session
 from app.core.ops_clean import _committed_result, clean_bucket
 from app.core.ops_artifacts import validate_artifacts
@@ -25,6 +25,22 @@ def authorize(authorization: str = Header(default='')):
     token = os.getenv('OPS_PIPELINE_TOKEN', '')
     if not token or not secrets.compare_digest(authorization, 'Bearer ' + token):
         raise HTTPException(403, 'Pipeline authentication required.')
+
+
+@router.get('/health', dependencies=[Depends(authorize)])
+async def health(db=Depends(get_session)):
+    """Small read-only summary for the scheduled pipeline health monitor."""
+    from app.api.routes.ops import SCAN_KEY, _setting
+    counts = (await db.execute(
+        select(ProcessingJob.state, func.count())
+        .join(Episode, Episode.recording == ProcessingJob.recording)
+        .where(Episode.deleted_at.is_(None))
+        .group_by(ProcessingJob.state)
+    )).all()
+    return {'checked_at': datetime.now(timezone.utc).isoformat(),
+            'last_raw_scan': await _setting(db, SCAN_KEY),
+            'processing_counts': dict(counts),
+            'automatic_scan': os.getenv('OPS_AUTOMATION_ENABLED') == 'true'}
 
 
 @router.get('/inventory', dependencies=[Depends(authorize)])

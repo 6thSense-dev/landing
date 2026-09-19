@@ -314,6 +314,34 @@ async def test_pipeline_status_cannot_assert_clean(app, db_session, monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_health_summary_requires_token_and_excludes_deleted_episodes(app, db_session, monkeypatch):
+    from app.models import ProcessingJob, OpsSetting
+    monkeypatch.setenv('OPS_PIPELINE_TOKEN', TOKEN)
+    monkeypatch.setenv('OPS_AUTOMATION_ENABLED', 'true')
+    await _episode(db_session, RECORDING)
+    removed = RECORDING + '_s11'
+    ep = await _episode(db_session, removed)
+    ep.deleted_at = datetime.now(timezone.utc)
+    ep.delete_kind = 'soft'
+    db_session.add_all([
+        ProcessingJob(recording=RECORDING, fingerprint='a' * 64, input_json='{}', state='blocked', reason='private diagnostic'),
+        ProcessingJob(recording=removed, fingerprint='b' * 64, input_json='{}', state='blocked', reason='removed'),
+        OpsSetting(key='last_scan', value='2026-09-19T10:51:34+00:00'),
+    ])
+    await db_session.commit()
+    async with _client(app) as client:
+        assert (await client.get('/api/ops/pipeline/health')).status_code == 403
+        assert (await client.get('/api/ops/pipeline/health', headers={'Authorization': 'Bearer wrong'})).status_code == 403
+        response = await client.get('/api/ops/pipeline/health', headers={'Authorization': f'Bearer {TOKEN}'})
+    assert response.status_code == 200
+    result = response.json()
+    assert result['processing_counts'] == {'blocked': 1}
+    assert result['last_raw_scan'] == '2026-09-19T10:51:34+00:00'
+    assert result['automatic_scan'] is True
+    assert 'private diagnostic' not in response.text and RECORDING not in response.text
+
+
+@pytest.mark.asyncio
 async def test_deleted_source_cannot_be_imported_or_have_status_restored(
     app, db_session, monkeypatch
 ):
